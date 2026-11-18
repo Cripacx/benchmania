@@ -1,0 +1,12 @@
+# Runs that maintainers measured themselves. They are labelled "reference" on the website; every other run
+# is labelled "community". Approval is per run id: a machine id is a hash of hardware facts that every
+# machine of the same model shares, so it cannot prove who measured.
+#
+# Changing this file needs a maintainer review (see .github/CODEOWNERS).
+
+[machines.d827760100bb]
+label = "Intel Xeon W-2133 · 6 cores / 12 threads · bare metal"
+operator = "maintainers"
+runs = [
+  "20261117T2323Z-d82776-legacy",
+]
