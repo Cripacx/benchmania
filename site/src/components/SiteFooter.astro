@@ -2,7 +2,7 @@
 import Logo from './Logo.astro';
 import { getIndex, listDomains } from '../lib/dataset';
 import { formatDateTime } from '../lib/format';
-import { licenseUrl, repoUrl } from '../lib/model';
+import { licenseUrl, repoPage, repoUrl } from '../lib/model';
 import { href, routes } from '../lib/paths';
 
 const index = getIndex();
@@ -57,7 +57,8 @@ const dataLicense = project.data_license;
           <li><a href={repoUrl(project, 'docs/methodology.md', 'blob')}>Methodology document</a></li>
           <li><a href={repoUrl(project, 'CONTRIBUTING.md', 'blob')}>Contributing guide</a></li>
           <li><a href={repoUrl(project, 'results', 'tree')}>Raw result bundles</a></li>
-          <li><a href={`${project.repository.replace(/\/+$/, '')}/issues`}>Issues</a></li>
+          <li><a href={repoPage(project, 'discussions')}>Discussions</a></li>
+          <li><a href={repoPage(project, 'issues')}>Issues</a></li>
         </ul>
       </nav>
     </div>

@@ -25,6 +25,9 @@ describe('base path handling', () => {
     expect(routes.run('backend', '20261117T2323Z-d82776-legacy')).toBe('/backend/runs/20261117T2323Z-d82776-legacy/');
     expect(routes.compare('backend')).toBe('/backend/compare/');
     expect(routes.dataFile('backend.json')).toBe('/data/backend.json');
+    expect(routes.contribute()).toBe('/contribute/');
+    expect(routes.contribute('submit')).toBe('/contribute/#submit');
+    expect(joinBase('/repo/', routes.contribute('submit'))).toBe('/repo/contribute/#submit');
   });
 
   it('builds absolute URLs only when an origin is known', () => {

@@ -3,8 +3,8 @@
 [project]
 name = "Machbench"
 slug = "machbench"
-tagline = "Open, reproducible performance benchmarks"
-description = "Machbench measures how software performs under realistic, controlled conditions and publishes every number with the hardware, versions and raw data behind it."
+tagline = "Community-driven, reproducible performance benchmarks"
+description = "Machbench measures how software performs under realistic, controlled conditions. Anyone can contribute implementations, benchmark domains and measurements from their own hardware; every number is published with the hardware, versions and raw data behind it."
 repository = "https://github.com/machbench/machbench"
 site_url = "https://machbench.github.io"
 license = "MIT"

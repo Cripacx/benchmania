@@ -1,19 +1,50 @@
 # Contributing
 
-Thanks for helping. Benchmarks are only as good as their fairness, so contributions that find problems are
-as valuable as new implementations.
+Thanks for helping. Machbench is run by its contributors: implementations, benchmark domains and the
+published measurements all arrive as pull requests, and anyone can open one. Changes to the engine, the
+harnesses and the list of reference runs are reviewed by the maintainers (see `.github/CODEOWNERS`), and
+methodology problems are discussed in public issues. Benchmarks are only as good as their fairness, so
+contributions that find problems are as valuable as new implementations.
 
 ## Ways to contribute
 
 | You want to … | Read |
 |---|---|
+| measure on your own hardware | [Submitting results](#submitting-results) below, then [the guide](docs/guides/submitting-results.md) |
 | add a language, framework or variant | [Adding an implementation](docs/guides/adding-an-implementation.md) |
 | add a workload | [Adding a scenario](docs/guides/adding-a-scenario.md) |
 | open a new area (databases, compute, frontend, …) | [Adding a domain](docs/guides/adding-a-domain.md) |
-| measure on your own hardware | [Submitting results](docs/guides/submitting-results.md) |
 | improve an existing implementation | open a PR touching only its directory; ping the maintainers listed in its `impl.toml` |
 | report unfairness or a measurement error | open a *methodology* issue with evidence |
 | improve the engine or the website | open an issue first for larger changes |
+| share an idea or ask a question | start a thread in [Discussions](../../discussions); issues are for bugs and proposals |
+
+## Submitting results
+
+Results from more machines make every comparison more useful. On Linux
+with rootful Docker and cgroup v2 (at least 4 physical cores), from a clean checkout:
+
+```sh
+./machbench doctor
+./machbench check backend
+./machbench run backend --label "My workstation"   # several hours
+./machbench validate
+```
+
+A results pull request adds only the bundle file (`results/<domain>/<machine-id>/<run-id>.json`): no changes
+to code, manifests, `results/reference-runs.toml` or the generated website data. Quick runs (`--quick`) are
+never published.
+
+- **Review.** CI re-verifies that the stored summary matches the per-pass data and that every scenario and
+  metric is known. Maintainers look for implausible values compared with similar hardware, many quality flags
+  and options that differ from a full run.
+- **Labels.** Merged runs are labelled **community**. A run is labelled **reference** only when a maintainer
+  measured it and listed its run id in `results/reference-runs.toml`.
+- **Privacy and license.** Bundles contain no hostnames, user names or IP addresses; the machine id is a hash
+  of hardware facts. Submitted data is licensed under CC BY 4.0.
+
+[Submitting results](docs/guides/submitting-results.md) covers preparing the machine, long runs and checking
+your run on the local website.
 
 ## Rules for implementations
 
@@ -41,12 +72,6 @@ as valuable as new implementations.
 3. Open a pull request. CI runs unit tests, validates manifests and result bundles, builds the website and
    runs an end-to-end smoke test of changed implementations.
 4. Published numbers come from dedicated hardware runs, never from CI machines.
-
-## Submitting results
-
-A results pull request adds only the bundle file (`results/<domain>/<machine-id>/<run-id>.json`): no changes
-to code, manifests, `results/reference-runs.toml` or the generated website data. See
-[Submitting results](docs/guides/submitting-results.md) for how to run and check it.
 
 ## Development setup
 

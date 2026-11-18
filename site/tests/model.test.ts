@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   bundleUrl,
   byVisibility,
+  communityRunsNote,
+  communityStatus,
   compareBest,
   defaultRun,
   derivedExplanation,
@@ -20,6 +22,7 @@ import {
   provenanceInfo,
   rankMap,
   relativeDiff,
+  repoPage,
   runImplementationIds,
   runLevelFlags,
   scenarioParams,
@@ -234,6 +237,38 @@ describe('identity, machines and links', () => {
     expect(provenanceInfo(undefined).id).toBe('unknown');
   });
 
+  it('counts runs by provenance and invites the first community run when there is none', () => {
+    const impls = [{ id: 'a' }, { id: 'b' }] as DomainData['implementations'];
+    const reference = [
+      { machine: 'm1', provenance: 'reference' },
+      { machine: 'm1', provenance: 'reference' },
+    ] as Run[];
+    const none = communityStatus([{ implementations: impls, runs: reference }]);
+    expect(none).toEqual({
+      runs: 2,
+      reference: 2,
+      community: 0,
+      unlabelled: 0,
+      machines: 1,
+      communityMachines: 0,
+      implementations: 2,
+      domains: 1,
+    });
+    expect(communityRunsNote(none)).toBe('No community runs yet. Add the first.');
+
+    const mixed = communityStatus([
+      { implementations: impls, runs: [...reference, { machine: 'm2', provenance: 'community' } as Run] },
+      {
+        implementations: impls.slice(0, 1),
+        runs: [{ machine: 'm3', provenance: 'community' }, { machine: 'm3', provenance: null }] as Run[],
+      },
+    ]);
+    expect(mixed).toMatchObject({ runs: 5, reference: 2, community: 2, unlabelled: 1, machines: 3, communityMachines: 2, implementations: 3, domains: 2 });
+    expect(communityRunsNote(mixed)).toBe('2 community runs from 2 machines so far.');
+    expect(communityRunsNote({ community: 1, communityMachines: 1 })).toBe('1 community run from 1 machine so far.');
+    expect(communityStatus([])).toMatchObject({ runs: 0, machines: 0, domains: 0 });
+  });
+
   it('resolves source paths relative to the implementation directory', () => {
     const links = implementationLinks(project, 'backend', { id: 'dotnet10-aot', source: '../../sources/aspnet' });
     expect(links.directory).toBe('https://example.org/owner/repo/tree/main/domains/backend/implementations/dotnet10-aot');
@@ -247,6 +282,8 @@ describe('identity, machines and links', () => {
     );
     expect(licenseUrl('CC-BY-4.0')).toBe('https://spdx.org/licenses/CC-BY-4.0.html');
     expect(licenseUrl(undefined)).toBeNull();
+    expect(repoPage(project, 'discussions')).toBe('https://example.org/owner/repo/discussions');
+    expect(repoPage({ repository: 'https://example.org/owner/repo/' }, 'issues')).toBe('https://example.org/owner/repo/issues');
   });
 
   it('suggests comparisons of variants that share a source or runtime', () => {
