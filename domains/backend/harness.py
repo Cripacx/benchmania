@@ -26,6 +26,7 @@ from benchcore.units import seconds
 MIB = 2**20
 WORK_TOLERANCE = 0.03  # measured DB statements per request may deviate 3 % (window boundaries)
 RATE_REACHED = 0.97    # a fixed-rate scenario must reach this share of its target rate
+SATURATED = 0.9        # busy share of the load generator's or the database's CPUs that limits the result
 DB_ENV = {"POSTGRES_USER": "bench", "POSTGRES_PASSWORD": "bench", "POSTGRES_DB": "bench"}
 DB_ARGS = ["postgres", "-c", "shared_preload_libraries=pg_stat_statements", "-c", "pg_stat_statements.track=top",
            "-c", "max_connections=400", "-c", "shared_buffers=256MB", "-c", "synchronous_commit=off",
@@ -214,6 +215,7 @@ class BackendHarness(Harness):
             m["throttled_ms"] = cpu["throttled_usec"] / 1000
         if db:
             m["db_cpu_us_per_req"] = db["usage_usec"] / reqs
+            m["db_cpu_util"] = db["usage_usec"] / 1e6 / (w.elapsed * max(1, len(self.ctx.layout["environment"])))
         if lg:
             m["loadgen_cpu_util"] = lg["usage_usec"] / 1e6 / (w.elapsed * max(1, len(self.ctx.layout["loadgen"])))
         if w.peak_pss_kb:
@@ -242,8 +244,10 @@ class BackendHarness(Harness):
                     flags.append(f"expected {expected} {key.upper()} per request, measured {measured:.2f}")
         if m.get("errors"):
             flags.append(f"{m['errors']} errors ({m.get('error_rate', 0) * 100:.2f} % of requests)")
-        if m.get("loadgen_cpu_util", 0) > 0.9:
+        if m.get("loadgen_cpu_util", 0) > SATURATED:
             flags.append("load generator saturated: throughput is a lower bound")
+        if m.get("db_cpu_util", 0) > SATURATED:
+            flags.append("database saturated: throughput is limited by the database, not only by the service")
         if w.steal is not None and w.steal > self.max_steal:
             flags.append(f"hypervisor steal {w.steal:.1f} % (limit {self.max_steal} %)")
         return m, flags

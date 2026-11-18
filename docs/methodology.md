@@ -105,6 +105,7 @@ each other, so a broken implementation can neither earn a good index nor distort
 | Database statements per request deviate more than 3 % from the scenario specification | result flagged |
 | Errors during a measurement | result flagged with count and rate |
 | Load generator CPU above 90 % | throughput flagged as a lower bound |
+| Database CPU above 90 % of its cores | flagged: the database limits the throughput, not only the service |
 | Hypervisor steal above 2 % | measurement repeated up to 2 times, then flagged |
 | Fixed-rate scenario (`rate`, and every slice of `soak`) reaches less than 97 % of the target rate | flagged: latency then describes queueing, not the service |
 | More than 1 % failed requests in a workload scenario | no throughput or efficiency index for that implementation |
@@ -140,6 +141,13 @@ the worst cases.
 - Throughput and latency of the fixed-rate scenario come from a different load generator (oha) than the
   closed-loop scenarios (wrk). `bytes_per_resp` includes headers for wrk and only the body for oha.
 - The load generator shares the machine. Its CPU use is measured and flagged when it could limit throughput.
+- The database shares the machine, too. In `queries` (20 statements per request) and `updates` (10) most of
+  the work is done by PostgreSQL, and on a machine with few cores the fastest implementations saturate it:
+  their throughput then ends up close together and says more about the database than about the service.
+  CPU time per request still separates them. On the 6-core reference machine this is the case for the
+  fastest implementations in both scenarios. Runs made after the first reference run record the database's
+  CPU use (`db_cpu_util`) and flag it; in earlier bundles it can be computed as database CPU per request
+  times requests per second.
 - Implementations are written to be idiomatic, but configuration choices (pool sizes, worker counts, heap
   size) matter. They are documented in each `impl.toml`; better configurations are welcome as pull requests.
 - Drivers differ in details the rules allow: Go (pgxpool) and Spring (JdbcClient) check a connection out per

@@ -190,6 +190,15 @@ decimals = 1
 visibility = "secondary"
 description = "PostgreSQL CPU time per request. Shows how efficiently an implementation talks to the database."
 
+[db_cpu_util]
+label = "Database CPU"
+unit = "ratio"
+better = "neutral"
+group = "quality"
+decimals = 2
+visibility = "diagnostic"
+description = "Busy share of the database's CPUs. Above 0.9 the database limits the throughput, so fast implementations end up close together."
+
 # --- I/O and energy -----------------------------------------------------------------------------
 [io_write_kib]
 label = "Disk writes"
