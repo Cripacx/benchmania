@@ -29,10 +29,11 @@ def test_summarize_and_outliers():
     assert stats.summarize([5])["iqr"] == [5, 5]
 
 
-def test_no_confidence_interval_below_three_values():
-    assert stats.summarize([5])["ci95"] is None
-    assert stats.summarize([5, 7])["ci95"] is None
-    assert stats.summarize([5, 7, 6])["ci95"] == [5, 7]
+def test_no_confidence_interval_below_five_values():
+    # [min, max] of 3 or 4 values covers the median with 75 % or 87.5 %: not a 95 % interval
+    for values in ([5], [5, 7], [5, 7, 6], [5, 7, 6, 8]):
+        assert stats.summarize(values)["ci95"] is None, values
+    assert stats.summarize([5, 7, 6, 8, 9])["ci95"] == [5, 9]  # 93.75 % for five values
 
 
 def test_bootstrap_is_deterministic():

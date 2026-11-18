@@ -130,7 +130,8 @@ def _run_entry(domain, b, approved):
         "results": results,
         "derived": derived,
         "withheld": withheld,  # implementation -> derived metric -> why it has no value
-        "flags": b.get("quality", {}).get("flags", []),
+        # recomputed like the summary, so every published run follows the current rules for flags
+        "flags": bundle.quality_flags({**b, "summary": summary}),
     }
 
 

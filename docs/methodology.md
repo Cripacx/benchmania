@@ -88,9 +88,11 @@ each other, so a broken implementation can neither earn a good index nor distort
   always hit the same successor.
 - Each metric is summarized over passes by its **median**, the **interquartile range**, a **95 % percentile
   bootstrap interval of the median** (2,000 resamples, fixed seed for reproducible summaries) and the
-  coefficient of variation. With five passes the interval is close to the range between the lowest and
-  the highest pass, which is the honest answer for so few repetitions. Below three passes no interval is
-  reported at all.
+  coefficient of variation. With five passes the interval is exactly the range between the lowest and
+  the highest pass, which covers the true median with 93.75 % probability whatever the distribution; that
+  is the honest answer for so few repetitions. Below five passes no interval is reported at all, because
+  the same range would cover only 87.5 % (four passes) or 75 % (three), and calling that a 95 % interval
+  would overstate what is known. The lowest and highest pass are always part of the result.
 - A pass in which the measurement of an implementation fails is recorded with its error and flagged; the
   number of passes behind every value (`n`) is part of the result.
 - Outliers are **flagged, not removed**: a pass whose value has a robust z-score above 3.5 (median absolute

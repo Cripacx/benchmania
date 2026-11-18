@@ -10,6 +10,7 @@ import statistics
 
 MAD_SCALE = 1.4826  # makes MAD comparable to a standard deviation for normal data
 OUTLIER_Z = 3.5
+MIN_CI_VALUES = 5
 
 
 def quantile(values, q):
@@ -35,10 +36,12 @@ def outliers(values):
 def bootstrap_ci(values, level=0.95, rounds=2000, seed=7):
     """Percentile bootstrap interval of the median; deterministic for reproducible summaries.
 
-    None below three values: one or two passes cannot support a 95 % interval. With three to five passes
-    the interval is close to [min, max], which is the honest answer for so few repetitions.
+    None below five values. With so few values the bootstrap interval is simply [min, max], and that range
+    covers the true median with probability 1 - 2 * 0.5 ** n: 75 % for three values and 87.5 % for four,
+    which must not be called a 95 % interval. With five values it is 93.75 %, the smallest sample for which
+    the label is fair; that is also the default number of passes.
     """
-    if len(values) < 3:
+    if len(values) < MIN_CI_VALUES:
         return None
     rng = random.Random(seed)
     meds = sorted(statistics.median(rng.choices(values, k=len(values))) for _ in range(rounds))

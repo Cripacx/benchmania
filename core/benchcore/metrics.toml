@@ -30,8 +30,8 @@ description = "Average current frequency of the CPUs used by the service during 
 [package_energy_j]
 label = "CPU package energy"
 unit = "J"
-better = "lower"
+better = "neutral"
 group = "energy"
 decimals = 1
 visibility = "diagnostic"
-description = "Energy of the whole CPU package (RAPL) during the measurement. Includes every process on the machine, so it is only comparable within one run."
+description = "Energy of the whole CPU package (RAPL) during the measurement window. Includes every process on the machine. It is a total for the window, not per request: an implementation that does less work in the window uses less, so it says nothing about efficiency on its own. Use energy per request for that."

@@ -86,7 +86,7 @@ def test_verify_detects_tampering(domains):
     first = next(iter(bad["summary"]))
     bad["summary"][first]["db"]["rps"]["median"] *= 1.5
     assert any("does not match" in p for p in bundle.verify(bad, d))
-    for stat, fake in (("ci95", [1000.0, 1000.0]), ("cv", 0.0), ("min", 999.0), ("outliers", [0])):
+    for stat, fake in (("ci95", [1000.0, 1000.0]), ("cv", 0.0), ("min", 999.0), ("outliers", [0])):  # ci95 is None here
         bad = copy.deepcopy(b)  # a narrowed interval or a hidden spread is tampering too
         bad["summary"][first]["db"]["rps"][stat] = fake
         assert any("does not match" in p for p in bundle.verify(bad, d)), stat
@@ -227,7 +227,8 @@ def test_publish_provenance_default_run_and_exclusions(proj, domains, tmp_path):
     assert data["default_run"] == "full-reference"
     assert data["machines"]["m"]["reference"] == {"label": "Lab machine"}
     value = runs["full-reference"]["results"][next(iter(runs["full-reference"]["results"]))]["db"]["rps"]
-    assert value["n"] == 3 and value["lo"] <= value["m"] <= value["hi"]
+    assert value["n"] == 3 and value["lo"] is None and value["hi"] is None  # three passes: no interval
+    assert value["min"] <= value["m"] <= value["max"]
 
 
 def test_publish_ignores_a_stored_summary(proj, domains, tmp_path):
@@ -237,6 +238,20 @@ def test_publish_ignores_a_stored_summary(proj, domains, tmp_path):
     entry = publish._run_entry(d, {**b, "summary": {}}, set())
     first = next(iter(entry["results"]))
     assert entry["results"][first]["db"]["rps"]["m"] == b["summary"][first]["db"]["rps"]["median"]
+
+
+def test_flags_about_one_metric_name_it(domains):
+    """The note about varying throughput belongs to the throughput value, not to memory or latency."""
+    d = domains["backend"]
+    b = synthetic(d)
+    first = next(iter(b["implementations"]))
+    b["passes"][0]["results"][first]["scenarios"]["db"]["rps"] *= 2  # one pass far off
+    b["passes"][1]["results"][first]["quality"] = {"db": {"flags": ["3 errors (0.10 % of requests)"]}}
+    flags = publish._run_entry(d, bundle.finish(b), set())["flags"]
+    note = [f for f in flags if f["level"] == "info"]
+    assert len(note) == 1 and note[0]["metric"] == "rps" and note[0]["scope"] == f"{first}/db"
+    warning = [f for f in flags if f["level"] == "warning"]
+    assert len(warning) == 1 and "metric" not in warning[0] and warning[0]["pass"] == 2
 
 
 def test_schema_file_matches_what_the_engine_writes(proj, domains):

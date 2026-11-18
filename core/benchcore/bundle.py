@@ -66,7 +66,11 @@ def summarize(passes):
 
 
 def quality_flags(bundle):
-    """Human-readable warnings derived from the passes (shown next to the results)."""
+    """Human-readable notes derived from the passes (shown next to the results).
+
+    A flag applies to everything measured in its scope (run, implementation or implementation/scenario)
+    unless it names a `metric`: then it is a statement about that metric only.
+    """
     flags = []
     for w in bundle.get("layout", {}).get("warnings", []):
         flags.append({"level": "warning", "scope": "run", "message": w})
@@ -82,7 +86,7 @@ def quality_flags(bundle):
         for sid, metrics in scen.items():
             s = metrics.get("rps")
             if s and s["n"] >= 3 and s["cv"] > 0.10:
-                flags.append({"level": "info", "scope": f"{iid}/{sid}",
+                flags.append({"level": "info", "scope": f"{iid}/{sid}", "metric": "rps",
                               "message": f"throughput varies {s['cv'] * 100:.0f} % between passes"})
     return flags
 
