@@ -6,7 +6,7 @@ slug = "benchmania"
 tagline = "Community-driven, reproducible performance benchmarks"
 description = "Benchmania measures how software performs under realistic, controlled conditions. Anyone can contribute implementations, benchmark domains and measurements from their own hardware; every number is published with the hardware, versions and raw data behind it."
 repository = "https://github.com/Cripacx/benchmania"
-site_url = "https://benchmania.cleson.tech"
+site_url = "https://benchmania.cleson.dev"
 license = "MIT"
 data_license = "CC-BY-4.0"
 
