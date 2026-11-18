@@ -26,6 +26,7 @@ import type { DerivedDefinition, Flag, HeadlineEntry, Metric, Scenario, Value } 
 import type { ImplLite, RunSlice } from '../../lib/view';
 import { BarChart } from './BarChart';
 import { Icon } from './Icon';
+import { LangChip } from './LangChip';
 
 interface Props {
   base: string;
@@ -226,6 +227,7 @@ export function Compare(props: Props) {
           return (
             <li key={e.id} class="cmp-pill">
               <span class="dot" style={{ background: SLOT_COLORS[e.slot] }} />
+              <LangChip language={i?.language} />
               <span>
                 {i?.name ?? e.id}
                 {i?.variant && <span class="muted"> · {i.variant}</span>}

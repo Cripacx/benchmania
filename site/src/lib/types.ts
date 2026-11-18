@@ -189,6 +189,11 @@ export interface Run {
   derived: Record<string, Record<string, number>>;
   /** implementation → derived metric → why the publisher withheld the value */
   withheld?: Record<string, Record<string, string>>;
+  /**
+   * derived metric → scenario → the reference of a `geomean_relative` index: the value that counts as 100 and the
+   * eligible implementations that measured exactly it (ties: several). Absent for scenarios left out of the index.
+   */
+  best?: Record<string, Record<string, { value: number; by: string[] }>>;
   flags: Flag[];
 }
 

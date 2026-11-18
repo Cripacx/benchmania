@@ -136,8 +136,22 @@ const items = [
     background: var(--surface-2);
   }
   .nav a[aria-current='page'] {
+    position: relative;
     color: var(--text);
     background: var(--surface-2);
+  }
+  .nav a[aria-current='page']::after {
+    content: '';
+    position: absolute;
+    left: 10px;
+    right: 10px;
+    bottom: -14px;
+    height: 2px;
+    border-radius: 2px;
+    background: var(--brand-grad);
+  }
+  .nav a:active {
+    transform: scale(0.97);
   }
   .actions {
     margin-left: auto;

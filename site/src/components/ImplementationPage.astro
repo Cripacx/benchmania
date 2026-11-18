@@ -6,6 +6,7 @@
 import BaseLayout from '../layouts/BaseLayout.astro';
 import Breadcrumbs from './Breadcrumbs.astro';
 import Icon from './Icon.astro';
+import { LangChip } from './islands/LangChip';
 import MetricRows from './MetricRows.astro';
 import RunContext from './RunContext.astro';
 import RunNotice from './RunNotice.astro';
@@ -148,7 +149,7 @@ const comparePeers = related[0]?.ids ?? [implId];
       </div>
       {impl.description && <p class="lead">{impl.description}</p>}
       <ul class="impl-tags" aria-label="Identity">
-        <li><span class="k">Language</span>{impl.language}</li>
+        <li><span class="k">Language</span><span class="impl-lang"><LangChip language={impl.language} /> {impl.language}</span></li>
         {impl.runtime && <li><span class="k">Runtime</span>{impl.runtime}</li>}
         {impl.framework && <li><span class="k">Framework</span>{impl.framework}</li>}
         <li title={categoryDescription(impl.category)}><span class="k">Category</span>{categoryLabel(impl.category)}</li>

@@ -5,8 +5,9 @@ import RunContext from '../components/RunContext.astro';
 import RunNotice from '../components/RunNotice.astro';
 import CpuLayout from '../components/CpuLayout.astro';
 import { LeaderboardIsland } from '../components/islands/Islands';
+import { LangChip } from '../components/islands/LangChip';
 import { allDomains, getProject } from '../lib/dataset';
-import { formatDate, formatNumber, plural } from '../lib/format';
+import { formatDate, formatNumber, formatValue, plural } from '../lib/format';
 import { methodologyInfo } from '../lib/methodology';
 import { leaderboardProps } from '../lib/islandProps';
 import {
@@ -24,6 +25,7 @@ import {
   repoPage,
   repoUrl,
   runImplementationIds,
+  scenarioWinners,
   valueFlagNote,
   valueFlags,
 } from '../lib/model';
@@ -113,6 +115,23 @@ const snapshot =
         return { rows, max, total: ids.length };
       })()
     : null;
+// Fastest per workload behind the first headline index (only when that headline is a derived relative index).
+const winnersSource =
+  featured && run && snapEntry && !snapEntry.scenario
+    ? (featured.derived ?? []).find((d) => d.id === snapEntry.metric && d.kind === 'geomean_relative')
+    : undefined;
+const winners =
+  featured && run && winnersSource
+    ? scenarioWinners(featured, run, winnersSource.id).map((w) => ({
+        ...w,
+        impls: w.winners.map((id) => implementation(featured, id, run)),
+        flags: flagNote(featured, w.winners.flatMap((id) => valueFlags(featured, run.flags, id, w.scenario.id, winnersSource.metric))),
+        href: href(`${routes.domain(featured.domain.id)}?scenario=${w.scenario.id}&metric=${winnersSource.metric}`),
+      }))
+    : [];
+const winnersMetric = featured && winnersSource ? metricOrFallback(featured.metrics, winnersSource.metric) : null;
+const headlineWords = project.tagline.split(' ');
+
 const service = (featured?.domain.service ?? {}) as Record<string, unknown>;
 const cpus = typeof service.cpus === 'number' ? service.cpus : null;
 const memory = typeof service.memory === 'string' ? service.memory.replace(/^(\d+)g$/i, '$1 GiB').replace(/^(\d+)m$/i, '$1 MiB') : null;
@@ -122,6 +141,7 @@ const machine = featured && run ? featured.machines[run.machine] : undefined;
 <BaseLayout>
   <section class="hero">
     <div class="hero-bg" aria-hidden="true"></div>
+    <div class="hero-lines" aria-hidden="true"></div>
     <div class="container hero-inner">
       <div class="hero-text">
       <p class="hero-eyebrow">
@@ -131,10 +151,10 @@ const machine = featured && run ? featured.machines[run.machine] : undefined;
         }
       </p>
       <h1>
-        {project.tagline.split(' ').map((word, i) => (
+        {headlineWords.map((word, i) => (
           <>
             {i > 0 && ' '}
-            <span class="word">{word}</span>
+            <span class={i === headlineWords.length - 1 && i > 0 ? 'word brand-text' : 'word'}>{word}</span>
           </>
         ))}
       </h1>
@@ -155,7 +175,7 @@ const machine = featured && run ? featured.machines[run.machine] : undefined;
       </div>
       {
         featured && run && snapshot && snapEntry && snapMetric && snapshot.rows.length > 0 && (
-          <a class="card hero-snap" href="#results" aria-label={`${snapEntry.label}: top ${snapshot.rows.length} of ${snapshot.total}. Jump to the full leaderboard.`}>
+          <a class="card hero-snap" href="#results" data-reveal data-grow aria-label={`${snapEntry.label}: top ${snapshot.rows.length} of ${snapshot.total}. Jump to the full leaderboard.`}>
             <div class="snap-head">
               <span class="snap-title">{featured.domain.title}</span>
               <span class="snap-sub">
@@ -164,10 +184,13 @@ const machine = featured && run ? featured.machines[run.machine] : undefined;
               {snapEntry.hint && <span class="snap-hint">{snapEntry.hint}</span>}
             </div>
             <ol class="snap-rows">
-              {snapshot.rows.map((r) => (
-                <li>
-                  <span class="snap-rank">{r.rank}</span>
+              {snapshot.rows.map((r, i) => (
+                <li style={`--i: ${i}`} class={r.rank === 1 ? 'is-first' : undefined}>
+                  <span class="snap-rank">
+                    {r.rank && r.rank <= 3 ? <span class={`medal medal-${r.rank}`}>{r.rank}</span> : r.rank}
+                  </span>
                   <span class="snap-name">
+                    <LangChip language={r.impl.language} />
                     {r.impl.name}
                     {r.impl.variant && <span class="muted"> · {r.impl.variant}</span>}
                     {r.flags && (
@@ -179,7 +202,7 @@ const machine = featured && run ? featured.machines[run.machine] : undefined;
                   </span>
                   <span class="snap-val">{formatNumber(r.value?.m, snapMetric.decimals ?? 0)}</span>
                   <span class="snap-bar" aria-hidden="true">
-                    <span style={`width: ${snapshot.max > 0 ? ((r.value?.m ?? 0) / snapshot.max) * 100 : 0}%`} />
+                    <span class="grow-bar" style={`width: ${snapshot.max > 0 ? ((r.value?.m ?? 0) / snapshot.max) * 100 : 0}%`} />
                   </span>
                 </li>
               ))}
@@ -218,7 +241,7 @@ const machine = featured && run ? featured.machines[run.machine] : undefined;
             <RunNotice domain={featured} run={run} compact />
           </div>
 
-          <ul class="highlights" aria-label="Best result per headline metric">
+          <ul class="highlights" aria-label="Best result per headline metric" data-reveal="stagger">
             {highlights.map((h) => (
               <li>
                 <a class="card card-link highlight" href={h.href}>
@@ -242,7 +265,7 @@ const machine = featured && run ? featured.machines[run.machine] : undefined;
                         {h.winners.map((w, i) => (
                           <>
                             {i > 0 && ' and '}
-                            {w.name}
+                            <LangChip language={w.language} /> {w.name}
                             {w.variant && <span class="muted"> · {w.variant}</span>}
                           </>
                         ))}
@@ -266,7 +289,58 @@ const machine = featured && run ? featured.machines[run.machine] : undefined;
             ))}
           </ul>
 
-          <LeaderboardIsland client:idle payload={encodeIslandProps(lb)} />
+          <div class="lb-stage" data-grow>
+            <LeaderboardIsland client:idle payload={encodeIslandProps(lb)} />
+          </div>
+
+          {
+            winners.length > 0 && winnersMetric && winnersSource && (
+              <section class="winners" aria-labelledby="winners-title">
+                <div class="winners-head">
+                  <h3 id="winners-title">
+                    <Icon name="zap" size={16} /> Fastest in each workload
+                  </h3>
+                  <p class="winners-note">
+                    {winnersMetric.label} · the best valid result in each of the {plural(winners.length, 'workload')} behind the{' '}
+                    {metricOrFallback(featured.metrics, winnersSource.id).label.toLowerCase()}
+                  </p>
+                </div>
+                <ul class="winners-list" data-reveal="stagger" aria-label={`Fastest implementation per workload, ${winnersMetric.label}`}>
+                  {winners.map((w) => (
+                    <li>
+                      <a class="winner" href={w.href}>
+                        {/* The chip sits beside the workload, so the name has the full width of a narrow card. */}
+                        <span class="winner-top">
+                          <span class="winner-scen">{w.scenario.title}</span>
+                          <span class="winner-chips">
+                            {w.impls.map((impl) => (
+                              <LangChip language={impl.language} />
+                            ))}
+                          </span>
+                        </span>
+                        <span class="winner-name">
+                          {w.impls.map((impl, i) => (
+                            <>
+                              {i > 0 && <span class="muted"> and </span>}
+                              {impl.name}
+                              {impl.variant && <span class="muted"> · {impl.variant}</span>}
+                            </>
+                          ))}
+                          {w.flags && (
+                            <span class={`snap-flag is-${w.flags.marker}`} title={w.flags.texts.join('\n')}>
+                              <Icon name={w.flags.marker} size={12} />
+                              <span class="visually-hidden">Flagged: {w.flags.texts.join('; ')}</span>
+                            </span>
+                          )}
+                        </span>
+                        <span class="winner-val">{formatValue(w.value.m, winnersMetric)}</span>
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )
+          }
 
           <div class="board-foot">
             <dl class="board-defs">
@@ -293,7 +367,7 @@ const machine = featured && run ? featured.machines[run.machine] : undefined;
 
   <section class="section" id="community" aria-labelledby="community-title">
     <div class="container">
-      <div class="section-head">
+      <div class="section-head" data-reveal>
         <div>
           <p class="eyebrow"><Icon name="users" /> Community</p>
           <h2 id="community-title">Run by its contributors</h2>
@@ -309,7 +383,7 @@ const machine = featured && run ? featured.machines[run.machine] : undefined;
           <a class="btn btn-ghost" href={repoPage(project, 'discussions')}>Ideas and questions</a>
         </div>
       </div>
-      <ul class="grid grid-3 ways" aria-label="Ways to take part">
+      <ul class="grid grid-3 ways" aria-label="Ways to take part" data-reveal="stagger">
         {
           ways.map((w) => (
             <li>
@@ -325,7 +399,7 @@ const machine = featured && run ? featured.machines[run.machine] : undefined;
           ))
         }
       </ul>
-      <div class="card community-status">
+      <div class="card community-status" data-reveal>
         <dl class="status-counts">
           <div>
             <dt>Published runs</dt>
@@ -359,7 +433,7 @@ const machine = featured && run ? featured.machines[run.machine] : undefined;
 
   <section class="section" aria-labelledby="how-title">
     <div class="container">
-      <div class="section-head">
+      <div class="section-head" data-reveal>
         <div>
           <p class="eyebrow"><Icon name="flask" /> Methodology</p>
           <h2 id="how-title">Measured the same way, for everyone</h2>
@@ -370,7 +444,7 @@ const machine = featured && run ? featured.machines[run.machine] : undefined;
         </div>
         <a class="btn btn-secondary" href={href(routes.methodology())}>Read the methodology <Icon name="arrowRight" /></a>
       </div>
-      <div class="grid grid-4 how">
+      <div class="grid grid-4 how" data-reveal="stagger">
         <article class="card card-pad">
           <span class="how-icon"><Icon name="memory" size={18} /></span>
           <h3>Same limits</h3>
@@ -410,14 +484,14 @@ const machine = featured && run ? featured.machines[run.machine] : undefined;
 
   <section class="section" aria-labelledby="explore-title">
     <div class="container">
-      <div class="section-head">
+      <div class="section-head" data-reveal>
         <div>
           <p class="eyebrow"><Icon name="grid" /> Go deeper</p>
           <h2 id="explore-title">Everything behind the headline</h2>
           <p>The leaderboard shows four numbers. The dataset has many more, and all of it is open.</p>
         </div>
       </div>
-      <div class="grid grid-4">
+      <div class="grid grid-4" data-reveal="stagger">
         {
           domains.map((d) => {
             // Counts of what the explorer shows: the default run, not everything the registry defines.
@@ -489,13 +563,70 @@ const machine = featured && run ? featured.machines[run.machine] : undefined;
     -webkit-mask-image: radial-gradient(ellipse 70% 80% at 30% 0%, #000 30%, transparent 75%);
     opacity: 0.9;
   }
-  .hero-bg::after {
+  /* Brand glow and speed lines: they settle once after load (5 s, transform only) and then rest. The resting
+     position is the base style, so nothing stays in effect afterwards and nothing moves without .anim. */
+  .hero-lines {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+    mask-image: radial-gradient(ellipse 60% 85% at 76% 42%, #000 20%, transparent 75%);
+    -webkit-mask-image: radial-gradient(ellipse 60% 85% at 76% 42%, #000 20%, transparent 75%);
+  }
+  .hero-lines::before {
     content: '';
     position: absolute;
-    inset: -20% -10% auto auto;
-    width: 60%;
-    height: 120%;
-    background: radial-gradient(closest-side, var(--accent-soft), transparent 70%);
+    inset: -30% -10% -10% 30%;
+    background:
+      radial-gradient(closest-side at 30% 45%, var(--brand-glow-1), transparent 72%),
+      radial-gradient(closest-side at 62% 52%, var(--brand-glow-2), transparent 72%),
+      radial-gradient(closest-side at 78% 28%, var(--brand-glow-3), transparent 70%);
+    transform: translate3d(-9%, 5%, 0) scale(1.1);
+  }
+  .hero-lines::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    right: -1040px;
+    background-image:
+      linear-gradient(90deg, transparent 58%, var(--speed-line) 92%, transparent),
+      linear-gradient(90deg, transparent 72%, var(--speed-line) 96%, transparent),
+      linear-gradient(90deg, transparent 50%, var(--speed-line) 88%, transparent),
+      linear-gradient(90deg, transparent 66%, var(--speed-line) 94%, transparent),
+      linear-gradient(90deg, transparent 60%, var(--speed-line) 90%, transparent);
+    background-repeat: repeat-x;
+    background-size:
+      520px 1px,
+      1040px 1px,
+      260px 1px,
+      1040px 2px,
+      520px 1px;
+    background-position:
+      0 18%,
+      300px 33%,
+      90px 52%,
+      700px 67%,
+      410px 84%;
+    /* Every period divides 1040 px, so this shows the same lines as 0 does. */
+    transform: translate3d(-1040px, 0, 0);
+  }
+  :global(.anim) .hero-lines::before {
+    animation: glow-drift 5s var(--ease-out) backwards;
+  }
+  :global(.anim) .hero-lines::after {
+    animation: speed-lines 4.5s cubic-bezier(0.25, 0.6, 0.3, 1) backwards;
+  }
+  @keyframes glow-drift {
+    from {
+      transform: translate3d(0, 0, 0) scale(1);
+    }
+  }
+  @keyframes speed-lines {
+    from {
+      transform: translate3d(0, 0, 0);
+    }
   }
   .hero-inner {
     position: relative;
@@ -525,6 +656,20 @@ const machine = featured && run ? featured.machines[run.machine] : undefined;
     text-decoration: none;
     border-color: var(--border-strong);
     box-shadow: var(--shadow-lg);
+  }
+  /* The snapshot races in from the right; its bars then grow (see global .grow-bar). */
+  :global(.anim) .hero-snap.is-in:not(.is-done) {
+    animation: race-in 500ms var(--ease-out) backwards;
+  }
+  @keyframes race-in {
+    from {
+      opacity: 0;
+      translate: 48px 0;
+    }
+    to {
+      opacity: 1;
+      translate: 0 0;
+    }
   }
   @media (min-width: 1080px) {
     .hero-snap {
@@ -570,14 +715,23 @@ const machine = featured && run ? featured.machines[run.machine] : undefined;
   }
   .snap-rows li {
     display: grid;
-    grid-template-columns: 18px minmax(0, 1fr) auto;
+    grid-template-columns: 24px minmax(0, 1fr) auto;
     grid-template-areas: 'rank name val' '. bar bar';
     column-gap: 10px;
     row-gap: 6px;
     align-items: baseline;
   }
+  .snap-rows li.is-first {
+    margin: -6px -8px;
+    padding: 6px 8px;
+    border-radius: 9px;
+    background: linear-gradient(90deg, var(--brand-soft), transparent 80%);
+    box-shadow: inset 2px 0 0 var(--brand-2);
+  }
   .snap-rank {
     grid-area: rank;
+    align-self: center;
+    text-align: center;
     font-size: 0.8125rem;
     color: var(--muted);
     font-variant-numeric: tabular-nums;
@@ -590,8 +744,12 @@ const machine = featured && run ? featured.machines[run.machine] : undefined;
     overflow: hidden;
     text-overflow: ellipsis;
   }
+  .snap-name :global(.lang-chip) {
+    margin-right: 6px;
+  }
   .snap-val {
     grid-area: val;
+    text-align: right;
     font-size: 0.875rem;
     font-weight: 600;
     font-variant-numeric: tabular-nums;
@@ -622,6 +780,12 @@ const machine = featured && run ? featured.machines[run.machine] : undefined;
   }
   .snap-machine {
     flex-basis: 100%;
+  }
+  .hero-snap:hover .snap-more :global(svg) {
+    transform: translateY(2px);
+  }
+  .snap-more :global(svg) {
+    transition: transform 160ms var(--ease);
   }
   .snap-more {
     display: inline-flex;
@@ -921,5 +1085,101 @@ const machine = featured && run ? featured.machines[run.machine] : undefined;
   .status-text strong {
     color: var(--text);
     font-weight: 600;
+  }
+  .hl-winner :global(.lang-chip) {
+    margin-right: 2px;
+  }
+
+  /* Fastest per workload: a static grid that shows every card at every width (one row when they fit). */
+  .winners {
+    margin-top: 20px;
+    padding: 12px 16px 16px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background:
+      radial-gradient(90% 140% at 0% 0%, var(--brand-soft), transparent 60%),
+      var(--surface);
+    box-shadow: var(--shadow-sm);
+  }
+  .winners-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 2px 12px;
+    padding-bottom: 10px;
+  }
+  .winners-head h3 {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.9375rem;
+  }
+  .winners-head h3 :global(svg) {
+    color: var(--brand-2);
+  }
+  .winners-note {
+    flex: 1 1 100%;
+    font-size: 0.8125rem;
+    color: var(--muted);
+  }
+  .winners-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 136px), 1fr));
+    gap: 8px;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .winner {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    height: 100%;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface);
+    color: inherit;
+    text-decoration: none;
+    transition:
+      border-color 140ms var(--ease),
+      box-shadow 140ms var(--ease),
+      transform 140ms var(--ease);
+  }
+  .winner:hover {
+    text-decoration: none;
+    border-color: var(--border-strong);
+    box-shadow: var(--shadow);
+    transform: translateY(-2px);
+  }
+  .winner:active {
+    transform: scale(0.98);
+  }
+  .winner-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+  }
+  .winner-chips {
+    display: inline-flex;
+    gap: 4px;
+  }
+  .winner-scen {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--muted);
+  }
+  .winner-name {
+    font-size: 0.875rem;
+    font-weight: 550;
+    color: var(--text);
+  }
+  .winner-val {
+    margin-top: auto;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--text-2);
+    font-variant-numeric: tabular-nums;
   }
 </style>

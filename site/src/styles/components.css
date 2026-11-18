@@ -459,6 +459,38 @@ td.c-rank.top {
   white-space: nowrap;
 }
 .c-metric.is-active .lb-sort-label {
+  color: var(--brand-2);
+}
+/* The language chip sits before the name; on narrow screens it moves to the sub-line so names keep their lines. */
+.c-impl > .lang-chip {
+  margin-right: 7px;
+}
+.lb-sub > .lang-chip {
+  display: none;
+  margin-right: -2px;
+}
+@media (max-width: 759px) {
+  .c-impl > .lang-chip {
+    display: none;
+  }
+  .lb-sub > .lang-chip {
+    display: inline-grid;
+  }
+}
+.c-rank .medal {
+  margin-right: -3px;
+}
+/* The fastest row: a brand edge and a uniform soft brand tint (text keeps its colours). */
+.lb-table tbody tr.is-first > * {
+  background: var(--brand-soft);
+}
+.lb-table tbody tr.is-first > td:first-child {
+  box-shadow: inset 3px 0 0 var(--brand-2);
+}
+.lb-table tbody tr.is-first:hover > * {
+  background-color: color-mix(in srgb, var(--surface-2) 70%, transparent);
+}
+.lb-table tbody tr:hover .lb-name {
   color: var(--accent);
 }
 .lb-val {
@@ -596,7 +628,11 @@ td.c-rank.top {
   font-weight: 550;
   box-shadow:
     var(--shadow-sm),
-    0 0 0 1px var(--border);
+    0 0 0 1px var(--border),
+    inset 3px 0 0 var(--brand-2);
+}
+.ex-scenario:active {
+  transform: scale(0.985);
 }
 .ex-scenario-kind {
   flex: none;

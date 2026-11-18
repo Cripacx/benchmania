@@ -3,12 +3,14 @@
  * inline bars. Sortable by every column, filterable by language and category. On narrow screens only
  * the active column is shown, and a select switches it.
  */
-import { useMemo, useState } from 'preact/hooks';
+import { useMemo, useRef, useState } from 'preact/hooks';
 import { formatInterval, formatNumber, formatValue, isNum, plural } from '../../lib/format';
 import { categoryLabel, compareBest, rankMap, type FlagNote } from '../../lib/model';
 import type { Better, Metric, Value } from '../../lib/types';
 import type { ImplLite } from '../../lib/view';
 import { Icon } from './Icon';
+import { LangChip } from './LangChip';
+import { useFlip } from './useFlip';
 
 export interface LeaderboardColumn {
   key: string;
@@ -96,6 +98,8 @@ export function Leaderboard({ columns, rows, languages, categories, caption }: P
   };
 
   const filtered = !!language || !!category;
+  const body = useRef<HTMLTableSectionElement>(null);
+  useFlip(body, sorted.map((r) => r.impl.id).join(','));
 
   return (
     <div class="lb" data-active={sortCol}>
@@ -200,18 +204,22 @@ export function Leaderboard({ columns, rows, languages, categories, caption }: P
               ))}
             </tr>
           </thead>
-          <tbody>
-            {sorted.map((r) => {
+          <tbody ref={body}>
+            {sorted.map((r, index) => {
               const rank = ranks[sortCol]?.get(r.impl.id) ?? null;
               return (
-                <tr key={r.impl.id}>
-                  <td class={`c-rank${rank && rank <= 3 ? ' top' : ''}`}>{rank ?? '–'}</td>
+                <tr key={r.impl.id} data-flip={r.impl.id} class={rank === 1 ? 'is-first' : undefined} style={{ '--i': index }}>
+                  <td class={`c-rank${rank && rank <= 3 ? ' top' : ''}`}>
+                    {rank && rank <= 3 ? <span class={`medal medal-${rank}`}>{rank}</span> : (rank ?? '–')}
+                  </td>
                   <th scope="row" class="c-impl">
+                    <LangChip language={r.impl.language} />
                     <a href={r.href} class="lb-name">
                       {r.impl.name}
                     </a>
                     {r.impl.variant && <span class="tag lb-variant">{r.impl.variant}</span>}
                     <span class="lb-sub">
+                      <LangChip language={r.impl.language} />
                       {r.impl.runtime && r.impl.runtime !== r.impl.language ? r.impl.runtime : r.impl.language}
                       <span class="lb-cat">{categoryLabel(r.impl.category)}</span>
                       {r.flagged && (
@@ -249,7 +257,7 @@ Flags: ${note.texts.join('; ')}` : '';
                               {c.metric.unit !== 'index' && <span class="lb-unit">{c.metric.unit}</span>}
                             </span>
                             <span class="lb-bar" aria-hidden="true">
-                              <span class="lb-bar-fill" style={{ width: `${width}%` }} />
+                              <span class="lb-bar-fill grow-bar" style={{ width: `${width}%` }} />
                             </span>
                           </>
                         ) : (

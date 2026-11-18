@@ -9,33 +9,105 @@ const domains = allDomains();
 
 <BaseLayout title="Page not found" noindex>
   <div class="container nf">
-    <p class="code mono">404</p>
-    <h1>This page does not exist</h1>
+    <div class="nf-race" aria-hidden="true">
+      <span class="nf-code mono"><span class="brand-text">404</span></span>
+      <span class="nf-lane">
+        <span class="nf-bar grow-bar"></span>
+        <span class="nf-flag mono">DNF</span>
+      </span>
+    </div>
+    <h1>This page did not finish the race</h1>
     <p class="lead">
-      The link may be outdated, or the implementation or run it pointed to is no longer part of the published data.
+      Error 404: nothing is published at this address. The link may be outdated, or the implementation or run it pointed
+      to is no longer part of the published data. Every result is still one click away:
     </p>
     <div class="actions">
-      <a class="btn btn-primary" href={href(routes.home())}>Back to the start <Icon name="arrowRight" /></a>
+      <a class="btn btn-primary" href={href(routes.home())}>Back to the leaderboard <Icon name="arrowRight" /></a>
       {
         domains.map((d) => (
           <a class="btn btn-secondary" href={href(routes.domain(d.domain.id))}>
-            {d.domain.title}
+            <Icon name="barsH" /> {d.domain.title}
           </a>
         ))
       }
       <a class="btn btn-ghost" href={href(routes.data())}>Data</a>
+      <a class="btn btn-ghost" href={href(routes.contribute())}>Contribute</a>
     </div>
   </div>
 </BaseLayout>
 
 <style>
   .nf {
-    padding-block: clamp(72px, 12vw, 160px);
+    padding-block: clamp(64px, 11vw, 144px);
   }
-  .code {
-    font-size: 0.875rem;
-    color: var(--muted);
-    margin-bottom: 12px;
+  .nf-race {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    max-width: 520px;
+    margin-bottom: 20px;
+  }
+  .nf-code {
+    font-size: clamp(2.5rem, 2rem + 2vw, 3.5rem);
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: -0.04em;
+  }
+  .nf-lane {
+    position: relative;
+    flex: 1;
+    height: 10px;
+    border-radius: 0 5px 5px 0;
+    background: var(--track);
+  }
+  /* The bar runs out of road at 42 % and stops at a DNF marker. */
+  .nf-bar {
+    position: absolute;
+    inset: 0 58% 0 0;
+    border-radius: 0 5px 5px 0;
+    background: var(--brand-grad);
+  }
+  .nf-flag {
+    position: absolute;
+    left: 42%;
+    top: 50%;
+    translate: 8px -50%;
+    padding: 2px 6px;
+    border-radius: 5px;
+    border: 1px solid var(--warn-border);
+    background: var(--warn-bg);
+    color: var(--warn-text);
+    font-size: 0.6875rem;
+    font-weight: 700;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    :global(.anim) .nf-bar {
+      animation: run-out 1100ms var(--ease-out) backwards;
+    }
+    :global(.anim) .nf-flag {
+      animation: flag-in 300ms var(--ease-out) 1000ms backwards;
+    }
+  }
+  @keyframes run-out {
+    0% {
+      transform: scaleX(0);
+    }
+    80% {
+      transform: scaleX(1.06);
+    }
+    100% {
+      transform: scaleX(1);
+    }
+  }
+  @keyframes flag-in {
+    from {
+      opacity: 0;
+      scale: 0.6;
+    }
+    to {
+      opacity: 1;
+      scale: 1;
+    }
   }
   .lead {
     margin-top: 14px;

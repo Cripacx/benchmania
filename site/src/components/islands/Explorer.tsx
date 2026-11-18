@@ -25,6 +25,7 @@ import type { DerivedDefinition, Flag, HeadlineEntry, Metric, Scenario } from '.
 import type { ImplLite, RunOption, RunSlice } from '../../lib/view';
 import { BarChart, type BarDatum } from './BarChart';
 import { Icon } from './Icon';
+import { LangChip } from './LangChip';
 
 /** Pseudo-scenario for derived metrics. */
 export const OVERALL = 'overall';
@@ -141,6 +142,7 @@ export function Explorer(props: Props) {
     return {
       id,
       label: impl.name,
+      language: impl.language,
       sublabel: impl.variant,
       href: joinBase(base, routes.implementation(domainId, id, scope)),
       value: value(id),
@@ -455,7 +457,7 @@ function ResultTable({ data, metric }: { data: BarDatum[]; metric: Metric }) {
               <tr key={d.id}>
                 <td class="r muted">{d.rank ?? '–'}</td>
                 <th scope="row">
-                  <a href={d.href}>{d.label}</a>
+                  <LangChip language={d.language} /> <a href={d.href}>{d.label}</a>
                   {d.sublabel && <span class="muted"> · {d.sublabel}</span>}
                 </th>
                 <td class="r nowrap">
@@ -537,6 +539,7 @@ function Picker({
         {langs.map((lang) => (
           <fieldset key={lang}>
             <legend>
+              <LangChip language={lang} />
               {lang}
               <button type="button" class="ex-only" onClick={() => onlyLang(lang)}>
                 only

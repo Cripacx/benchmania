@@ -99,7 +99,7 @@ const paths = [
               Read the full guide <Icon name="arrowUpRight" size={14} />
             </a>
           </div>
-          <pre class="path-code"><code>{submitCode}</code></pre>
+          <div class="code-block"><div class="code-head"><span>Terminal</span></div><pre class="path-code"><code>{submitCode}</code></pre></div>
         </div>
 
         <div class="grid grid-3 submit-facts">
@@ -149,7 +149,7 @@ const paths = [
                     Read the guide <Icon name="arrowUpRight" size={14} />
                   </a>
                 </div>
-                <pre class="path-code"><code>{p.code}</code></pre>
+                <div class="code-block"><div class="code-head"><span>Terminal</span></div><pre class="path-code"><code>{p.code}</code></pre></div>
               </article>
             ))
           }
@@ -217,7 +217,42 @@ const paths = [
       </section>
     </div>
   </div>
+  <p class="visually-hidden" aria-live="polite" id="copy-status"></p>
 </BaseLayout>
+
+<script>
+  // One copy button per code block, with visible and announced feedback.
+  const status = document.getElementById('copy-status');
+  if (navigator.clipboard) {
+    for (const block of document.querySelectorAll<HTMLElement>('.code-block')) {
+      const code = block.querySelector('code');
+      if (!code) continue;
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'copy-btn';
+      button.textContent = 'Copy';
+      button.setAttribute('aria-label', 'Copy the commands');
+      let timer = 0;
+      button.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(code.textContent ?? '');
+          button.textContent = 'Copied';
+          button.classList.add('is-done');
+          if (status) status.textContent = 'Commands copied to the clipboard.';
+        } catch {
+          button.textContent = 'Press Ctrl+C';
+          if (status) status.textContent = 'Copying failed. Select the commands and copy them by hand.';
+        }
+        window.clearTimeout(timer);
+        timer = window.setTimeout(() => {
+          button.textContent = 'Copy';
+          button.classList.remove('is-done');
+        }, 1800);
+      });
+      block.querySelector('.code-head')?.append(button);
+    }
+  }
+</script>
 
 <style>
   .head-links {
@@ -292,6 +327,55 @@ const paths = [
   .path-code {
     font-size: 0.8125rem;
     white-space: pre;
+  }
+  .code-block {
+    min-width: 0;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface-2);
+    overflow: hidden;
+  }
+  .code-block pre {
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+  }
+  .code-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 36px;
+    padding: 0 5px 0 14px;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--muted);
+  }
+  .code-head :global(.copy-btn) {
+    height: 26px;
+    padding-inline: 10px;
+    border: 1px solid var(--border-strong);
+    border-radius: 7px;
+    background: var(--surface);
+    color: var(--text-2);
+    font: inherit;
+    cursor: pointer;
+    transition:
+      background-color 140ms var(--ease),
+      color 140ms var(--ease),
+      transform 120ms var(--ease);
+  }
+  .code-head :global(.copy-btn:hover) {
+    color: var(--text);
+    background: var(--surface-3);
+  }
+  .code-head :global(.copy-btn:active) {
+    transform: scale(0.95);
+  }
+  .code-head :global(.copy-btn.is-done) {
+    border-color: transparent;
+    background: var(--brand-grad);
+    color: var(--on-brand);
   }
   .submit-facts {
     margin-top: 14px;
