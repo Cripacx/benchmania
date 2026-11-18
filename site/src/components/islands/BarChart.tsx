@@ -22,6 +22,8 @@ import {
 import type { FlagNote } from '../../lib/model';
 import type { Metric, Value } from '../../lib/types';
 import { Icon } from './Icon';
+import { LangChip } from './LangChip';
+import { useFlip } from './useFlip';
 
 export interface BarDatum {
   id: string;
@@ -29,6 +31,8 @@ export interface BarDatum {
   sublabel?: string | null;
   href?: string;
   value: Value | null;
+  /** Language of the implementation: a monogram chip when the datum has no series color. */
+  language?: string | null;
   /** CSS color for identity encoding (compare view). Defaults to the single-series color. */
   color?: string;
   /** Quality flags behind the value (valueFlagNote); null when none. */
@@ -66,6 +70,8 @@ function describe(d: BarDatum, metric: Metric): string {
 export function BarChart({ data, metric, label, dense = false }: Props) {
   const [hover, setHover] = useState<string | null>(null);
   const rowRefs = useRef<Record<string, HTMLLIElement | null>>({});
+  const list = useRef<HTMLOListElement>(null);
+  useFlip(list, data.map((d) => d.id).join(','));
 
   const extent = data.reduce((acc, d) => {
     const v = d.value;
@@ -94,7 +100,7 @@ export function BarChart({ data, metric, label, dense = false }: Props) {
 
   return (
     <div class={`chart ${dense ? 'chart-dense' : ''}`} onMouseLeave={() => setHover(null)}>
-      <ol class="chart-rows" aria-label={label}>
+      <ol class="chart-rows" aria-label={label} ref={list}>
         {data.map((d) => {
           const v = d.value;
           const has = !!v && isNum(v.m);
@@ -103,6 +109,7 @@ export function BarChart({ data, metric, label, dense = false }: Props) {
           return (
             <li
               key={d.id}
+              data-flip={d.id}
               ref={(el) => {
                 rowRefs.current[d.id] = el;
               }}
@@ -121,7 +128,7 @@ export function BarChart({ data, metric, label, dense = false }: Props) {
                 <span class="visually-hidden">{description}</span>
               )}
               <div class="chart-label" aria-hidden="true">
-                {d.color && <span class="dot" style={{ background: d.color }} />}
+                {d.color ? <span class="dot" style={{ background: d.color }} /> : d.language ? <LangChip language={d.language} /> : null}
                 <span class="chart-name">
                   <span class="chart-title">{d.label}</span>
                   {d.sublabel && <span class="chart-sub">{d.sublabel}</span>}

@@ -59,7 +59,7 @@ export function implementationPageIds(domain: DomainData): string[] {
 }
 
 /** Implementation ids that have data in a run, in the domain's declaration order. */
-export function runImplementationIds(domain: DomainData, run: Run): string[] {
+export function runImplementationIds(domain: Pick<DomainData, 'implementations'>, run: Pick<Run, 'results' | 'implementations'>): string[] {
   const inRun = new Set([...Object.keys(run.results ?? {}), ...Object.keys(run.implementations ?? {})]);
   const ordered = domain.implementations.map((i) => i.id).filter((id) => inRun.has(id));
   for (const id of inRun) if (!ordered.includes(id)) ordered.push(id);
@@ -603,6 +603,47 @@ export function missingValue(
   const why = scenario ? undefined : run.withheld?.[impl]?.[metric];
   if (why) return { label: 'no index', reason: `No index: ${why}.` };
   return { label: 'not measured', reason: 'Not measured in this run.' };
+}
+
+/* ----------------------------------------------------------------------------------------------
+ * Winners per scenario
+ * -------------------------------------------------------------------------------------------- */
+
+export interface ScenarioWinner {
+  scenario: Scenario;
+  /** The best value (the shared value when several implementations tie). */
+  value: Value;
+  /** Every implementation with the best value, in the run's implementation order. */
+  winners: string[];
+  /** How many implementations have this index in the run (and so competed for every scenario). */
+  eligible: number;
+}
+
+/**
+ * The fastest implementation in each scenario behind a relative index: the "best = 100" reference that the
+ * publisher wrote to `run.best[derivedId]`. Eligibility is the publisher's alone; nothing is re-derived here.
+ * Scenarios follow the domain's display order; ties list every winner. A run without `best` (or without an
+ * entry for this index) yields nothing.
+ */
+export function scenarioWinners(
+  domain: Pick<DomainData, 'derived' | 'scenarios' | 'implementations'>,
+  run: Run,
+  derivedId: string,
+): ScenarioWinner[] {
+  const best = run.best?.[derivedId];
+  const metric = (domain.derived ?? []).find((d) => d.id === derivedId)?.metric;
+  if (!best || !metric) return [];
+  const inRun = new Set(runImplementationIds(domain, run));
+  const eligible = Object.values(run.derived ?? {}).filter((d) => isNum(d?.[derivedId])).length;
+  const out: ScenarioWinner[] = [];
+  for (const scenario of sortScenarios(domain.scenarios)) {
+    const ref = best[scenario.id];
+    if (!ref) continue;
+    const winners = ref.by.filter((id) => inRun.has(id));
+    const value = winners[0] ? metricValue(run, scenario.id, metric, winners[0]) : null;
+    if (value) out.push({ scenario, value, winners, eligible });
+  }
+  return out;
 }
 
 /* ----------------------------------------------------------------------------------------------

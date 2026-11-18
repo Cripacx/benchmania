@@ -49,6 +49,18 @@ const canonical = absoluteUrl(Astro.site, Astro.url.pathname);
           var t = localStorage.getItem('theme');
           if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
         } catch (e) {}
+        // Entrance motion: decided before first paint, so bars are never painted full and then reset.
+        // Not on back/forward navigation (the visitor has seen the page). If the motion script has not
+        // started after 3 s, fall back to the final state.
+        var d = document.documentElement;
+        var nav = performance.getEntriesByType && performance.getEntriesByType('navigation')[0];
+        var back = !!nav && nav.type === 'back_forward';
+        if (!back && window.matchMedia && !matchMedia('(prefers-reduced-motion: reduce)').matches && 'IntersectionObserver' in window) {
+          d.classList.add('anim');
+          setTimeout(function () {
+            if (!d.classList.contains('anim-ready')) d.classList.remove('anim');
+          }, 3000);
+        }
       })();
     </script>
   </head>
@@ -59,6 +71,9 @@ const canonical = absoluteUrl(Astro.site, Astro.url.pathname);
       <slot />
     </main>
     <SiteFooter />
+    <script>
+      import '../scripts/motion';
+    </script>
   </body>
 </html>
 

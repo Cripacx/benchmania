@@ -58,7 +58,10 @@ Schema `benchcore.dataset/v1`, written by `core/benchcore/publish.py`. Types: `s
 - `scenarios[]`, `implementations[]`, `machines{}` (`machines[id].reference` is `null` or `{label, operator}`; its
   label is preferred as the machine name).
 - `runs[]`: `id`, `created`, `methodology` (`"0"` preliminary, `"1"` current), `provenance` (`reference` |
-  `community`), `machine`, `passes`, `options`, `layout`, `flags[]`, `results`, `derived`.
+  `community`), `machine`, `passes`, `options`, `layout`, `flags[]`, `results`, `derived`, `withheld`, `best`.
+- `run.best[derived][scenario]` is `{value, by[]}`: for every `geomean_relative` index, the value that counts as 100
+  in that scenario and the eligible implementations that measured exactly it. The publisher owns eligibility; the
+  site shows these as the winners per workload and never re-derives them. A scenario left out of the index has no entry.
 - A flag is `{level, scope, message, pass?, metric?}`; `scope` is `run`, `<impl>` or `<impl>/<scenario>`. A flag
   with `metric` is about that metric only: it attaches to a scenario value of that metric and to a derived value
   computed from it (`derived[].metric`), never to other metrics. Markers follow the most severe flag on a value:

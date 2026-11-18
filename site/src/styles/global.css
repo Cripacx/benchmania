@@ -22,6 +22,25 @@
   --on-accent: #ffffff;
   --focus: #2a78d6;
 
+  /*
+   * Brand: blue → violet → pink. Every stop reads at AA as text on the page surfaces and carries
+   * --on-brand text at AA (light 5.7 / 6.3 / 5.7, dark 7.7 / 7.2 / 7.7). Identity only, never chart data.
+   */
+  --brand-1: #1f63c4;
+  --brand-2: #6d3fd8;
+  --brand-3: #b62d86;
+  --brand-grad: linear-gradient(100deg, var(--brand-1), var(--brand-2) 55%, var(--brand-3));
+  --brand-soft: rgba(109, 63, 216, 0.08);
+  --brand-glow-1: rgba(42, 120, 214, 0.16);
+  --brand-glow-2: rgba(140, 82, 230, 0.14);
+  --brand-glow-3: rgba(214, 64, 160, 0.1);
+  --on-brand: #ffffff;
+  --speed-line: rgba(109, 63, 216, 0.22);
+  /* neutral language chip (unknown languages) */
+  --chip-bg: #e4e4e0;
+  --chip-fg: #3a3936;
+  --chip-ring: rgba(11, 11, 12, 0.1);
+
   /* charts */
   --bar: #2a78d6;
   --bar-hover: #1f63c4;
@@ -82,6 +101,18 @@
     --accent-soft: rgba(57, 135, 229, 0.16);
     --on-accent: #0b0b0c;
     --focus: #6aa5f0;
+    --brand-1: #6aa5f0;
+    --brand-2: #a98bf7;
+    --brand-3: #f07ab8;
+    --brand-soft: rgba(169, 139, 247, 0.1);
+    --brand-glow-1: rgba(57, 135, 229, 0.2);
+    --brand-glow-2: rgba(150, 110, 245, 0.16);
+    --brand-glow-3: rgba(240, 122, 184, 0.1);
+    --on-brand: #0b0b0c;
+    --speed-line: rgba(169, 139, 247, 0.26);
+    --chip-bg: #2c2c31;
+    --chip-fg: #d6d5cf;
+    --chip-ring: rgba(255, 255, 255, 0.12);
     --bar: #3987e5;
     --bar-hover: #5c9df0;
     --bar-dim: #3a3a3f;
@@ -127,6 +158,18 @@
   --accent-soft: rgba(57, 135, 229, 0.16);
   --on-accent: #0b0b0c;
   --focus: #6aa5f0;
+  --brand-1: #6aa5f0;
+  --brand-2: #a98bf7;
+  --brand-3: #f07ab8;
+  --brand-soft: rgba(169, 139, 247, 0.1);
+  --brand-glow-1: rgba(57, 135, 229, 0.2);
+  --brand-glow-2: rgba(150, 110, 245, 0.16);
+  --brand-glow-3: rgba(240, 122, 184, 0.1);
+  --on-brand: #0b0b0c;
+  --speed-line: rgba(169, 139, 247, 0.26);
+  --chip-bg: #2c2c31;
+  --chip-fg: #d6d5cf;
+  --chip-ring: rgba(255, 255, 255, 0.12);
   --bar: #3987e5;
   --bar-hover: #5c9df0;
   --bar-dim: #3a3a3f;
@@ -521,6 +564,11 @@ a.card-link:hover {
   border-color: var(--border-strong);
   box-shadow: var(--shadow);
   text-decoration: none;
+  transform: translateY(-2px);
+}
+a.card-link:active {
+  transform: translateY(0) scale(0.995);
+  box-shadow: var(--shadow-sm);
 }
 a.card-link .arrow {
   transition: transform 160ms var(--ease);
@@ -547,18 +595,29 @@ a.card-link:hover .arrow {
   text-decoration: none;
   transition:
     background-color 140ms var(--ease),
+    background-position 400ms var(--ease),
     border-color 140ms var(--ease),
-    color 140ms var(--ease);
+    box-shadow 160ms var(--ease),
+    color 140ms var(--ease),
+    transform 120ms var(--ease);
 }
 .btn:hover {
   text-decoration: none;
 }
+.btn:active {
+  transform: translateY(1px) scale(0.98);
+}
+/* Primary call to action: the brand gradient, which drifts towards pink on hover. */
 .btn-primary {
-  background: var(--text);
-  color: var(--bg);
+  background: var(--brand-grad);
+  background-size: 180% 100%;
+  background-position: 0% 0;
+  color: var(--on-brand);
+  box-shadow: 0 1px 2px rgba(16, 16, 20, 0.12), 0 4px 14px -6px var(--brand-2);
 }
 .btn-primary:hover {
-  background: color-mix(in srgb, var(--text) 86%, var(--bg));
+  background-position: 100% 0;
+  box-shadow: 0 1px 2px rgba(16, 16, 20, 0.12), 0 8px 22px -8px var(--brand-2);
 }
 .btn-secondary {
   background: var(--surface);
@@ -904,20 +963,27 @@ table.data tbody th {
   transition:
     background-color 120ms var(--ease),
     color 120ms var(--ease),
-    border-color 120ms var(--ease);
+    border-color 120ms var(--ease),
+    transform 120ms var(--ease);
 }
 .chip:hover {
   color: var(--text);
   background: var(--surface-2);
 }
+.chip:active {
+  transform: scale(0.96);
+}
 .chip[aria-pressed='true'] {
-  background: var(--text);
-  border-color: var(--text);
-  color: var(--bg);
+  background: var(--brand-grad);
+  border-color: transparent;
+  color: var(--on-brand);
 }
 .chip .count {
   opacity: 0.65;
   font-variant-numeric: tabular-nums;
+}
+.chip[aria-pressed='true'] .count {
+  opacity: 0.92;
 }
 
 /* Disclosure */
@@ -1026,8 +1092,175 @@ details.disclosure > summary:hover {
 
 @media (forced-colors: active) {
   .bar-fill,
-  .dot {
+  .dot,
+  .lang-chip,
+  .medal {
     forced-color-adjust: none;
+  }
+}
+
+/* ------------------------------------------------------------------------------------------ */
+/* Identity: brand text, language chips, rank medals                                           */
+/* ------------------------------------------------------------------------------------------ */
+
+.brand-text {
+  color: var(--brand-2);
+}
+@supports ((-webkit-background-clip: text) or (background-clip: text)) {
+  .brand-text {
+    background: var(--brand-grad);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    /* Keep descenders inside the painted box. */
+    padding-bottom: 0.08em;
+  }
+}
+@media (forced-colors: active) {
+  .brand-text {
+    -webkit-text-fill-color: CanvasText;
+    background: none;
+  }
+}
+
+/* Monogram of a language (src/lib/languages.ts sets --chip-c and --chip-t). */
+.lang-chip {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  min-width: 21px;
+  height: 16px;
+  padding-inline: 3px;
+  border-radius: 4px;
+  background: var(--chip-c, var(--chip-bg));
+  color: var(--chip-t, var(--chip-fg));
+  box-shadow: inset 0 0 0 1px var(--chip-ring);
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  vertical-align: 0.12em;
+  white-space: nowrap;
+  user-select: none;
+}
+.lang-chip.is-wide {
+  letter-spacing: -0.05em;
+}
+
+/* Medal-style rank badges for ranks 1 to 3 (dark text on metal, at least 4.5:1 on every stop). */
+.medal {
+  display: inline-grid;
+  place-items: center;
+  min-width: 22px;
+  height: 22px;
+  padding-inline: 5px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 0, 0, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.55);
+}
+.medal-1 {
+  color: #3d2c00;
+  background: linear-gradient(150deg, #fbe39a, #f2c84b 55%, #ddb03a);
+}
+.medal-2 {
+  color: #26282c;
+  background: linear-gradient(150deg, #f1f2f4, #d5d7dc 55%, #bfc2c8);
+}
+.medal-3 {
+  color: #3f2210;
+  background: linear-gradient(150deg, #f4cfae, #e6a874 55%, #d6935e);
+}
+
+/* ------------------------------------------------------------------------------------------ */
+/* Motion                                                                                      */
+/* ------------------------------------------------------------------------------------------ */
+/*
+ * The server-rendered HTML is the final state. An inline script in <head> adds .anim before first paint
+ * only when JavaScript runs, the viewer has not asked for reduced motion and the page is not a back/forward
+ * navigation; src/scripts/motion.ts then marks [data-reveal] and [data-grow] elements .is-in as they enter
+ * the viewport and .is-done when their entrance is over (or the visitor interacts with them), which drops
+ * the animations so nothing replays later. Without .anim nothing here applies.
+ * Every entrance ends at the base style, so fills are `backwards` only: nothing stays in effect afterwards.
+ * Numbers are never animated; they show their final value whenever they are visible.
+ * Reveals use animations on `translate`/`opacity`, so they never fight hover transitions on `transform`.
+ */
+:root {
+  --ease-out: cubic-bezier(0.33, 1, 0.68, 1);
+  /* Per entrance; motion.ts caps --stagger per list so that the last item starts within 300 ms. */
+  --entrance-ms: 500ms;
+  --stagger: 40ms;
+}
+
+.anim [data-reveal]:not(.is-in),
+.anim [data-reveal='stagger']:not(.is-in) > * {
+  opacity: 0;
+}
+.anim [data-reveal]:not([data-reveal='stagger']).is-in:not(.is-done),
+.anim [data-reveal='stagger'].is-in:not(.is-done) > * {
+  animation: rise var(--entrance-ms) var(--ease-out) backwards;
+  animation-delay: calc(var(--i, 0) * var(--stagger));
+}
+@keyframes rise {
+  from {
+    opacity: 0;
+    translate: 0 14px;
+  }
+}
+
+/* Page titles are always above the fold: they rise once on load, no observer needed. */
+.anim .page-head {
+  animation: rise var(--entrance-ms) var(--ease-out) backwards;
+}
+
+/* Bars that grow from zero once, staggered by --i (the row's position). */
+.anim [data-grow]:not(.is-in) .grow-bar {
+  transform: scaleX(0);
+}
+.anim [data-grow].is-in:not(.is-done) .grow-bar {
+  animation: grow var(--entrance-ms) var(--ease-out) backwards;
+  animation-delay: calc(var(--i, 0) * var(--stagger));
+}
+.grow-bar {
+  transform-origin: left center;
+}
+@keyframes grow {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+/* Cross-document view transitions (no client router): a short cross-fade, the header stays put. */
+@view-transition {
+  navigation: auto;
+}
+.site-header {
+  view-transition-name: site-header;
+}
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 180ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  @view-transition {
+    navigation: none;
+  }
+}
+
+@media print {
+  .anim [data-reveal],
+  .anim [data-reveal] > * {
+    opacity: 1 !important;
+    animation: none !important;
+  }
+  .anim .grow-bar {
+    transform: none !important;
   }
 }
 
