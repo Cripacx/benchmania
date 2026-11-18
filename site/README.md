@@ -30,8 +30,9 @@ hand.
 | `SITE_URL` | origin of `project.site_url` in `index.json` | Public origin for canonical URLs and the sitemap |
 
 Every internal link and asset goes through `href()` / `joinBase()` in `src/lib/paths.ts`, so the same source works
-at a domain root and under a sub-path. `npm run verify` fails if any link escapes the base path. The GitHub Pages
-workflow (`.github/workflows/pages.yml`) sets both variables.
+at a domain root and under a sub-path. `npm run verify` fails if any link escapes the base path. The deployment
+workflow (`.github/workflows/pages.yml`) builds for the root of `project.site_url` and sets neither variable; CI
+also builds under a sub-path.
 
 ```sh
 BASE_PATH=/machbench/ npm run build && BASE_PATH=/machbench/ npm run verify

@@ -1,5 +1,8 @@
 name: Deploy website
 
+# Builds the website and publishes the files to the organisation's site repository
+# (<owner>/<owner>.github.io), which GitHub Pages serves from the root of https://<owner>.github.io.
+# One-time setup of that repository and its deploy key: docs/maintaining.md.
 on:
   push:
     branches: [main]
@@ -16,9 +19,6 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pages: read  # configure-pages reads the Pages settings (base path, origin)
     steps:
       - uses: actions/checkout@v7
         with:
@@ -31,32 +31,51 @@ jobs:
           node-version: 24
           cache: npm
           cache-dependency-path: site/package-lock.json
-      - id: pages
-        uses: actions/configure-pages@v6
       - name: Dataset from result bundles
         run: ./machbench validate && ./machbench publish
       - name: Build
         working-directory: site
+        # Served from the root of site_url in the project config file: BASE_PATH stays at its default "/"
+        # and the canonical origin comes from site_url.
         run: npm ci && npm run build && npm run verify
-        env:
-          # base_path is "/<repo>" for project pages and "" for a custom domain or <owner>.github.io
-          BASE_PATH: ${{ steps.pages.outputs.base_path }}/
-          SITE_URL: ${{ steps.pages.outputs.origin }}
-      - uses: actions/upload-pages-artifact@v5
+      - uses: actions/upload-artifact@v7
         with:
+          name: website
           path: site/dist
+          if-no-files-found: error
+          retention-days: 7
 
   deploy:
     needs: build
     # Builds from other branches (manual runs) are checked but never deployed.
     if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
     runs-on: ubuntu-latest
-    permissions:
-      pages: write
-      id-token: write
+    # The deploy key is a secret of this environment, which only the default branch may use.
     environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      name: website
+      url: https://${{ github.repository_owner }}.github.io
     steps:
-      - id: deployment
-        uses: actions/deploy-pages@v5
+      - uses: actions/download-artifact@v8
+        with:
+          name: website
+          path: dist
+      - uses: actions/checkout@v7
+        with:
+          repository: ${{ github.repository_owner }}/${{ github.repository_owner }}.github.io
+          ssh-key: ${{ secrets.SITE_DEPLOY_KEY }}
+          path: published
+      - name: Publish
+        env:
+          SOURCE: ${{ github.repository }}@${{ github.sha }}
+        run: |
+          # README.md and CNAME (written by the Pages settings for a custom domain) belong to the site
+          # repository; everything else is replaced by the build.
+          rsync -a --delete --exclude .git --exclude README.md --exclude CNAME dist/ published/
+          touch published/.nojekyll  # the files are final; a Jekyll build would drop _astro/
+          cd published
+          git add -A
+          if git diff --cached --quiet; then echo "The published site is already up to date."; exit 0; fi
+          git -c user.name="github-actions[bot]" \
+              -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+              commit -q -m "Deploy $SOURCE"
+          git push

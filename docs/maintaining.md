@@ -12,8 +12,17 @@ below; none of them can be made from a pull request.
 - [ ] **Maintainers team.** Create the team `maintainers` in the organisation and give it write access.
   `.github/CODEOWNERS` assigns it the engine (`core/`), every domain's `domain.toml`, `metrics.toml`,
   `harness.py` and `checks.py`, `results/reference-runs.toml`, `.github/` and `tools/`.
-- [ ] **Pages.** Settings → Pages → Source: **GitHub Actions**. The workflow `.github/workflows/pages.yml`
-  deploys from the default branch only.
+- [ ] **Website.** The site is served from the root of `https://<organisation>.github.io`. GitHub only
+  does that for a repository named `<organisation>.github.io`, so the workflow
+  `.github/workflows/pages.yml` builds the site here and pushes the files there, from the default branch
+  only.
+  1. Create the public repository `<organisation>.github.io` with a README: the workflow cannot check out
+     an empty repository. It keeps `README.md` and `CNAME` there and replaces everything else. In that
+     repository choose Settings → Pages → Source: **Deploy from a branch**, default branch, folder `/`.
+  2. Create a key pair without a passphrase (`ssh-keygen -t ed25519 -N "" -f site-deploy-key`) and add
+     `site-deploy-key.pub` to the site repository as a deploy key **with write access**.
+  3. In this repository create the environment `website`, restrict its deployment branches to the default
+     branch and add the private key as the environment secret `SITE_DEPLOY_KEY`. Delete both key files.
 - [ ] **Private vulnerability reporting.** Settings → Security → enable private vulnerability reporting.
   [SECURITY.md](../SECURITY.md) and the [code of conduct](../CODE_OF_CONDUCT.md) send reports there.
 - [ ] **Approval for outside contributors.** Settings → Actions → General → approval for fork pull request
@@ -26,9 +35,9 @@ below; none of them can be made from a pull request.
   required check would block every other pull request.
 - [ ] **Public contact address.** Add one to the organisation profile. The code of conduct points people
   there for private conduct reports.
-- [ ] **Custom domain (optional).** Settings → Pages → Custom domain. Nothing in the repository needs to
-  change: the Pages workflow takes `SITE_URL` and the base path from `actions/configure-pages`. Update
-  `site_url` in the project config file: the published dataset and builds without `SITE_URL` use it.
+- [ ] **Custom domain (optional).** Set it in the site repository: Settings → Pages → Custom domain. GitHub
+  stores it there as the file `CNAME`, which the workflow keeps. Then update `site_url` in the project
+  config file: canonical URLs, the sitemap and the published dataset use it.
 
 ## Recurring tasks
 

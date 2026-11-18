@@ -6,7 +6,7 @@ slug = "machbench"
 tagline = "Open, reproducible performance benchmarks"
 description = "Machbench measures how software performs under realistic, controlled conditions and publishes every number with the hardware, versions and raw data behind it."
 repository = "https://github.com/machbench/machbench"
-site_url = "https://machbench.github.io/machbench"
+site_url = "https://machbench.github.io"
 license = "MIT"
 data_license = "CC-BY-4.0"
 

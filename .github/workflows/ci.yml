@@ -55,7 +55,8 @@ jobs:
       - run: npm ci
       - run: npm run check
       - run: npm test
-      - name: Production build under a sub-path (as on GitHub Pages)
+      # The site is deployed at a domain root; a sub-path is the stricter case and keeps project pages working.
+      - name: Production build under a sub-path
         run: npm run build
         env:
           BASE_PATH: /${{ github.event.repository.name }}/
