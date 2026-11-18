@@ -46,13 +46,13 @@ def test_geomean():
     assert stats.geomean([]) is None
 
 
-def clserver_topology():
+def six_core_smt_topology():
     # 6 cores with SMT, siblings numbered n and n+6 (typical Intel numbering)
     return [(c, (0, c % 6)) for c in range(12)]
 
 
 def test_layout_isolates_service_siblings():
-    plan = layout.plan(clserver_topology(), service_cpus=2)
+    plan = layout.plan(six_core_smt_topology(), service_cpus=2)
     assert plan["service"] == [0, 1]
     assert plan["idle"] == [6, 7]
     assert sorted(plan["environment"]) == [2, 3, 8, 9]
