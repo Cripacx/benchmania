@@ -45,7 +45,7 @@ container that `./benchmania check` and `./benchmania run` build from `core/runn
 is built as its own Docker image.
 
 ```sh
-git clone https://github.com/benchmania/benchmania && cd benchmania
+git clone https://github.com/Cripacx/benchmania && cd benchmania
 ./benchmania doctor                                            # checks Docker, cgroup v2 and the CPU layout
 ./benchmania list                                              # domains, scenarios, implementations
 ./benchmania check backend --impl go-nethttp rust-axum         # build two implementations, run the functional checks

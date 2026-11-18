@@ -31,8 +31,8 @@ hand.
 
 Every internal link and asset goes through `href()` / `joinBase()` in `src/lib/paths.ts`, so the same source works
 at a domain root and under a sub-path. `npm run verify` fails if any link escapes the base path. The deployment
-workflow (`.github/workflows/pages.yml`) builds for the root of `project.site_url` and sets neither variable; CI
-also builds under a sub-path.
+workflow (`.github/workflows/pages.yml`) takes both from the repository's Pages settings; CI also builds under a
+sub-path.
 
 ```sh
 BASE_PATH=/benchmania/ npm run build && BASE_PATH=/benchmania/ npm run verify

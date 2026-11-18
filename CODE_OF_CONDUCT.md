@@ -6,6 +6,6 @@ In short: be respectful and constructive, assume good faith, and critique measur
 Debates about which technology is "best" are expected in a benchmark project; keep them evidence-based.
 
 Report unacceptable behaviour privately to the maintainers through the contact address on the
-organisation's GitHub profile. If none is listed yet, open a private security advisory in the repository
+repository owner's GitHub profile. If none is listed yet, open a private security advisory in the repository
 ("Report a vulnerability" on the Security tab) and mark it as a conduct report. All reports are handled
 confidentially.

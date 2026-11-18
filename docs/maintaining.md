@@ -1,28 +1,23 @@
 # Maintaining the project
 
-For the people who own the GitHub organisation. The repository's workflows and files assume the settings
-below; none of them can be made from a pull request.
+For the owner of the GitHub repository. The repository's workflows and files assume the settings below; none
+of them can be made from a pull request.
 
 ## One-time setup
 
-- [ ] **Organisation and repository.** Create the organisation and the repository named in the
-  `repository` entry of the project config file at the repository root. If you choose other names, rename
-  the project first (see [Renaming the project](#renaming-the-project)) so the URLs and `.github/CODEOWNERS`
-  match.
-- [ ] **Maintainers team.** Create the team `maintainers` in the organisation and give it write access.
-  `.github/CODEOWNERS` assigns it the engine (`core/`), every domain's `domain.toml`, `metrics.toml`,
-  `harness.py` and `checks.py`, `results/reference-runs.toml`, `.github/` and `tools/`.
-- [ ] **Website.** The site is served from the root of `https://<organisation>.github.io`. GitHub only
-  does that for a repository named `<organisation>.github.io`, so the workflow
-  `.github/workflows/pages.yml` builds the site here and pushes the files there, from the default branch
-  only.
-  1. Create the public repository `<organisation>.github.io` with a README: the workflow cannot check out
-     an empty repository. It keeps `README.md` and `CNAME` there and replaces everything else. In that
-     repository choose Settings → Pages → Source: **Deploy from a branch**, default branch, folder `/`.
-  2. Create a key pair without a passphrase (`ssh-keygen -t ed25519 -N "" -f site-deploy-key`) and add
-     `site-deploy-key.pub` to the site repository as a deploy key **with write access**.
-  3. In this repository create the environment `website`, restrict its deployment branches to the default
-     branch and add the private key as the environment secret `SITE_DEPLOY_KEY`. Delete both key files.
+- [ ] **Repository.** Create the repository named in the `repository` entry of the project config file at
+  the repository root. If you choose another name, rename the project first (see
+  [Renaming the project](#renaming-the-project)) so the URLs match.
+- [ ] **Code owners.** `.github/CODEOWNERS` names who must review the engine (`core/`), every domain's
+  `domain.toml`, `metrics.toml`, `harness.py` and `checks.py`, `results/reference-runs.toml`, `.github/` and
+  `tools/`. List the maintainers there; they need write access to the repository.
+- [ ] **Website.** Settings → Pages → Source: **GitHub Actions**. The workflow `.github/workflows/pages.yml`
+  deploys from the default branch only and takes its address from the Pages settings, so the same build
+  works under `https://<owner>.github.io/<repository>/` and at the root of a custom domain.
+- [ ] **Custom domain.** Create a `CNAME` DNS record for the domain that points to `<owner>.github.io`, enter
+  the domain under Settings → Pages → Custom domain and enforce HTTPS once the certificate is issued. Run the
+  workflow *Deploy website* again afterwards so the pages are built for the new address. `site_url` in the
+  project config file names the same address; the published dataset uses it.
 - [ ] **Private vulnerability reporting.** Settings → Security → enable private vulnerability reporting.
   [SECURITY.md](../SECURITY.md) and the [code of conduct](../CODE_OF_CONDUCT.md) send reports there.
 - [ ] **Approval for outside contributors.** Settings → Actions → General → approval for fork pull request
@@ -33,13 +28,13 @@ below; none of them can be made from a pull request.
   require a linear history, a pull request with one approval and review from code owners, and the CI checks
   *Engine, manifests and results* and *Website* (workflow `CI`, runs on every pull request). Do not make the
   end-to-end jobs required: that workflow only runs when `core/`, `domains/` or the CLI change, so a required
-  check would block every other pull request. Let organisation owners bypass the ruleset **for pull requests
+  check would block every other pull request. Let repository admins bypass the ruleset **for pull requests
   only**: a single maintainer can then merge their own change once CI passed, and nobody pushes to the
   default branch directly.
 - [ ] **Merging.** Settings → General → Pull Requests: allow squash and rebase merging only (the ruleset
   requires a linear history) and delete head branches after merging.
-- [ ] **Actions policy.** Organisation settings → Actions → General: allow only actions created by GitHub
-  (the workflows use nothing else) and keep the default workflow permissions read-only.
+- [ ] **Actions policy.** Settings → Actions → General: allow only actions created by GitHub (the workflows
+  use nothing else) and keep the default workflow permissions read-only.
 - [ ] **Security features.** Settings → Security: Dependabot alerts and security updates and secret scanning
   with push protection. Leave the CodeQL *default setup* off: the workflow `.github/workflows/codeql.yml`
   scans the engine, the workflows and the website and skips the benchmark implementations, which default
@@ -47,14 +42,8 @@ below; none of them can be made from a pull request.
 - [ ] **Discussions and labels.** Enable Discussions; the issue template chooser sends questions and ideas
   there. Create the labels the issue templates set (`bug`, `proposal`, `methodology`); `results`,
   `implementation`, `domain`, `engine` and `website` help sorting pull requests.
-- [ ] **Organisation profile.** The repository `.github` in the organisation holds `profile/README.md`,
-  which GitHub shows on the organisation's page. Add a public contact address to the profile as well: the
-  code of conduct points people there for private conduct reports.
-- [ ] **Members.** Organisation settings: require two-factor authentication and let only owners create
-  repositories. Code from this repository runs as root on the machines of people who measure.
-- [ ] **Custom domain (optional).** Set it in the site repository: Settings → Pages → Custom domain. GitHub
-  stores it there as the file `CNAME`, which the workflow keeps. Then update `site_url` in the project
-  config file: canonical URLs, the sitemap and the published dataset use it.
+- [ ] **Contact address.** Keep a public contact address on the owner's GitHub profile. The code of conduct
+  points people there for private conduct reports.
 
 ## Recurring tasks
 
@@ -93,6 +82,5 @@ Version changes of measured software usually make old and new results incomparab
 The name and slug live in the project config file at the repository root. Run
 `python3 tools/rename_project.py "NewName"` (add `--slug` to choose the slug, `--dry-run` to preview). It
 updates the config, documentation, workflows and the CLI wrapper. It replaces the slug everywhere, including
-the organisation and repository in URLs and the team in `.github/CODEOWNERS`, so rename the GitHub
-organisation and repository to match. Result bundles are left untouched; regenerate the website data with
+the repository name in URLs, so rename the GitHub repository to match. Result bundles are left untouched; regenerate the website data with
 `publish` afterwards.
