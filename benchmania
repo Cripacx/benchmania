@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Entry point: `./machbench <command>`. Same as `python -m benchcore` with core/ on the path."""
+"""Entry point: `./benchmania <command>`. Same as `python -m benchcore` with core/ on the path."""
 import os
 import sys
 

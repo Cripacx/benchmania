@@ -100,12 +100,12 @@ directory name is the implementation id; `name`, `language` and `category` are r
 
 ```sh
 python -m pytest tests                                         # loads and validates every domain
-./machbench validate                                           # manifests, scenario parameters, bundles
-./machbench check databases                                    # build + functional checks
-./machbench run databases --quick --passes 2 --results .e2e-results   # smoke test, not committed
+./benchmania validate                                           # manifests, scenario parameters, bundles
+./benchmania check databases                                    # build + functional checks
+./benchmania run databases --quick --passes 2 --results .e2e-results   # smoke test, not committed
 ```
 
 Quick runs are smoke tests: `publish` never includes them. To see the domain with data on the local website,
-do a full run (`./machbench run databases`, which writes to `results/`), then
-`./machbench validate && ./machbench publish && (cd site && npm ci && npm run dev)`. For a domain whose status
+do a full run (`./benchmania run databases`, which writes to `results/`), then
+`./benchmania validate && ./benchmania publish && (cd site && npm ci && npm run dev)`. For a domain whose status
 is still `example`, add `--include-examples` to `publish`.

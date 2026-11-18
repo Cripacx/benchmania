@@ -6,7 +6,7 @@ name: Deploy website
 on:
   push:
     branches: [main]
-    paths: ["site/**", "results/**", "domains/**", "core/**", "machbench.toml", ".github/workflows/pages.yml"]
+    paths: ["site/**", "results/**", "domains/**", "core/**", "benchmania.toml", ".github/workflows/pages.yml"]
   workflow_dispatch:
 
 permissions:
@@ -32,7 +32,7 @@ jobs:
           cache: npm
           cache-dependency-path: site/package-lock.json
       - name: Dataset from result bundles
-        run: ./machbench validate && ./machbench publish
+        run: ./benchmania validate && ./benchmania publish
       - name: Build
         working-directory: site
         # Served from the root of site_url in the project config file: BASE_PATH stays at its default "/"

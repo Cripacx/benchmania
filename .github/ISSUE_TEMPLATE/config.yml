@@ -1,8 +1,8 @@
 blank_issues_enabled: false
 contact_links:
   - name: Question or idea
-    url: https://github.com/machbench/machbench/discussions
+    url: https://github.com/benchmania/benchmania/discussions
     about: Ask how something works or discuss an idea before it becomes a proposal.
   - name: Security vulnerability
-    url: https://github.com/machbench/machbench/security/advisories/new
+    url: https://github.com/benchmania/benchmania/security/advisories/new
     about: Report it privately instead of opening a public issue.

@@ -201,7 +201,7 @@ def test_publish_provenance_default_run_and_exclusions(proj, domains, tmp_path):
     and checkpoints of interrupted runs stay out of the dataset."""
     root = tmp_path / "repo"
     shutil.copytree(ROOT / "domains", root / "domains", ignore=shutil.ignore_patterns("node_modules", "target"))
-    shutil.copy(ROOT / "machbench.toml", root / "machbench.toml")
+    shutil.copy(ROOT / "benchmania.toml", root / "benchmania.toml")
     d = domains["backend"]
 
     def run(rid, created, **options):
@@ -273,7 +273,7 @@ def test_rename_tool(tmp_path):
     import sys
     work = tmp_path / "repo"
     work.mkdir()
-    for name in ("machbench.toml", "machbench", "README.md"):
+    for name in ("benchmania.toml", "benchmania", "README.md"):
         if (ROOT / name).exists():
             shutil.copy(ROOT / name, work / name)
     (work / "tools").mkdir()

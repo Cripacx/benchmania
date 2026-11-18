@@ -44,18 +44,18 @@ prove that domains plug in without engine changes.
 
 ## Run lifecycle
 
-1. `./machbench run <domain>` (host) builds the runner image and starts it privileged with the host PID and
+1. `./benchmania run <domain>` (host) builds the runner image and starts it privileged with the host PID and
    cgroup namespaces, the Docker socket and the repository mounted at `/work`.
 2. Inside, the engine reads the topology, computes the CPU layout, pins itself to the load-generator CPUs,
    fingerprints the machine and loads the domain harness.
 3. `prepare` → `build` + `check` per implementation → passes in rotating order → `measure` per
    implementation → checkpoint the bundle after every implementation → summary and quality flags →
    `teardown`.
-4. `./machbench publish` verifies every bundle, computes derived metrics and writes the dataset.
+4. `./benchmania publish` verifies every bundle, computes derived metrics and writes the dataset.
 
 ## Identity
 
-The project name, slug and URLs come from `machbench.toml`. Container and image names are derived from the
+The project name, slug and URLs come from `benchmania.toml`. Container and image names are derived from the
 slug, the website reads the name from the dataset, and `tools/rename_project.py` renames the remaining
 plain-text occurrences.
 

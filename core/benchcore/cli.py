@@ -1,4 +1,4 @@
-"""Command line interface. Run `python -m benchcore --help` or the `machbench` wrapper at the repository root."""
+"""Command line interface. Run `python -m benchcore --help` or the `benchmania` wrapper at the repository root."""
 
 import argparse
 import os

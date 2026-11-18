@@ -7,7 +7,7 @@ serves the API on port 8080 and connects to PostgreSQL at `127.0.0.1:5432` (user
 ## 1. Start from an existing one
 
 ```sh
-./machbench scaffold backend my-framework --from go-nethttp
+./benchmania scaffold backend my-framework --from go-nethttp
 ```
 
 This copies the directory and sets the id. The id is lowercase letters, digits and dashes, usually
@@ -87,9 +87,9 @@ toolchain image.
 ## 5. Test
 
 ```sh
-./machbench validate                                         # manifest
-./machbench check backend --impl my-framework                # build + functional checks
-./machbench run backend --impl my-framework go-nethttp --quick --passes 1
+./benchmania validate                                         # manifest
+./benchmania check backend --impl my-framework                # build + functional checks
+./benchmania run backend --impl my-framework go-nethttp --quick --passes 1
 ```
 
 Open a pull request. CI runs the same checks and a short end-to-end run of the changed implementation.

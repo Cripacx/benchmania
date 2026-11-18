@@ -1,7 +1,7 @@
 # Adding a scenario
 
 A scenario is one TOML file in `domains/<domain>/scenarios/<id>.toml`. Its `kind` must be one the domain's
-harness understands; the harness checks the required parameters (`./machbench validate`).
+harness understands; the harness checks the required parameters (`./benchmania validate`).
 
 ## Backend kinds
 

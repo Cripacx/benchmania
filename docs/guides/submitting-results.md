@@ -2,7 +2,7 @@
 
 ## Prepare the machine
 
-- Linux with rootful Docker and cgroup v2 (`./machbench doctor` checks both).
+- Linux with rootful Docker and cgroup v2 (`./benchmania doctor` checks both).
 - At least 4 physical cores; 6 or more give each role its own cores. The layout is printed at the start of a
   run and stored in the result.
 - Close other workloads. On laptops, use mains power and a fixed performance profile.
@@ -12,8 +12,8 @@
 ## Run
 
 ```sh
-./machbench check backend                      # all implementations must pass
-./machbench run backend --label "My workstation"
+./benchmania check backend                      # all implementations must pass
+./benchmania run backend --label "My workstation"
 ```
 
 A full run takes several hours: the first reference run (15 implementations, 5 passes) took 5 hours and
@@ -24,17 +24,17 @@ can be compared within the run. The result is written to `results/backend/<machi
 - Run from a clean checkout of a commit. The bundle records the commit, so everyone can see which code
   was measured.
 - Start the run where it survives a closed terminal, for example in `tmux` or with
-  `nohup ./machbench run backend > run.log 2>&1 &`.
+  `nohup ./benchmania run backend > run.log 2>&1 &`.
 - A checkpoint of the bundle is written after every implementation. To stop early, press Ctrl-C or send
-  `SIGTERM` to the `machbench` process: the runner saves what it has measured as a bundle with status
-  `partial` and removes its containers. `./machbench cleanup` removes containers left behind by a run that
+  `SIGTERM` to the `benchmania` process: the runner saves what it has measured as a bundle with status
+  `partial` and removes its containers. `./benchmania cleanup` removes containers left behind by a run that
   was killed.
 
 ## Check
 
 ```sh
-./machbench validate
-./machbench publish && (cd site && npm ci && npm run dev)   # look at your run on the local website
+./benchmania validate
+./benchmania publish && (cd site && npm ci && npm run dev)   # look at your run on the local website
 ```
 
 Look at the quality flags of your run. Many steal-time or saturation flags mean the machine is not suitable
