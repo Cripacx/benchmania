@@ -383,8 +383,10 @@ function RunSwitcher({ options, current }: { options: RunOption[]; current: stri
           <select
             value={currentOpt?.href ?? ''}
             onChange={(e) => {
-              const target = (e.target as HTMLSelectElement).value;
-              if (target) window.location.href = target;
+              // Only ever navigate to a run page this component rendered, not to whatever the DOM says.
+              const value = (e.target as HTMLSelectElement).value;
+              const target = options.find((r) => r.href === value);
+              if (target) window.location.href = target.href;
             }}
           >
             {provenances.map((p) => {
