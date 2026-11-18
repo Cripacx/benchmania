@@ -1,0 +1,261 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Breadcrumbs from '../../components/Breadcrumbs.astro';
+import Icon from '../../components/Icon.astro';
+import RunBadges from '../../components/RunBadges.astro';
+import { allDomains, getIndex, rawDataFiles } from '../../lib/dataset';
+import { formatDate, formatDateTime, formatKiloBytes, plural } from '../../lib/format';
+import { bundlePath, bundleUrl, licenseUrl, machineName, repoUrl } from '../../lib/model';
+import { absoluteUrl, href, routes } from '../../lib/paths';
+
+const index = getIndex();
+const project = index.project;
+const domains = allDomains();
+const files = rawDataFiles().map((f) => {
+  const domain = domains.find((d) => `${d.domain.id}.json` === f.name);
+  const description = domain
+    ? `${domain.domain.title}: metric registry, ${plural(domain.scenarios.length, 'scenario')}, ${plural(domain.implementations.length, 'implementation')}, machines and ${plural(domain.runs.length, 'run')} with summaries.`
+    : 'Project identity and the list of domains with their headline metrics.';
+  return { ...f, bytes: new TextEncoder().encode(f.content).length, description };
+});
+const year = new Date(index.generated).getUTCFullYear();
+const citeUrl = absoluteUrl(Astro.site, href(routes.home())) ?? project.repository;
+const citation = `${project.name} (${Number.isNaN(year) ? 'n.d.' : year}). ${project.tagline}. ${citeUrl}${
+  project.data_license ? `. Data licensed under ${project.data_license}.` : ''
+}`;
+const contract = `index.json
+  schema, generated, project { name, slug, tagline, description, repository, site_url, license, data_license }
+  domains[] { id, title, summary, status, service, headline[], description, runs, default_run, ... }
+
+<domain>.json
+  metrics       { <metricId>: { label, unit, better, group, description, decimals, visibility } }
+  derived[]     { id, kind, metric, scenarios }
+  scenarios[]   { id, title, kind, order, description, params }
+  implementations[] { id, name, language, runtime, framework, variant?, category, versions, notes, source? }
+  machines      { <machineId>: { label, reference?, cpu, memory_gib, kernel, os, virtualization, docker } }
+  runs[]        { id, created, finished, status, methodology, provenance, machine, passes,
+                  options, layout, tool, flags[],
+                  implementations { <implId>: { image, check, manifest } },
+                  results { <implId>: { <scenarioId>: { <metricId>: { m, lo, hi, min, max, n, cv } } } },
+                  derived { <implId>: { <derivedMetricId>: number } } }
+  default_run`;
+---
+
+<BaseLayout title="Data" description="Download the complete dataset behind this website and the raw result bundles." section="data">
+  <div class="container">
+    <header class="page-head">
+      <Breadcrumbs items={[{ label: 'Home', path: routes.home() }, { label: 'Data' }]} />
+      <h1>Open data</h1>
+      <p class="lead">
+        Everything on this website is generated from these files. Download them, build your own charts, or check our
+        numbers. The raw per-pass result bundles live in the repository.
+      </p>
+    </header>
+
+    <div class="data-page">
+      <section aria-labelledby="downloads-title">
+        <h2 id="downloads-title" class="visually-hidden">Downloads</h2>
+        <ul class="files">
+          {
+            files.map((f) => (
+              <li class="card file">
+                <span class="file-icon"><Icon name="file" size={20} /></span>
+                <div class="file-text">
+                  <p class="file-name mono">{f.name}</p>
+                  <p class="file-desc">{f.description}</p>
+                  <p class="file-meta muted">JSON · {formatKiloBytes(f.bytes)} · <span class="mono">{index.schema}</span></p>
+                </div>
+                <div class="file-actions">
+                  <a class="btn btn-secondary btn-sm" href={href(routes.dataFile(f.name))} download={f.name}>
+                    <Icon name="download" /> Download
+                  </a>
+                  <a class="btn btn-ghost btn-sm" href={href(routes.dataFile(f.name))}>View</a>
+                </div>
+              </li>
+            ))
+          }
+        </ul>
+        <p class="muted small">Generated {formatDateTime(index.generated)}.</p>
+      </section>
+
+      <div class="grid grid-2">
+        <section class="card card-pad" aria-labelledby="license-title">
+          <h2 id="license-title" class="card-title">License</h2>
+          <p>
+            {
+              project.data_license ? (
+                <>
+                  The data is licensed under{' '}
+                  <a href={licenseUrl(project.data_license) ?? undefined} rel="license">
+                    {project.data_license}
+                  </a>
+                  . You may share and adapt it for any purpose if you give appropriate credit and indicate changes.
+                </>
+              ) : (
+                'The dataset does not declare a license.'
+              )
+            }
+            {project.license && (
+              <>
+                {' '}
+                The code is licensed under <a href={licenseUrl(project.license) ?? undefined}>{project.license}</a>.
+              </>
+            )}
+          </p>
+          <h3 class="sub-title">How to cite</h3>
+          <pre class="cite"><code>{citation}</code></pre>
+        </section>
+
+        <section class="card card-pad" aria-labelledby="bundles-title">
+          <h2 id="bundles-title" class="card-title">Raw result bundles</h2>
+          <p>
+            Each run is one bundle with the machine fingerprint, CPU layout, every pass's raw values and the summary. CI checks
+            that the summary matches the per-pass data.
+          </p>
+          <ul class="bundles">
+            {
+              domains.flatMap((d) =>
+                d.runs.map((r) => (
+                  <li>
+                    <a href={bundleUrl(project, d.domain.id, r)} class="mono">
+                      {bundlePath(d.domain.id, r)}
+                    </a>
+                    <span class="bundle-meta">
+                      {d.domain.title} · {formatDate(r.created)} · {machineName(d.machines[r.machine], r.machine)}
+                    </span>
+                    <RunBadges run={r} />
+                  </li>
+                )),
+              )
+            }
+          </ul>
+          <a class="btn btn-ghost btn-sm" href={repoUrl(project, 'results', 'tree')}>
+            Browse all bundles <Icon name="arrowUpRight" />
+          </a>
+        </section>
+      </div>
+
+      <section aria-labelledby="contract-title">
+        <div class="section-head">
+          <div>
+            <h2 id="contract-title">Data contract</h2>
+            <p>
+              The shape of the dataset files (schema <span class="mono">{index.schema}</span>). Results are summaries over
+              passes: <code>m</code> is the median, <code>lo</code>/<code>hi</code> the 95 % bootstrap interval of the median,
+              <code>n</code> the number of passes and <code>cv</code> the coefficient of variation.
+            </p>
+          </div>
+        </div>
+        <pre class="contract"><code>{contract}</code></pre>
+      </section>
+    </div>
+  </div>
+</BaseLayout>
+
+<style>
+  .data-page {
+    display: grid;
+    gap: 40px;
+    padding-bottom: clamp(48px, 6vw, 88px);
+  }
+  .files {
+    display: grid;
+    gap: 10px;
+    list-style: none;
+    margin: 0 0 10px;
+    padding: 0;
+  }
+  .file {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 14px 16px;
+    align-items: center;
+    padding: 16px 18px;
+  }
+  @media (min-width: 720px) {
+    .file {
+      grid-template-columns: auto minmax(0, 1fr) auto;
+    }
+  }
+  .file-icon {
+    display: grid;
+    place-items: center;
+    width: 42px;
+    height: 42px;
+    border-radius: 10px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--text-2);
+  }
+  .file-name {
+    font-size: 0.9375rem;
+    font-weight: 600;
+  }
+  .file-desc {
+    margin-top: 2px;
+    font-size: 0.875rem;
+    color: var(--text-2);
+  }
+  .file-meta {
+    margin-top: 4px;
+    font-size: 0.75rem;
+  }
+  .file-actions {
+    display: flex;
+    gap: 6px;
+    grid-column: 1 / -1;
+  }
+  @media (min-width: 720px) {
+    .file-actions {
+      grid-column: auto;
+    }
+  }
+  .small {
+    font-size: 0.8125rem;
+  }
+  .card-title {
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+  .card p {
+    color: var(--text-2);
+    font-size: 0.9375rem;
+  }
+  .sub-title {
+    margin: 20px 0 8px;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--text-2);
+  }
+  .cite {
+    font-size: 0.8125rem;
+    white-space: pre-wrap;
+  }
+  .bundles {
+    display: grid;
+    gap: 8px;
+    list-style: none;
+    margin: 16px 0;
+    padding: 0;
+  }
+  .bundles li {
+    display: grid;
+    gap: 6px;
+    padding: 10px 12px;
+    border-radius: var(--radius-sm);
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+  }
+  .bundles a {
+    font-size: 0.75rem;
+    overflow-wrap: anywhere;
+  }
+  .bundle-meta {
+    font-size: 0.8125rem;
+    color: var(--text-2);
+  }
+  .contract {
+    font-size: 0.75rem;
+  }
+</style>

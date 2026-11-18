@@ -1,0 +1,684 @@
+---
+/**
+ * The implementation page: /<domain>/<impl>/ (default run) and /<domain>/runs/<run>/<impl>/ (one run).
+ * Every link on a run-scoped page stays inside that run, except the explicit "other runs" links.
+ */
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Breadcrumbs from './Breadcrumbs.astro';
+import Icon from './Icon.astro';
+import MetricRows from './MetricRows.astro';
+import RunContext from './RunContext.astro';
+import RunNotice from './RunNotice.astro';
+import RunScopeNotice from './RunScopeNotice.astro';
+import { getProject } from '../lib/dataset';
+import { formatBytes, formatDate, formatInterval, formatNumber, isNum } from '../lib/format';
+import { methodologyInfo } from '../lib/methodology';
+import {
+  byVisibility,
+  categoryDescription,
+  categoryLabel,
+  flagScenario,
+  flagsForImplementation,
+  headlineValue,
+  implementation,
+  implementationLinks,
+  machineName,
+  measuredMetricIds,
+  measuredScenarios,
+  measuredVersions,
+  metricOrFallback,
+  missingValue,
+  rankMap,
+  runImplementationIds,
+  runScope,
+  scenarioKindLabel,
+  scenarioParams,
+  suggestedComparisons,
+  valueFlagTexts,
+} from '../lib/model';
+import { href, routes } from '../lib/paths';
+import type { DomainData, Implementation, Run } from '../lib/types';
+
+interface Props {
+  domain: DomainData;
+  implId: string;
+  run: Run | undefined;
+  /** True on /<domain>/runs/<run>/<impl>/. */
+  scoped?: boolean;
+}
+
+const { domain, implId, run, scoped = false } = Astro.props;
+const project = getProject();
+const id = domain.domain.id;
+const scope = scoped && run ? run.id : null;
+const impl: Implementation = implementation(domain, implId, run);
+const title = impl.variant ? `${impl.name} (${impl.variant})` : impl.name;
+const inRun = run ? runImplementationIds(domain, run).includes(implId) : false;
+const links = implementationLinks(project, domain.domain.id, impl);
+const versions = measuredVersions(domain, implId, inRun ? run : undefined);
+const runImpl = run?.implementations?.[implId];
+const versionsNote = runImpl?.manifest?.versions_note;
+const check = runImpl?.check;
+const checkOk = check === 'ok';
+const checkText = check == null ? 'not recorded' : Array.isArray(check) ? check.join(', ') : check;
+const flags = run && inRun ? flagsForImplementation(run, implId) : [];
+const ids = run ? runImplementationIds(domain, run) : [];
+
+const tiles =
+  run && inRun
+    ? (domain.domain.headline ?? []).map((h) => {
+        const metric = metricOrFallback(domain.metrics, h.metric);
+        const value = headlineValue(run, h, implId);
+        const ranks = rankMap(
+          ids.map((id) => ({ id, value: headlineValue(run, h, id)?.m ?? null })),
+          metric.better,
+        );
+        const of = ids.filter((id) => headlineValue(run, h, id)).length;
+        const bestId = ids.find((id) => ranks.get(id) === 1);
+        const best = bestId ? headlineValue(run, h, bestId) : null;
+        return {
+          h,
+          metric,
+          value,
+          flags: valueFlagTexts(domain, run.flags, implId, h.scenario ?? null, h.metric),
+          missing: missingValue(run, implId, h.scenario ?? null, h.metric),
+          rank: ranks.get(implId) ?? null,
+          of,
+          best,
+          bestImpl: bestId && bestId !== implId ? implementation(domain, bestId, run) : null,
+          href: href(`${routes.explorer(id, scope)}?scenario=${h.scenario ?? 'overall'}&metric=${h.metric}`),
+        };
+      })
+    : [];
+
+const scenarios = run && inRun ? measuredScenarios(domain, run) : [];
+const sections = run && inRun
+  ? [
+      ...(Object.keys(run.derived?.[implId] ?? {}).length
+        ? [{ key: null as string | null, title: 'Overall', kind: 'Derived', params: [] as string[], description: 'Derived from the scenario medians of this run.' }]
+        : []),
+      ...scenarios.map((s) => ({
+        key: s.id as string | null,
+        title: s.title,
+        kind: scenarioKindLabel(s.kind),
+        params: scenarioParams(s, domain.scenarios),
+        description: s.description ?? '',
+      })),
+    ].map((sec) => {
+      const metricIds = measuredMetricIds(domain.metrics, { results: { [implId]: run.results[implId] ?? {} }, derived: { [implId]: run.derived?.[implId] ?? {} } }, sec.key);
+      const vis = byVisibility(domain.metrics, metricIds);
+      const scenarioFlags = flags.filter((f) => flagScenario(f) === sec.key);
+      return { ...sec, primary: vis.primary, extra: [...vis.secondary, ...vis.diagnostic], flags: scenarioFlags };
+    })
+  : [];
+
+const otherRuns = domain.runs.filter((r) => r.id !== run?.id && Object.keys(r.results ?? {}).includes(implId));
+const crumbs =
+  scoped && run
+    ? [
+        { label: 'Home', path: routes.home() },
+        { label: domain.domain.title },
+        { label: 'Runs', path: routes.runs(id) },
+        { label: formatDate(run.created), path: routes.run(id, run.id) },
+        { label: title },
+      ]
+    : [
+        { label: 'Home', path: routes.home() },
+        { label: domain.domain.title, path: routes.domain(id) },
+        { label: title },
+      ];
+const related = suggestedComparisons(domain, ids, 4).filter((s) => s.ids.includes(implId));
+const comparePeers = related[0]?.ids ?? [implId];
+---
+
+<BaseLayout
+  title={scoped && run ? `${title} · Run ${formatDate(run.created)} · ${domain.domain.title}` : `${title} · ${domain.domain.title}`}
+  description={impl.description ?? `${title}: benchmark results`}
+  section={`domain:${domain.domain.id}`}
+>
+  <div class="container">
+    <header class="page-head impl-head">
+      <Breadcrumbs items={crumbs} />
+      <div class="impl-title">
+        <h1>{impl.name}</h1>
+        {impl.variant && <span class="badge impl-variant">{impl.variant}</span>}
+      </div>
+      {impl.description && <p class="lead">{impl.description}</p>}
+      <ul class="impl-tags" aria-label="Identity">
+        <li><span class="k">Language</span>{impl.language}</li>
+        {impl.runtime && <li><span class="k">Runtime</span>{impl.runtime}</li>}
+        {impl.framework && <li><span class="k">Framework</span>{impl.framework}</li>}
+        <li title={categoryDescription(impl.category)}><span class="k">Category</span>{categoryLabel(impl.category)}</li>
+      </ul>
+      <div class="impl-actions">
+        <a class="btn btn-primary btn-sm" href={links.directory}><Icon name="github" /> Implementation source</a>
+        {links.source && (
+          <a class="btn btn-secondary btn-sm" href={links.source} title={links.sourcePath ?? undefined}>
+            <Icon name="file" /> Shared source
+          </a>
+        )}
+        {inRun && (
+          <a class="btn btn-secondary btn-sm" href={href(routes.compare(id, comparePeers.length > 1 ? comparePeers : [implId], scope))}>
+            <Icon name="compare" /> {comparePeers.length > 1 ? 'Compare with its variants' : 'Compare'}
+          </a>
+        )}
+      </div>
+    </header>
+
+    {
+      run && inRun ? (
+        <>
+          <div class="impl-context">
+            <RunContext domain={domain} run={run} />
+            {scoped && <RunScopeNotice domain={domain} run={run} defaultPath={routes.implementation(id, implId)} />}
+            <RunNotice domain={domain} run={run} compact />
+          </div>
+
+          <section aria-labelledby="headline-title" class="impl-section">
+            <h2 id="headline-title" class="visually-hidden">Headline results</h2>
+            <ul class="tiles">
+              {tiles.map((t) => (
+                <li class="card tile">
+                  <a href={t.href} class="tile-link">
+                    <span class="tile-label">{t.h.label}</span>
+                    {t.value ? (
+                      <>
+                        <span class="tile-value">
+                          {formatNumber(t.value.m, t.metric.decimals ?? 0)}
+                          {t.metric.unit !== 'index' && <span class="tile-unit">{t.metric.unit}</span>}
+                        </span>
+                        <span class="tile-rank">
+                          {t.rank ? (
+                            <>
+                              <strong>#{t.rank}</strong> of {t.of}
+                            </>
+                          ) : (
+                            'not ranked'
+                          )}
+                          {formatInterval(t.value, t.metric) && <span> · CI {formatInterval(t.value, t.metric)}</span>}
+                        </span>
+                        {t.flags.length > 0 && (
+                          <span class="tile-flags" title={t.flags.join('\n')}>
+                            <Icon name="alert" class="inline-icon" />
+                            <span>{t.flags.length === 1 ? t.flags[0] : `${t.flags.length} quality flags: ${t.flags.join('; ')}`}</span>
+                          </span>
+                        )}
+                        <span class="tile-best">
+                          {t.rank === 1
+                            ? 'Best in this run'
+                            : t.best && t.bestImpl
+                              ? `Best: ${formatNumber(t.best.m, t.metric.decimals ?? 0)} (${t.bestImpl.name}${t.bestImpl.variant ? `, ${t.bestImpl.variant}` : ''})`
+                              : ''}
+                        </span>
+                      </>
+                    ) : (
+                      <span class="tile-na" title={t.missing.reason}>
+                        {t.missing.label === 'no index' ? t.missing.reason : 'Not measured in this run'}
+                      </span>
+                    )}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </section>
+
+          <div class="impl-layout">
+            <section aria-labelledby="results-title" class="impl-results">
+              <div class="section-head">
+                <div>
+                  <h2 id="results-title">All results</h2>
+                  <p>
+                    Every scenario and metric measured for this implementation. Primary metrics first; the rest are one click
+                    away. Ranks count all {ids.length} implementations of the run.
+                  </p>
+                </div>
+              </div>
+              <div class="scen-list">
+                {sections.map((sec) => (
+                  <article class="card scen" id={`scenario-${sec.key ?? 'overall'}`}>
+                    <header class="scen-head">
+                      <div>
+                        <h3>{sec.title}</h3>
+                        <p class="muted scen-kind">{sec.kind}</p>
+                      </div>
+                      {sec.params.length > 0 && (
+                        <ul class="scen-params">
+                          {sec.params.map((p) => (
+                            <li class="tag">{p}</li>
+                          ))}
+                        </ul>
+                      )}
+                    </header>
+                    {sec.flags.length > 0 && (
+                      <ul class="flag-list scen-flags">
+                        {sec.flags.map((f) => (
+                          <li class={f.level === 'info' ? 'info' : ''}>
+                            <Icon name={f.level === 'info' ? 'info' : 'alert'} />
+                            <span>
+                              {f.message}
+                              {f.pass ? ` (pass ${f.pass})` : ''}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    <div class="table-wrap scen-table">
+                      <table class="data">
+                        <thead>
+                          <tr>
+                            <th scope="col">Metric</th>
+                            <th scope="col" class="r">Median</th>
+                            <th scope="col" class="r col-ci">95 % CI</th>
+                            <th scope="col" class="r col-n">n</th>
+                            <th scope="col" class="r">Rank</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <MetricRows domain={domain} run={run} impl={implId} scenario={sec.key} metrics={sec.primary.length ? sec.primary : sec.extra} />
+                        </tbody>
+                      </table>
+                    </div>
+                    {sec.primary.length > 0 && sec.extra.length > 0 && (
+                      <details class="disclosure scen-more">
+                        <summary>
+                          {sec.extra.length} more {sec.extra.length === 1 ? 'metric' : 'metrics'}
+                        </summary>
+                        <div class="table-wrap scen-table">
+                          <table class="data">
+                            <thead>
+                              <tr>
+                                <th scope="col">Metric</th>
+                                <th scope="col" class="r">Median</th>
+                                <th scope="col" class="r col-ci">95 % CI</th>
+                                <th scope="col" class="r col-n">n</th>
+                                <th scope="col" class="r">Rank</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              <MetricRows domain={domain} run={run} impl={implId} scenario={sec.key} metrics={sec.extra} />
+                            </tbody>
+                          </table>
+                        </div>
+                      </details>
+                    )}
+                  </article>
+                ))}
+              </div>
+            </section>
+
+            <aside class="impl-aside" aria-label="Build and versions">
+              <section class="card card-pad">
+                <h2 class="aside-title">Versions</h2>
+                <dl class="kv">
+                  {Object.entries(versions).map(([k, v]) => (
+                    <>
+                      <dt>{k.replace(/_/g, ' ')}</dt>
+                      <dd class="mono">{v}</dd>
+                    </>
+                  ))}
+                </dl>
+                {versionsNote && (
+                  <p class="aside-note">
+                    <Icon name="info" class="inline-icon" /> {versionsNote}
+                  </p>
+                )}
+              </section>
+
+              <section class="card card-pad">
+                <h2 class="aside-title">In this run</h2>
+                <dl class="kv">
+                  <dt>Functional check</dt>
+                  <dd>
+                    <span class={`check ${checkOk ? 'ok' : 'bad'}`}>
+                      <Icon name={checkOk ? 'checkCircle' : 'alert'} />
+                      {checkOk ? 'passed' : checkText}
+                    </span>
+                  </dd>
+                  <dt>Image size</dt>
+                  <dd>{isNum(runImpl?.image?.size_bytes) ? formatBytes(runImpl?.image?.size_bytes) : 'not recorded'}</dd>
+                  <dt>Quality flags</dt>
+                  <dd>{flags.length ? flags.length : 'none'}</dd>
+                  <dt>Run</dt>
+                  <dd>
+                    <a href={href(routes.run(domain.domain.id, run.id))}>{formatDate(run.created)}</a>
+                    <span class="muted"> · {methodologyInfo(run.methodology).short}</span>
+                  </dd>
+                  <dt>Machine</dt>
+                  <dd>
+                    <a href={href(routes.machine(run.machine))}>{machineName(domain.machines[run.machine], run.machine)}</a>
+                  </dd>
+                </dl>
+              </section>
+
+              {impl.notes && impl.notes.length > 0 && (
+                <section class="card card-pad">
+                  <h2 class="aside-title">Configuration notes</h2>
+                  <ul class="notes">
+                    {impl.notes.map((n) => (
+                      <li>{n}</li>
+                    ))}
+                  </ul>
+                </section>
+              )}
+
+              {Array.isArray(impl.maintainers) && impl.maintainers.length > 0 && (
+                <section class="card card-pad">
+                  <h2 class="aside-title">Maintainers</h2>
+                  <p>{impl.maintainers.join(', ')}</p>
+                </section>
+              )}
+
+              {otherRuns.length > 0 && (
+                <section class="card card-pad">
+                  <h2 class="aside-title">Other runs</h2>
+                  <ul class="notes">
+                    {otherRuns.map((r) => (
+                      <li>
+                        <a href={href(routes.implementation(id, implId, runScope(domain, r)))} data-run-exit>
+                          {formatDate(r.created)}
+                        </a>{' '}
+                        <span class="muted">
+                          · {machineName(domain.machines[r.machine], r.machine)} · {methodologyInfo(r.methodology).short}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )}
+            </aside>
+          </div>
+        </>
+      ) : (
+        <>
+          {run && (
+            <div class="impl-context">
+              <RunContext domain={domain} run={run} />
+              {scoped && <RunScopeNotice domain={domain} run={run} defaultPath={routes.implementation(id, implId)} />}
+            </div>
+          )}
+          <div class="card card-pad impl-absent">
+            <h2>Not measured in this run</h2>
+            <p>
+              {run
+                ? `${title} has no results in the run of ${formatDate(run.created)} on ${machineName(domain.machines[run.machine], run.machine)}.`
+                : `No run has been published yet.`}{' '}
+              {otherRuns.length ? 'It was measured in these runs:' : 'No published run includes it yet.'}
+            </p>
+            {otherRuns.length > 0 && (
+              <ul class="notes">
+                {otherRuns.map((r) => (
+                  <li>
+                    <a href={href(routes.implementation(id, implId, runScope(domain, r)))} data-run-exit>
+                      {formatDate(r.created)}
+                    </a>{' '}
+                    <span class="muted">
+                      · {machineName(domain.machines[r.machine], r.machine)} · {methodologyInfo(r.methodology).short}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </>
+      )
+    }
+  </div>
+</BaseLayout>
+
+<style>
+  .impl-head {
+    padding-bottom: 20px;
+  }
+  .impl-title {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px 14px;
+  }
+  .impl-variant {
+    height: 26px;
+    padding-inline: 10px;
+    font-size: 0.8125rem;
+  }
+  .impl-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    list-style: none;
+    margin: 18px 0 0;
+    padding: 0;
+  }
+  .impl-tags li {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 30px;
+    padding-inline: 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    font-size: 0.8125rem;
+    font-weight: 500;
+  }
+  .impl-tags .k {
+    color: var(--muted);
+    font-weight: 400;
+  }
+  .impl-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 20px;
+  }
+  .impl-context {
+    display: grid;
+    gap: 14px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border);
+  }
+  .impl-section {
+    margin-top: 20px;
+  }
+  .tiles {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .tile-link {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    padding: 16px 18px;
+    color: inherit;
+    border-radius: inherit;
+  }
+  .tile-link:hover {
+    text-decoration: none;
+    background: color-mix(in srgb, var(--surface-2) 50%, transparent);
+  }
+  .tile-label {
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--text-2);
+  }
+  .tile-value {
+    margin-top: 8px;
+    font-size: 1.875rem;
+    font-weight: 600;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+    color: var(--text);
+  }
+  .tile-unit {
+    margin-left: 4px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    letter-spacing: 0;
+    color: var(--muted);
+  }
+  .tile-rank {
+    margin-top: 6px;
+    font-size: 0.875rem;
+    color: var(--text-2);
+  }
+  .tile-rank strong {
+    color: var(--text);
+  }
+  .tile-flags {
+    display: flex;
+    gap: 5px;
+    margin-top: 6px;
+    font-size: 0.75rem;
+    color: var(--warn-text);
+  }
+  .tile-flags :global(svg) {
+    flex: none;
+    margin-top: 2px;
+    color: var(--warn-icon);
+  }
+  .impl-absent {
+    margin-top: 20px;
+    margin-bottom: clamp(48px, 6vw, 88px);
+  }
+  .impl-absent h2 {
+    font-size: 1.125rem;
+    margin-bottom: 6px;
+  }
+  .impl-absent p {
+    color: var(--text-2);
+    margin-bottom: 10px;
+  }
+  .tile-best,
+  .tile-na {
+    margin-top: auto;
+    padding-top: 8px;
+    font-size: 0.75rem;
+    color: var(--muted);
+  }
+  .impl-layout {
+    display: grid;
+    gap: 32px;
+    margin-top: 48px;
+    padding-bottom: clamp(48px, 6vw, 88px);
+  }
+  @media (min-width: 1024px) {
+    .impl-layout {
+      grid-template-columns: minmax(0, 1fr) 320px;
+      gap: 40px;
+      align-items: start;
+    }
+    .impl-aside {
+      position: sticky;
+      top: calc(var(--header-h) + 20px);
+    }
+  }
+  .scen-list {
+    display: grid;
+    gap: 14px;
+  }
+  .scen {
+    padding: 16px;
+  }
+  .scen-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px 16px;
+    margin-bottom: 12px;
+  }
+  .scen-kind {
+    font-size: 0.75rem;
+  }
+  .scen-params {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .scen-params .tag {
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+  }
+  .scen-flags {
+    margin-bottom: 12px;
+  }
+  .scen-table {
+    border-radius: var(--radius-sm);
+  }
+  .scen-table th[scope='row'] {
+    width: 42%;
+  }
+  .scen-more {
+    margin-top: 10px;
+  }
+  @media (max-width: 559px) {
+    .scen-table :global(.col-ci),
+    .scen-table :global(.col-n) {
+      display: none;
+    }
+    .scen-table th[scope='row'] {
+      width: auto;
+    }
+  }
+  .scen-more > summary {
+    font-size: 0.8125rem;
+  }
+  .scen-more .table-wrap {
+    margin-top: 10px;
+  }
+  .impl-aside {
+    display: grid;
+    gap: 12px;
+  }
+  .aside-title {
+    font-size: 0.875rem;
+    font-weight: 600;
+    letter-spacing: -0.005em;
+    margin-bottom: 12px;
+  }
+  .impl-aside .kv {
+    font-size: 0.8125rem;
+    grid-template-columns: minmax(90px, max-content) 1fr;
+  }
+  .impl-aside .kv dd.mono {
+    font-size: 0.75rem;
+  }
+  .aside-note {
+    margin-top: 12px;
+    font-size: 0.75rem;
+    color: var(--muted);
+  }
+  .notes {
+    margin: 0;
+    padding-left: 1.1em;
+    font-size: 0.8125rem;
+    color: var(--text-2);
+  }
+  .notes li + li {
+    margin-top: 6px;
+  }
+  .check {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .check svg {
+    width: 14px;
+    height: 14px;
+  }
+  .check.ok svg {
+    color: var(--good-icon);
+  }
+  .check.bad {
+    color: var(--warn-text);
+  }
+  .check.bad svg {
+    color: var(--warn-icon);
+  }
+</style>

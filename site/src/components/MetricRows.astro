@@ -1,0 +1,75 @@
+---
+/** Table rows for metrics of one implementation in one scenario: median, interval, n and rank. */
+import { formatInterval, formatNumber, formatValue, isNum } from '../lib/format';
+import { metricOrFallback, metricValue, rankMap, runImplementationIds } from '../lib/model';
+import type { DomainData, Run } from '../lib/types';
+
+interface Props {
+  domain: DomainData;
+  run: Run;
+  impl: string;
+  scenario: string | null;
+  metrics: string[];
+}
+
+const { domain, run, impl, scenario, metrics } = Astro.props;
+const ids = runImplementationIds(domain, run);
+const rows = metrics.map((id) => {
+  const metric = metricOrFallback(domain.metrics, id);
+  const value = metricValue(run, scenario, id, impl);
+  const ci = value ? formatInterval(value, metric, { unit: false }) : null;
+  const ranks = rankMap(
+    ids.map((i) => ({ id: i, value: metricValue(run, scenario, id, i)?.m ?? null })),
+    metric.better,
+  );
+  const of = ids.filter((i) => metricValue(run, scenario, id, i)).length;
+  return { metric, value, ci, rank: ranks.get(impl) ?? null, of };
+});
+---
+
+{
+  rows.map(({ metric, value, ci, rank, of }) => (
+    <tr>
+      <th scope="row">
+        <span class="mr-label" title={metric.description || undefined}>
+          {metric.label}
+        </span>
+      </th>
+      <td class="r nowrap">
+        <strong>{value ? formatValue(value.m, metric) : 'not measured'}</strong>
+        {ci && <span class="mr-ci-inline muted">95 % CI {ci}</span>}
+      </td>
+      <td class="r nowrap muted col-ci">{ci ?? '—'}</td>
+      <td class="r muted col-n">{value && !value.derived && isNum(value.n) ? value.n : '—'}</td>
+      <td class="r nowrap muted">
+        {rank ? (
+          <>
+            <span class={rank === 1 ? 'mr-best' : ''}>{formatNumber(rank, 0)}</span> / {of}
+          </>
+        ) : (
+          '—'
+        )}
+      </td>
+    </tr>
+  ))
+}
+
+<style>
+  /* On narrow screens the interval moves under the median and the n column is hidden (see the impl page). */
+  .mr-ci-inline {
+    display: none;
+    font-size: 0.75rem;
+  }
+  @media (max-width: 559px) {
+    .mr-ci-inline {
+      display: block;
+    }
+  }
+  .mr-label {
+    font-weight: 450;
+  }
+  .mr-best {
+    color: var(--text);
+    font-weight: 600;
+  }
+</style>

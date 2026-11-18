@@ -1,0 +1,94 @@
+---
+/**
+ * The compare page: /<domain>/compare/ (default run) and /<domain>/runs/<run>/compare/ (one run).
+ * Every link on a run-scoped page stays inside that run, also when it is the default run.
+ */
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Breadcrumbs from './Breadcrumbs.astro';
+import RunContext from './RunContext.astro';
+import RunNotice from './RunNotice.astro';
+import RunScopeNotice from './RunScopeNotice.astro';
+import { CompareIsland } from './islands/Islands';
+import { compareProps, MAX_COMPARE } from '../lib/islandProps';
+import { formatDate } from '../lib/format';
+import { basePath, href, routes } from '../lib/paths';
+import { encodeIslandProps } from '../lib/view';
+import type { DomainData, Run } from '../lib/types';
+
+interface Props {
+  domain: DomainData;
+  run: Run | undefined;
+  /** True on /<domain>/runs/<run>/compare/. */
+  scoped?: boolean;
+}
+
+const { domain, run, scoped = false } = Astro.props;
+const id = domain.domain.id;
+const scope = scoped && run ? run.id : null;
+const props = run ? compareProps(domain, run, basePath(), scope) : null;
+const crumbs =
+  scoped && run
+    ? [
+        { label: 'Home', path: routes.home() },
+        { label: domain.domain.title },
+        { label: 'Runs', path: routes.runs(id) },
+        { label: formatDate(run.created), path: routes.run(id, run.id) },
+        { label: 'Compare' },
+      ]
+    : [
+        { label: 'Home', path: routes.home() },
+        { label: domain.domain.title, path: routes.domain(id) },
+        { label: 'Compare' },
+      ];
+---
+
+<BaseLayout
+  title={scoped && run ? `Compare · Run ${formatDate(run.created)} · ${domain.domain.title}` : `Compare · ${domain.domain.title}`}
+  description={`Compare up to ${MAX_COMPARE} implementations of ${domain.domain.title.toLowerCase()} side by side.`}
+  section={`domain:${id}`}
+>
+  <script is:inline>
+    // Hide the "pick implementations" state before hydration when the URL already has a selection.
+    if (/[?&]ids=[^&]+/.test(location.search)) document.documentElement.classList.add('cmp-pending');
+  </script>
+  <div class="container">
+    <header class="page-head">
+      <Breadcrumbs items={crumbs} />
+      <h1>Compare implementations</h1>
+      <p class="lead">
+        Up to {MAX_COMPARE} implementations side by side, with the relative difference to a baseline in every scenario.
+      </p>
+    </header>
+    {
+      run && props ? (
+        <div class="cmp-page">
+          <div class="cmp-context">
+            <RunContext domain={domain} run={run} />
+            {scoped && <RunScopeNotice domain={domain} run={run} defaultPath={routes.compare(id)} />}
+            <RunNotice domain={domain} run={run} compact />
+          </div>
+          <CompareIsland client:load payload={encodeIslandProps(props)} />
+          <noscript>
+            <p class="notice">
+              The comparison needs JavaScript. Every implementation page lists all of its results without it:{' '}
+              <a href={href(routes.explorer(id, scope))}>open the explorer</a>.
+            </p>
+          </noscript>
+        </div>
+      ) : (
+        <div class="card card-pad empty">No runs have been published for this domain yet.</div>
+      )
+    }
+  </div>
+</BaseLayout>
+
+<style>
+  .cmp-page {
+    padding-bottom: clamp(48px, 6vw, 88px);
+  }
+  .cmp-context {
+    display: grid;
+    gap: 14px;
+    margin-bottom: 24px;
+  }
+</style>

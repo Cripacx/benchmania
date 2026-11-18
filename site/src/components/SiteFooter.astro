@@ -1,0 +1,173 @@
+---
+import Logo from './Logo.astro';
+import { getIndex, listDomains } from '../lib/dataset';
+import { formatDateTime } from '../lib/format';
+import { licenseUrl, repoUrl } from '../lib/model';
+import { href, routes } from '../lib/paths';
+
+const index = getIndex();
+const project = index.project;
+const domains = listDomains();
+const codeLicense = project.license;
+const dataLicense = project.data_license;
+---
+
+<footer class="site-footer">
+  <div class="container">
+    <div class="cols">
+      <div class="brand-col">
+        <a class="brand" href={href(routes.home())}>
+          <Logo size={22} />
+          <span>{project.name}</span>
+        </a>
+        <p>{project.tagline}</p>
+      </div>
+      <nav aria-label="Results">
+        <h2>Results</h2>
+        <ul>
+          {
+            domains.map((d) => (
+              <li>
+                <a href={href(routes.domain(d.id))}>{d.title}</a>
+              </li>
+            ))
+          }
+          {
+            domains.map((d) => (
+              <li>
+                <a href={href(routes.compare(d.id))}>Compare {d.title.toLowerCase()}</a>
+              </li>
+            ))
+          }
+          <li><a href={href(routes.machines())}>Machines</a></li>
+        </ul>
+      </nav>
+      <nav aria-label="Project">
+        <h2>Project</h2>
+        <ul>
+          <li><a href={href(routes.methodology())}>Methodology</a></li>
+          <li><a href={href(routes.contribute())}>Contribute</a></li>
+          <li><a href={href(routes.data())}>Data and downloads</a></li>
+          <li><a href={project.repository}>Source code</a></li>
+        </ul>
+      </nav>
+      <nav aria-label="Repository">
+        <h2>Repository</h2>
+        <ul>
+          <li><a href={repoUrl(project, 'docs/methodology.md', 'blob')}>Methodology document</a></li>
+          <li><a href={repoUrl(project, 'CONTRIBUTING.md', 'blob')}>Contributing guide</a></li>
+          <li><a href={repoUrl(project, 'results', 'tree')}>Raw result bundles</a></li>
+          <li><a href={`${project.repository.replace(/\/+$/, '')}/issues`}>Issues</a></li>
+        </ul>
+      </nav>
+    </div>
+    <div class="legal">
+      <p>
+        {
+          codeLicense && (
+            <>
+              Code under{' '}
+              <a href={licenseUrl(codeLicense) ?? undefined} rel="license">
+                {codeLicense}
+              </a>
+            </>
+          )
+        }
+        {codeLicense && dataLicense && ' · '}
+        {
+          dataLicense && (
+            <>
+              Data under{' '}
+              <a href={licenseUrl(dataLicense) ?? undefined} rel="license">
+                {dataLicense}
+              </a>
+            </>
+          )
+        }
+      </p>
+      <p>
+        Dataset generated {formatDateTime(index.generated)} · <span class="mono">{index.schema}</span>
+      </p>
+    </div>
+  </div>
+</footer>
+
+<style>
+  .site-footer {
+    margin-top: auto;
+    border-top: 1px solid var(--border);
+    background: var(--surface);
+    padding-block: 48px 32px;
+    font-size: 0.875rem;
+  }
+  .cols {
+    display: grid;
+    gap: 32px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .brand-col {
+    grid-column: 1 / -1;
+  }
+  @media (min-width: 860px) {
+    .cols {
+      grid-template-columns: 1.6fr 1fr 1fr 1fr;
+    }
+    .brand-col {
+      grid-column: auto;
+    }
+  }
+  .brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--text);
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    font-size: 1rem;
+  }
+  .brand:hover {
+    text-decoration: none;
+  }
+  .brand-col p {
+    margin-top: 10px;
+    color: var(--muted);
+    max-width: 32ch;
+  }
+  h2 {
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--muted);
+    letter-spacing: 0;
+    margin-bottom: 12px;
+  }
+  ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 8px;
+  }
+  ul a {
+    color: var(--text-2);
+  }
+  ul a:hover {
+    color: var(--text);
+  }
+  .legal {
+    margin-top: 40px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 8px 24px;
+    color: var(--muted);
+    font-size: 0.8125rem;
+  }
+  .legal a {
+    color: var(--text-2);
+  }
+  .legal .mono {
+    font-size: 0.75rem;
+  }
+</style>

@@ -1,0 +1,191 @@
+---
+import Icon from './Icon.astro';
+import Logo from './Logo.astro';
+import ThemeToggle from './ThemeToggle.astro';
+import { getProject, listDomains } from '../lib/dataset';
+import { href, routes } from '../lib/paths';
+
+interface Props {
+  section?: string;
+}
+
+const { section } = Astro.props;
+const project = getProject();
+const domains = listDomains();
+
+const items = [
+  ...domains.map((d) => ({ id: `domain:${d.id}`, label: d.title, path: routes.domain(d.id) })),
+  { id: 'methodology', label: 'Methodology', path: routes.methodology() },
+  { id: 'machines', label: 'Machines', path: routes.machines() },
+  { id: 'data', label: 'Data', path: routes.data() },
+  { id: 'contribute', label: 'Contribute', path: routes.contribute() },
+];
+---
+
+<header class="site-header">
+  <div class="container bar">
+    <a class="brand" href={href(routes.home())} aria-label={`${project.name} home`}>
+      <Logo size={24} />
+      <span>{project.name}</span>
+    </a>
+
+    <nav class="nav" aria-label="Main">
+      <ul>
+        {
+          items.map((item) => (
+            <li>
+              <a href={href(item.path)} aria-current={section === item.id ? 'page' : undefined}>
+                {item.label}
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+    </nav>
+
+    <div class="actions">
+      <a class="icon-btn" href={project.repository} aria-label="Source code on GitHub" title="Source code on GitHub">
+        <Icon name="github" size={18} />
+      </a>
+      <ThemeToggle />
+      <details class="mobile-nav">
+        <summary class="icon-btn" aria-label="Menu">
+          <Icon name="menu" size={18} />
+        </summary>
+        <nav class="mobile-panel" aria-label="Main (mobile)">
+          <ul>
+            {
+              items.map((item) => (
+                <li>
+                  <a href={href(item.path)} aria-current={section === item.id ? 'page' : undefined}>
+                    {item.label}
+                  </a>
+                </li>
+              ))
+            }
+            <li>
+              <a href={project.repository}>
+                GitHub repository <Icon name="arrowUpRight" size={14} />
+              </a>
+            </li>
+          </ul>
+        </nav>
+      </details>
+    </div>
+  </div>
+</header>
+
+<style>
+  .site-header {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    height: var(--header-h);
+    background: color-mix(in srgb, var(--bg) 82%, transparent);
+    backdrop-filter: saturate(1.6) blur(12px);
+    -webkit-backdrop-filter: saturate(1.6) blur(12px);
+    border-bottom: 1px solid var(--border);
+  }
+  .bar {
+    height: 100%;
+    display: flex;
+    align-items: center;
+    gap: 24px;
+  }
+  .brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--text);
+    font-weight: 600;
+    font-size: 1rem;
+    letter-spacing: -0.02em;
+    text-decoration: none;
+    flex: none;
+  }
+  .brand:hover {
+    text-decoration: none;
+  }
+  .nav {
+    display: none;
+    flex: 1;
+  }
+  .nav ul,
+  .mobile-panel ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .nav ul {
+    display: flex;
+    gap: 2px;
+  }
+  .nav a {
+    display: inline-flex;
+    align-items: center;
+    height: 32px;
+    padding-inline: 10px;
+    border-radius: 8px;
+    color: var(--text-2);
+    font-size: 0.875rem;
+    font-weight: 500;
+    text-decoration: none;
+  }
+  .nav a:hover {
+    color: var(--text);
+    background: var(--surface-2);
+  }
+  .nav a[aria-current='page'] {
+    color: var(--text);
+    background: var(--surface-2);
+  }
+  .actions {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+  }
+  .mobile-nav {
+    position: relative;
+  }
+  .mobile-nav > summary {
+    list-style: none;
+  }
+  .mobile-nav > summary::-webkit-details-marker {
+    display: none;
+  }
+  .mobile-panel {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 10px);
+    width: min(280px, calc(100vw - 32px));
+    padding: 6px;
+    border-radius: var(--radius);
+    background: var(--surface);
+    border: 1px solid var(--border-strong);
+    box-shadow: var(--shadow-lg);
+  }
+  .mobile-panel a {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 12px;
+    border-radius: 7px;
+    color: var(--text);
+    font-size: 0.9375rem;
+    font-weight: 500;
+    text-decoration: none;
+  }
+  .mobile-panel a:hover,
+  .mobile-panel a[aria-current='page'] {
+    background: var(--surface-2);
+  }
+  @media (min-width: 900px) {
+    .nav {
+      display: block;
+    }
+    .mobile-nav {
+      display: none;
+    }
+  }
+</style>

@@ -1,0 +1,236 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Breadcrumbs from '../components/Breadcrumbs.astro';
+import CpuLayout from '../components/CpuLayout.astro';
+import Icon from '../components/Icon.astro';
+import RunBadges from '../components/RunBadges.astro';
+import { allDomains, getProject } from '../lib/dataset';
+import { formatDate, isNum, plural } from '../lib/format';
+import { machineName, repoUrl } from '../lib/model';
+import { href, routes } from '../lib/paths';
+import type { DomainData, Machine, Run } from '../lib/types';
+
+const project = getProject();
+const domains = allDomains();
+const machines = new Map<string, { machine: Machine; runs: Array<{ domain: DomainData; run: Run }> }>();
+for (const domain of domains) {
+  for (const [id, machine] of Object.entries(domain.machines ?? {})) {
+    if (!machines.has(id)) machines.set(id, { machine: { ...machine, id }, runs: [] });
+  }
+  for (const run of domain.runs) machines.get(run.machine)?.runs.push({ domain, run });
+}
+const list = [...machines.values()].sort(
+  (a, b) => Number(!!b.machine.reference) - Number(!!a.machine.reference) || b.runs.length - a.runs.length,
+);
+const referenceCount = list.filter((m) => m.machine.reference).length;
+
+const yesNo = (v: boolean | null | undefined) => (v === true ? 'on' : v === false ? 'off' : 'unknown');
+const specs = (m: Machine): Array<[string, string]> => {
+  const out: Array<[string, string]> = [];
+  const c = m.cpu ?? {};
+  if (c.model) out.push(['CPU', c.model]);
+  if (isNum(c.physical_cores) || isNum(c.logical))
+    out.push(['Cores', `${c.physical_cores ?? '?'} physical / ${c.logical ?? '?'} logical${isNum(c.sockets) && c.sockets > 1 ? `, ${c.sockets} sockets` : ''}`]);
+  if (c.smt !== undefined) out.push(['SMT', yesNo(c.smt)]);
+  if (isNum(c.max_mhz)) out.push(['Max clock', `${c.max_mhz} MHz`]);
+  if (c.turbo !== undefined) out.push(['Turbo', yesNo(c.turbo)]);
+  if (c.governor || c.driver) out.push(['Frequency', [c.governor, c.driver].filter(Boolean).join(' · ')]);
+  if (isNum(m.memory_gib)) out.push(['Memory', `${m.memory_gib} GiB`]);
+  if (m.arch) out.push(['Architecture', m.arch]);
+  if (m.os?.name) out.push(['OS', m.os.name]);
+  if (m.kernel) out.push(['Kernel', m.kernel]);
+  if (m.virtualization) out.push(['Virtualization', m.virtualization === 'none' ? 'none (bare metal)' : m.virtualization]);
+  out.push(['Energy (RAPL)', m.rapl ? 'readable' : 'not readable']);
+  if (m.docker?.version) out.push(['Docker', m.docker.version]);
+  if (m.docker?.cgroup_version) out.push(['cgroup', `v${m.docker.cgroup_version}${m.docker.cgroup_driver ? ` · ${m.docker.cgroup_driver}` : ''}`]);
+  if (m.docker?.rootless !== undefined && m.docker?.rootless !== null) out.push(['Rootless Docker', m.docker.rootless ? 'yes' : 'no']);
+  return out;
+};
+---
+
+<BaseLayout title="Machines" description="Every machine results were measured on, with its hardware fingerprint and runs." section="machines">
+  <div class="container">
+    <header class="page-head">
+      <Breadcrumbs items={[{ label: 'Home', path: routes.home() }, { label: 'Machines' }]} />
+      <h1>Machines</h1>
+      <p class="lead">
+        {plural(list.length, 'machine')}, {referenceCount} of them {referenceCount === 1 ? 'a reference machine' : 'reference machines'}
+        operated by the maintainers. The fingerprint is a hash of hardware facts; bundles contain no hostnames, user names or
+        IP addresses.
+      </p>
+    </header>
+
+    <div class="machines" data-machines>
+      {
+        list.length > 1 && (
+          <div class="chips" role="group" aria-label="Filter machines">
+            <button type="button" class="chip" aria-pressed="true" data-filter="all">All</button>
+            <button type="button" class="chip" aria-pressed="false" data-filter="reference">Reference</button>
+            <button type="button" class="chip" aria-pressed="false" data-filter="community">Community</button>
+          </div>
+        )
+      }
+      {
+        list.map(({ machine, runs }) => {
+          const latest = runs[0]?.run;
+          return (
+            <article class="card machine" id={`machine-${machine.id}`} data-kind={machine.reference ? 'reference' : 'community'}>
+              <header class="machine-head">
+                <div>
+                  <h2>{machineName(machine)}</h2>
+                  <p class="mono fp">
+                    <Icon name="cpu" class="inline-icon" /> {machine.id}
+                    {machine.reference?.label && machine.label && machine.label !== machine.reference.label && (
+                      <span> · {machine.label}</span>
+                    )}
+                  </p>
+                </div>
+                {machine.reference ? (
+                  <span class="badge badge-info" title="Operated by the maintainers; listed in results/reference-runs.toml">
+                    <Icon name="shield" /> Reference{machine.reference.operator ? ` · ${machine.reference.operator}` : ''}
+                  </span>
+                ) : (
+                  <span class="badge badge-outline">
+                    <Icon name="users" /> Community
+                  </span>
+                )}
+              </header>
+              <div class="machine-body">
+                <dl class="kv">
+                  {specs(machine).map(([k, v]) => (
+                    <>
+                      <dt>{k}</dt>
+                      <dd>{v}</dd>
+                    </>
+                  ))}
+                </dl>
+                <div class="machine-side">
+                  {latest && (
+                    <div>
+                      <h3 class="side-title">CPU layout of the latest run</h3>
+                      <CpuLayout layout={latest.layout} machine={machine} compact />
+                    </div>
+                  )}
+                  <div>
+                    <h3 class="side-title">{plural(runs.length, 'run')}</h3>
+                    <ul class="machine-runs">
+                      {runs.map(({ domain, run }) => (
+                        <li>
+                          <a href={href(routes.run(domain.domain.id, run.id))}>
+                            {domain.domain.title} · {formatDate(run.created)}
+                          </a>
+                          <RunBadges run={run} />
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </article>
+          );
+        })
+      }
+      <p class="muted note">
+        <Icon name="info" class="inline-icon" /> A run counts as a reference run only when the maintainers measured it
+        themselves and listed its run id in{' '}
+        <a href={repoUrl(project, 'results/reference-runs.toml', 'blob')}>results/reference-runs.toml</a>; the machine alone
+        does not decide it. Want to add your machine? See <a href={href(routes.contribute())}>how to submit results</a>.
+      </p>
+    </div>
+  </div>
+</BaseLayout>
+
+<script>
+  for (const root of document.querySelectorAll<HTMLElement>('[data-machines]')) {
+    const buttons = [...root.querySelectorAll<HTMLButtonElement>('[data-filter]')];
+    const cards = [...root.querySelectorAll<HTMLElement>('[data-kind]')];
+    for (const btn of buttons) {
+      btn.addEventListener('click', () => {
+        const f = btn.dataset.filter ?? 'all';
+        for (const b of buttons) b.setAttribute('aria-pressed', String(b === btn));
+        for (const c of cards) c.hidden = !(f === 'all' || c.dataset.kind === f);
+      });
+    }
+  }
+</script>
+
+<style>
+  .machines {
+    display: grid;
+    gap: 16px;
+    padding-bottom: clamp(48px, 6vw, 88px);
+  }
+  .machine {
+    padding: clamp(16px, 2.4vw, 28px);
+    scroll-margin-top: calc(var(--header-h) + 16px);
+  }
+  .machine:target {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+  .machine-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    padding-bottom: 18px;
+    margin-bottom: 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  .machine-head h2 {
+    font-size: 1.25rem;
+  }
+  .fp {
+    margin-top: 6px;
+    font-size: 0.8125rem;
+    color: var(--muted);
+    overflow-wrap: anywhere;
+  }
+  .machine-body {
+    display: grid;
+    gap: 28px;
+  }
+  @media (min-width: 900px) {
+    .machine-body {
+      grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+      gap: 40px;
+    }
+  }
+  .machine-body .kv {
+    font-size: 0.875rem;
+  }
+  .machine-side {
+    display: grid;
+    gap: 24px;
+    align-content: start;
+  }
+  .side-title {
+    margin-bottom: 10px;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--text-2);
+  }
+  .machine-runs {
+    display: grid;
+    gap: 8px;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    font-size: 0.875rem;
+  }
+  .machine-runs li {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px 12px;
+    padding: 10px 12px;
+    border-radius: var(--radius-sm);
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+  }
+  .note {
+    font-size: 0.8125rem;
+  }
+</style>

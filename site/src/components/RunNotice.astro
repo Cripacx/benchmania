@@ -1,0 +1,91 @@
+---
+/**
+ * Honest caveats for a run: preliminary methodology, too few passes for intervals, metrics that were not measured,
+ * run-level quality flags. Renders nothing for a clean multi-pass run.
+ */
+import Icon from './Icon.astro';
+import { MIN_CI_PASSES, plural } from '../lib/format';
+import { methodologyInfo } from '../lib/methodology';
+import { runLevelFlags, unmeasuredMetrics } from '../lib/model';
+import { href, routes } from '../lib/paths';
+import type { DomainData, Run } from '../lib/types';
+
+interface Props {
+  domain: DomainData;
+  run: Run;
+  compact?: boolean;
+}
+
+const { domain, run, compact = false } = Astro.props;
+const method = methodologyInfo(run.methodology);
+const missing = unmeasuredMetrics(domain, run);
+const runFlags = runLevelFlags(run);
+const fewPasses = run.passes < MIN_CI_PASSES;
+const passText = run.passes === 1 ? 'a single pass' : `only ${plural(run.passes, 'pass', 'passes')}`;
+const show = method.preliminary || fewPasses || missing.length > 0 || runFlags.length > 0;
+const warn = method.preliminary || fewPasses || runFlags.some((f) => f.level !== 'info');
+const missingText = missing.map((m) => m.label).join(', ');
+---
+
+{
+  show && (
+    <div class={`notice ${warn ? 'notice-warning' : 'notice-info'} run-notice`} role="note">
+      <Icon name={warn ? 'alert' : 'info'} />
+      <div>
+        {method.preliminary ? (
+          <p>
+            <strong>Preliminary numbers.</strong> Measured with the {method.label.toLowerCase()}
+            {fewPasses ? ` in ${passText}, so there are no confidence intervals` : ''}.
+            {missing.length > 0 && ` Not measured in this run: ${missingText}.`}{' '}
+            <a href={href(`${routes.methodology()}#versions`)}>Methodology versions</a>
+          </p>
+        ) : (
+          (fewPasses || missing.length > 0) && (
+            <p>
+              {fewPasses && (
+                <>
+                  <strong>No confidence intervals.</strong> This run has {passText}; intervals need at least {MIN_CI_PASSES}.
+                </>
+              )}
+              {missing.length > 0 && ` Not measured in this run: ${missingText}.`}
+            </p>
+          )
+        )}
+        {method.preliminary && !compact && (
+          <details class="disclosure notice-more">
+            <summary>What this run measured</summary>
+            <p>{method.summary}</p>
+            {run.options?.note && <p class="muted">Run note: {run.options.note}</p>}
+          </details>
+        )}
+        {runFlags.length > 0 && (
+          <ul class="run-flags">
+            {runFlags.map((f) => (
+              <li>{f.message}</li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  )
+}
+
+<style>
+  .notice-more {
+    margin-top: 6px;
+  }
+  .notice-more > summary {
+    font-size: 0.875rem;
+  }
+  .notice-more p {
+    margin-top: 6px;
+    font-size: 0.875rem;
+  }
+  .run-notice p + .run-flags {
+    margin-top: 8px;
+  }
+  .run-flags {
+    margin: 0;
+    padding-left: 1.1em;
+  }
+</style>

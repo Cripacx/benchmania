@@ -1,0 +1,33 @@
+---
+import Icon from './Icon.astro';
+import { methodologyInfo } from '../lib/methodology';
+import { provenanceInfo } from '../lib/model';
+import type { Run } from '../lib/types';
+
+interface Props {
+  run: Run;
+}
+
+const { run } = Astro.props;
+const method = methodologyInfo(run.methodology);
+const prov = provenanceInfo(run.provenance);
+---
+
+<span class="badges">
+  <span class={`badge ${prov.id === 'reference' ? 'badge-info' : 'badge-outline'}`} title={prov.description}>
+    <Icon name={prov.id === 'reference' ? 'shield' : 'users'} />
+    {prov.label}
+  </span>
+  <span class={`badge ${method.preliminary ? 'badge-warning' : 'badge-outline'}`} title={method.label}>
+    {method.preliminary ? <Icon name="alert" /> : <Icon name="flask" />}
+    {method.preliminary ? `${method.short} · v${method.version || '?'}` : method.short}
+  </span>
+</span>
+
+<style>
+  .badges {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+</style>

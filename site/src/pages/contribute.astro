@@ -1,0 +1,230 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Breadcrumbs from '../components/Breadcrumbs.astro';
+import Icon from '../components/Icon.astro';
+import { allDomains, getProject } from '../lib/dataset';
+import { repoUrl } from '../lib/model';
+import { routes } from '../lib/paths';
+
+const project = getProject();
+const cli = `./${project.slug}`;
+const domains = allDomains();
+const domainId = domains[0]?.domain.id ?? '<domain>';
+const sampleImpl = domains[0]?.implementations[0]?.id ?? '<existing-id>';
+const guide = (file: string) => repoUrl(project, `docs/guides/${file}`, 'blob');
+const issues = `${project.repository.replace(/\/+$/, '')}/issues`;
+
+const paths = [
+  {
+    icon: 'plus' as const,
+    title: 'Add an implementation',
+    text: 'A new language, framework or variant. Implementations are a directory with an impl.toml, a Dockerfile and the source.',
+    guide: guide('adding-an-implementation.md'),
+    code: `${cli} scaffold ${domainId} my-framework --from ${sampleImpl}\n${cli} validate\n${cli} check ${domainId} --impl my-framework`,
+  },
+  {
+    icon: 'activity' as const,
+    title: 'Add a scenario',
+    text: 'A new workload is one TOML file. Its kind must be one the domain harness understands; database work per request is declared and verified.',
+    guide: guide('adding-a-scenario.md'),
+    code: `# domains/${domainId}/scenarios/db-c64.toml\nid = "db-c64"\ntitle = "Single query, 64 connections"\nkind = "http"\norder = 95\npath = "/db"\nconnections = 64\nwork = { select = 1 }`,
+  },
+  {
+    icon: 'grid' as const,
+    title: 'Add a domain',
+    text: 'A whole new area such as databases or compute. Domains are discovered automatically, and this website creates their pages as soon as they have results.',
+    guide: guide('adding-a-domain.md'),
+    code: `cp -r domains/_example domains/databases\n${cli} check databases\n${cli} run databases --quick --passes 2`,
+  },
+  {
+    icon: 'server' as const,
+    title: 'Run on your hardware',
+    text: 'Linux with rootful Docker and cgroup v2. Submitted runs are labelled community; quick smoke-test runs are never published.',
+    guide: guide('submitting-results.md'),
+    code: `${cli} doctor\n${cli} check ${domainId}\n${cli} run ${domainId} --label "My workstation"\n${cli} validate`,
+  },
+];
+---
+
+<BaseLayout title="Contribute" description="Add implementations, scenarios or domains, and submit results from your own hardware." section="contribute">
+  <div class="container">
+    <header class="page-head">
+      <Breadcrumbs items={[{ label: 'Home', path: routes.home() }, { label: 'Contribute' }]} />
+      <h1>Contribute</h1>
+      <p class="lead">
+        Benchmarks are only as good as their fairness, so contributions that find problems are as valuable as new
+        implementations. Everything is plain files in the repository.
+      </p>
+      <div class="head-links">
+        <a class="btn btn-primary btn-sm" href={repoUrl(project, 'CONTRIBUTING.md', 'blob')}><Icon name="book" /> Contributing guide</a>
+        <a class="btn btn-secondary btn-sm" href={project.repository}><Icon name="github" /> Repository</a>
+        <a class="btn btn-ghost btn-sm" href={issues}>Open an issue</a>
+      </div>
+    </header>
+
+    <div class="contribute">
+      <div class="paths">
+        {
+          paths.map((p, i) => (
+            <article class="card path">
+              <div class="path-text">
+                <span class="step">{String(i + 1).padStart(2, '0')}</span>
+                <h2>
+                  <Icon name={p.icon} size={18} /> {p.title}
+                </h2>
+                <p>{p.text}</p>
+                <a class="path-link" href={p.guide}>
+                  Read the guide <Icon name="arrowUpRight" size={14} />
+                </a>
+              </div>
+              <pre class="path-code"><code>{p.code}</code></pre>
+            </article>
+          ))
+        }
+      </div>
+
+      <section class="rules" aria-labelledby="rules-title">
+        <h2 id="rules-title">Rules for implementations</h2>
+        <div class="grid grid-3">
+          <div class="card card-pad">
+            <h3>Idiomatic and production-like</h3>
+            <p>Use the framework the way its documentation recommends for production. No response caching, precomputed responses, disabled validation or skipped database work.</p>
+          </div>
+          <div class="card card-pad">
+            <h3>Same work, pinned versions</h3>
+            <p>Pass the functional checks. Use exact image tags, exact dependency versions and committed lockfiles, and declare the versions in impl.toml.</p>
+          </div>
+          <div class="card card-pad">
+            <h3>Honest category and configuration</h3>
+            <p>Declare bare, micro, framework or full-stack truthfully, size workers for the CPU limit and document it in the notes.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="more" aria-labelledby="more-title">
+        <h2 id="more-title">Other ways to help</h2>
+        <ul class="more-list">
+          <li>
+            <Icon name="alert" />
+            <div>
+              <strong>Report unfairness or a measurement error.</strong> Open a <em>methodology</em> issue with evidence.
+              <a href={issues}>Issues</a>
+            </div>
+          </li>
+          <li>
+            <Icon name="zap" />
+            <div>
+              <strong>Improve an existing implementation.</strong> Open a pull request that touches only its directory and
+              mention the maintainers listed in its impl.toml.
+            </div>
+          </li>
+          <li>
+            <Icon name="layers" />
+            <div>
+              <strong>Improve the engine or this website.</strong> Open an issue first for larger changes. The website lives in
+              <a href={repoUrl(project, 'site', 'tree')}><code>site/</code></a> and is generated from the published dataset.
+            </div>
+          </li>
+          <li>
+            <Icon name="book" />
+            <div>
+              <strong>Understand the design.</strong> Read the <a href={repoUrl(project, 'docs/architecture.md', 'blob')}>architecture</a>
+              and the <a href={repoUrl(project, 'docs/methodology.md', 'blob')}>methodology</a> documents.
+            </div>
+          </li>
+        </ul>
+      </section>
+    </div>
+  </div>
+</BaseLayout>
+
+<style>
+  .head-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 20px;
+  }
+  .contribute {
+    display: grid;
+    gap: 64px;
+    padding-bottom: clamp(48px, 6vw, 88px);
+  }
+  .paths {
+    display: grid;
+    gap: 14px;
+  }
+  .path {
+    display: grid;
+    gap: 20px;
+    padding: clamp(18px, 2.4vw, 28px);
+  }
+  @media (min-width: 900px) {
+    .path {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+      gap: 40px;
+      align-items: center;
+    }
+  }
+  .step {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+  .path h2 {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 1.25rem;
+  }
+  .path-text p {
+    margin-top: 8px;
+    color: var(--text-2);
+  }
+  .path-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 14px;
+    font-weight: 500;
+    font-size: 0.9375rem;
+  }
+  .path-code {
+    font-size: 0.8125rem;
+    white-space: pre;
+  }
+  .rules h2,
+  .more h2 {
+    margin-bottom: 18px;
+  }
+  .rules p {
+    margin-top: 6px;
+    color: var(--text-2);
+    font-size: 0.9375rem;
+  }
+  .more-list {
+    display: grid;
+    gap: 2px;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    max-width: 820px;
+  }
+  .more-list li {
+    display: flex;
+    gap: 14px;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-2);
+  }
+  .more-list li > :global(svg) {
+    flex: none;
+    margin-top: 4px;
+    color: var(--muted);
+  }
+  .more-list strong {
+    color: var(--text);
+  }
+</style>

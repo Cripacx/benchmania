@@ -1,0 +1,39 @@
+---
+/**
+ * On pages of a run that is not the default run: says so, and links to the same page for the default run.
+ * That link is the only one on a run-scoped page that leaves the run, and it is marked `data-run-exit`
+ * (scripts/verify.ts checks that no other link does).
+ */
+import Icon from './Icon.astro';
+import { formatDate } from '../lib/format';
+import { defaultRun, machineName } from '../lib/model';
+import { href } from '../lib/paths';
+import type { DomainData, Run } from '../lib/types';
+
+interface Props {
+  domain: DomainData;
+  run: Run;
+  /** Site-relative path of the equivalent page for the default run. */
+  defaultPath: string;
+}
+
+const { domain, run, defaultPath } = Astro.props;
+const main = defaultRun(domain);
+const show = !!main && main.id !== run.id;
+---
+
+{
+  show && main && (
+    <p class="notice notice-info run-scope" role="note">
+      <Icon name="info" />
+      <span>
+        <strong>Not the default run.</strong> These numbers are from the run of {formatDate(run.created)} on{' '}
+        {machineName(domain.machines[run.machine], run.machine)}. The rest of the site shows the default run of{' '}
+        {formatDate(main.created)} on {machineName(domain.machines[main.machine], main.machine)}.{' '}
+        <a href={href(defaultPath)} data-run-exit>
+          Open this page for the default run
+        </a>
+      </span>
+    </p>
+  )
+}

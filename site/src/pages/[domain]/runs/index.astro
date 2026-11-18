@@ -1,0 +1,144 @@
+---
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import Breadcrumbs from '../../../components/Breadcrumbs.astro';
+import Icon from '../../../components/Icon.astro';
+import RunBadges from '../../../components/RunBadges.astro';
+import { allDomains } from '../../../lib/dataset';
+import { formatDate, plural } from '../../../lib/format';
+import { methodologyInfo } from '../../../lib/methodology';
+import { machineName, provenanceInfo, runImplementationIds } from '../../../lib/model';
+import { href, routes } from '../../../lib/paths';
+import type { DomainData } from '../../../lib/types';
+
+export function getStaticPaths() {
+  return allDomains().map((domain) => ({ params: { domain: domain.domain.id }, props: { domain } }));
+}
+
+interface Props {
+  domain: DomainData;
+}
+
+const { domain } = Astro.props;
+const runs = domain.runs;
+const provenances = ['reference', 'community', 'unknown'].map((p) => ({
+  ...provenanceInfo(p),
+  count: runs.filter((r) => (provenanceInfo(r.provenance).id) === p).length,
+})).filter((p) => p.count > 0);
+---
+
+<BaseLayout title={`Runs · ${domain.domain.title}`} description={`Every published run of ${domain.domain.title.toLowerCase()}.`} section={`domain:${domain.domain.id}`}>
+  <div class="container">
+    <header class="page-head">
+      <Breadcrumbs
+        items={[
+          { label: 'Home', path: routes.home() },
+          { label: domain.domain.title, path: routes.domain(domain.domain.id) },
+          { label: 'Runs' },
+        ]}
+      />
+      <h1>Runs</h1>
+      <p class="lead">
+        {plural(runs.length, 'published run')} of {domain.domain.title.toLowerCase()}. Reference runs were measured by the
+        maintainers themselves; every other run is a community run. Compare implementations within one run: absolute
+        numbers depend on the machine.
+      </p>
+    </header>
+
+    <div class="runs-page" data-runs>
+      <div class="chips runs-filter" role="group" aria-label="Filter by provenance">
+        <button type="button" class="chip" aria-pressed="true" data-filter="all">
+          All <span class="count">{runs.length}</span>
+        </button>
+        {
+          provenances.map((p) => (
+            <button type="button" class="chip" aria-pressed="false" data-filter={p.id} title={p.description}>
+              {p.label} <span class="count">{p.count}</span>
+            </button>
+          ))
+        }
+      </div>
+
+      <div class="table-wrap" tabindex="0" role="region" aria-label="Runs">
+        <table class="data">
+          <thead>
+            <tr>
+              <th scope="col">Date</th>
+              <th scope="col">Provenance and methodology</th>
+              <th scope="col">Machine</th>
+              <th scope="col" class="r">Passes</th>
+              <th scope="col" class="r">Implementations</th>
+              <th scope="col" class="r">Flags</th>
+              <th scope="col">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {
+              runs.map((r) => (
+                <tr data-provenance={provenanceInfo(r.provenance).id}>
+                  <th scope="row" class="nowrap">
+                    <a href={href(routes.run(domain.domain.id, r.id))}>{formatDate(r.created)}</a>
+                    {r.id === domain.default_run && <span class="tag default-tag">default</span>}
+                  </th>
+                  <td>
+                    <RunBadges run={r} />
+                  </td>
+                  <td>
+                    <a href={href(routes.machine(r.machine))}>{machineName(domain.machines[r.machine], r.machine)}</a>
+                  </td>
+                  <td class="r">{r.passes}</td>
+                  <td class="r">{runImplementationIds(domain, r).length}</td>
+                  <td class="r">{(r.flags ?? []).length}</td>
+                  <td>{r.status ?? 'unknown'}</td>
+                </tr>
+              ))
+            }
+          </tbody>
+        </table>
+      </div>
+      <p class="muted runs-empty" hidden>No runs with this provenance.</p>
+      <p class="muted runs-note">
+        <Icon name="info" class="inline-icon" /> Unless the domain pins a featured run, the publisher picks the default run by full coverage of all implementations and
+        scenarios first, then reference provenance, the newest methodology, complete status, the number of passes and
+        finally the newest date. Methodology versions: {
+          [...new Set(runs.map((r) => r.methodology ?? ''))].map((v) => methodologyInfo(v).label).join(', ')
+        }.
+      </p>
+    </div>
+  </div>
+</BaseLayout>
+
+<script>
+  for (const root of document.querySelectorAll<HTMLElement>('[data-runs]')) {
+    const buttons = [...root.querySelectorAll<HTMLButtonElement>('[data-filter]')];
+    const rows = [...root.querySelectorAll<HTMLTableRowElement>('tr[data-provenance]')];
+    const empty = root.querySelector<HTMLElement>('.runs-empty');
+    for (const btn of buttons) {
+      btn.addEventListener('click', () => {
+        const f = btn.dataset.filter ?? 'all';
+        for (const b of buttons) b.setAttribute('aria-pressed', String(b === btn));
+        let shown = 0;
+        for (const row of rows) {
+          const visible = f === 'all' || row.dataset.provenance === f;
+          row.hidden = !visible;
+          if (visible) shown++;
+        }
+        if (empty) empty.hidden = shown > 0;
+      });
+    }
+  }
+</script>
+
+<style>
+  .runs-page {
+    display: grid;
+    gap: 16px;
+    padding-bottom: clamp(48px, 6vw, 88px);
+  }
+  .default-tag {
+    margin-left: 8px;
+  }
+  .runs-note {
+    font-size: 0.8125rem;
+    max-width: 90ch;
+  }
+</style>

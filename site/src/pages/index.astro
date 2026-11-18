@@ -1,0 +1,775 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Icon from '../components/Icon.astro';
+import RunContext from '../components/RunContext.astro';
+import RunNotice from '../components/RunNotice.astro';
+import CpuLayout from '../components/CpuLayout.astro';
+import { LeaderboardIsland } from '../components/islands/Islands';
+import { allDomains, getProject } from '../lib/dataset';
+import { formatDate, formatNumber, plural } from '../lib/format';
+import { methodologyInfo } from '../lib/methodology';
+import { leaderboardProps } from '../lib/islandProps';
+import {
+  defaultRun,
+  headlineValue,
+  implementation,
+  measuredScenarios,
+  metricOrFallback,
+  rankMap,
+  repoUrl,
+  runImplementationIds,
+  valueFlagTexts,
+} from '../lib/model';
+import { basePath, href, routes } from '../lib/paths';
+import { encodeIslandProps } from '../lib/view';
+
+const project = getProject();
+const domains = allDomains();
+const featured = domains[0];
+const run = featured ? defaultRun(featured) : undefined;
+const base = basePath();
+
+const totalImpls = domains.reduce((acc, d) => acc + d.implementations.length, 0);
+const totalLanguages = new Set(domains.flatMap((d) => d.implementations.map((i) => i.language))).size;
+const totalRuns = domains.reduce((acc, d) => acc + d.runs.length, 0);
+
+const lb = featured && run ? leaderboardProps(featured, run, base) : null;
+
+// Best implementation per headline metric (ties are listed together).
+const highlights =
+  featured && run
+    ? (featured.domain.headline ?? []).map((h) => {
+        const metric = metricOrFallback(featured.metrics, h.metric);
+        const ids = runImplementationIds(featured, run);
+        const values = ids.map((id) => ({ id, value: headlineValue(run, h, id)?.m ?? null }));
+        const ranks = rankMap(values, metric.better);
+        const winners = ids.filter((id) => ranks.get(id) === 1);
+        const best = winners[0] ? headlineValue(run, h, winners[0]) : null;
+        return {
+          entry: h,
+          metric,
+          best,
+          measured: values.filter((v) => v.value !== null).length,
+          winners: winners.map((id) => implementation(featured, id, run)),
+          winnerFlags: winners.flatMap((id) => valueFlagTexts(featured, run.flags, id, h.scenario ?? null, h.metric)),
+          href: href(`${routes.domain(featured.domain.id)}?scenario=${h.scenario ?? 'overall'}&metric=${h.metric}`),
+        };
+      })
+    : [];
+
+const scenarioCount = featured && run ? measuredScenarios(featured, run).length : 0;
+
+// Hero snapshot: top five by the first headline metric.
+const snapEntry = featured?.domain.headline?.[0];
+const snapMetric = featured && snapEntry ? metricOrFallback(featured.metrics, snapEntry.metric) : null;
+const snapshot =
+  featured && run && snapEntry && snapMetric
+    ? (() => {
+        const ids = runImplementationIds(featured, run);
+        const ranks = rankMap(ids.map((id) => ({ id, value: headlineValue(run, snapEntry, id)?.m ?? null })), snapMetric.better);
+        const rows = ids
+          .map((id) => ({ id, value: headlineValue(run, snapEntry, id), rank: ranks.get(id) ?? null }))
+          .filter((r) => r.value && r.rank)
+          .sort((a, b) => (a.rank ?? 0) - (b.rank ?? 0))
+          .slice(0, 5)
+          .map((r) => ({
+            ...r,
+            impl: implementation(featured, r.id, run),
+            flags: valueFlagTexts(featured, run.flags, r.id, snapEntry.scenario ?? null, snapEntry.metric),
+          }));
+        const max = Math.max(...rows.map((r) => r.value?.m ?? 0), 0);
+        return { rows, max, total: ids.length };
+      })()
+    : null;
+const service = (featured?.domain.service ?? {}) as Record<string, unknown>;
+const cpus = typeof service.cpus === 'number' ? service.cpus : null;
+const memory = typeof service.memory === 'string' ? service.memory.replace(/^(\d+)g$/i, '$1 GiB').replace(/^(\d+)m$/i, '$1 MiB') : null;
+const machine = featured && run ? featured.machines[run.machine] : undefined;
+---
+
+<BaseLayout>
+  <section class="hero">
+    <div class="hero-bg" aria-hidden="true"></div>
+    <div class="container hero-inner">
+      <div class="hero-text">
+      <p class="hero-eyebrow">
+        <span class="pulse" aria-hidden="true"></span>
+        Open source · {plural(totalImpls, 'implementation')} · {plural(totalLanguages, 'language')} · {
+          plural(totalRuns, 'published run')
+        }
+      </p>
+      <h1>{project.tagline}</h1>
+      <p class="lead hero-lead">{project.description}</p>
+      <div class="hero-cta">
+        {
+          featured && (
+            <a class="btn btn-primary" href={href(routes.domain(featured.domain.id))}>
+              Explore the results <Icon name="arrowRight" />
+            </a>
+          )
+        }
+        <a class="btn btn-secondary" href={href(routes.methodology())}>How we measure</a>
+        <a class="btn btn-ghost" href={project.repository}><Icon name="github" /> Source on GitHub</a>
+      </div>
+      </div>
+      {
+        featured && run && snapshot && snapEntry && snapMetric && snapshot.rows.length > 0 && (
+          <a class="card hero-snap" href="#results" aria-label={`${snapEntry.label}: top ${snapshot.rows.length} of ${snapshot.total}. Jump to the full leaderboard.`}>
+            <div class="snap-head">
+              <span class="snap-title">{featured.domain.title}</span>
+              <span class="snap-sub">
+                {snapEntry.label} · {snapMetric.better === 'lower' ? 'lower is better' : 'higher is better'}
+              </span>
+              {snapEntry.hint && <span class="snap-hint">{snapEntry.hint}</span>}
+            </div>
+            <ol class="snap-rows">
+              {snapshot.rows.map((r) => (
+                <li>
+                  <span class="snap-rank">{r.rank}</span>
+                  <span class="snap-name">
+                    {r.impl.name}
+                    {r.impl.variant && <span class="muted"> · {r.impl.variant}</span>}
+                    {r.flags.length > 0 && (
+                      <span class="snap-flag" title={r.flags.join('\n')}>
+                        <Icon name="alert" size={12} />
+                        <span class="visually-hidden">Flagged: {r.flags.join('; ')}</span>
+                      </span>
+                    )}
+                  </span>
+                  <span class="snap-val">{formatNumber(r.value?.m, snapMetric.decimals ?? 0)}</span>
+                  <span class="snap-bar" aria-hidden="true">
+                    <span style={`width: ${snapshot.max > 0 ? ((r.value?.m ?? 0) / snapshot.max) * 100 : 0}%`} />
+                  </span>
+                </li>
+              ))}
+            </ol>
+            <div class="snap-foot">
+              <span>
+                Top {snapshot.rows.length} of {snapshot.total} · {formatDate(run.created)} · {methodologyInfo(run.methodology).short}
+              </span>
+              <span class="snap-more">
+                Full leaderboard <Icon name="arrowDown" size={14} />
+              </span>
+            </div>
+          </a>
+        )
+      }
+    </div>
+  </section>
+
+  {
+    featured && run && lb && (
+      <section class="section board-section" id="results" aria-labelledby="board-title">
+        <div class="container">
+          <div class="board-head">
+            <div>
+              <p class="eyebrow">
+                <Icon name="server" /> Featured domain
+              </p>
+              <h2 id="board-title">{featured.domain.title}</h2>
+              <p class="board-summary">{featured.domain.summary}</p>
+            </div>
+            <RunContext domain={featured} run={run} />
+          </div>
+
+          <div class="board-notice">
+            <RunNotice domain={featured} run={run} compact />
+          </div>
+
+          <ul class="highlights" aria-label="Best result per headline metric">
+            {highlights.map((h) => (
+              <li>
+                <a class="card card-link highlight" href={h.href}>
+                  <span class="hl-label">
+                    {h.entry.label}
+                    <span class="dir">
+                      {h.metric.better === 'higher' ? <Icon name="arrowUp" size={12} strokeWidth={2} /> : null}
+                      {h.metric.better === 'lower' ? <Icon name="arrowDown" size={12} strokeWidth={2} /> : null}
+                      <span class="dir-text">
+                        {h.metric.better === 'higher' ? 'higher is better' : h.metric.better === 'lower' ? 'lower is better' : ''}
+                      </span>
+                    </span>
+                  </span>
+                  {h.best ? (
+                    <>
+                      <span class="hl-value">
+                        {formatNumber(h.best.m, h.metric.decimals ?? 0)}
+                        {h.metric.unit !== 'index' && <span class="hl-unit">{h.metric.unit}</span>}
+                      </span>
+                      <span class="hl-winner">
+                        {h.winners.map((w, i) => (
+                          <>
+                            {i > 0 && ' and '}
+                            {w.name}
+                            {w.variant && <span class="muted"> · {w.variant}</span>}
+                          </>
+                        ))}
+                        {h.winnerFlags.length > 0 && (
+                          <span class="snap-flag" title={h.winnerFlags.join('\n')}>
+                            {' '}
+                            <Icon name="alert" size={12} />
+                            <span class="visually-hidden">Flagged: {h.winnerFlags.join('; ')}</span>
+                          </span>
+                        )}
+                      </span>
+                      <span class="hl-hint">
+                        Best of {h.measured} · {h.entry.hint}
+                      </span>
+                    </>
+                  ) : (
+                    <span class="hl-hint">Not measured in this run.</span>
+                  )}
+                </a>
+              </li>
+            ))}
+          </ul>
+
+          <LeaderboardIsland client:idle payload={encodeIslandProps(lb)} />
+
+          <div class="board-foot">
+            <dl class="board-defs">
+              {(featured.domain.headline ?? []).map((h) => (
+                <div>
+                  <dt>{h.label}</dt>
+                  <dd>{h.hint}</dd>
+                </div>
+              ))}
+            </dl>
+            <div class="board-links">
+              <a class="btn btn-secondary" href={href(routes.domain(featured.domain.id))}>
+                <Icon name="barsH" /> All {scenarioCount} scenarios and every metric
+              </a>
+              <a class="btn btn-ghost" href={href(routes.compare(featured.domain.id))}>
+                <Icon name="compare" /> Compare side by side
+              </a>
+            </div>
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  <section class="section" aria-labelledby="how-title">
+    <div class="container">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow"><Icon name="flask" /> Methodology</p>
+          <h2 id="how-title">Measured the same way, for everyone</h2>
+          <p>
+            Numbers are only worth comparing when the conditions are identical. Every implementation gets the same box,
+            the same work and the same statistics.
+          </p>
+        </div>
+        <a class="btn btn-secondary" href={href(routes.methodology())}>Read the methodology <Icon name="arrowRight" /></a>
+      </div>
+      <div class="grid grid-4 how">
+        <article class="card card-pad">
+          <span class="how-icon"><Icon name="memory" size={18} /></span>
+          <h3>Same limits</h3>
+          <p>
+            {
+              cpus && memory
+                ? `Each service runs in its own container limited to ${cpus} CPUs and ${memory} of memory, like a small production pod.`
+                : 'Each implementation runs in its own container with the same resource limits.'
+            }
+          </p>
+        </article>
+        <article class="card card-pad">
+          <span class="how-icon"><Icon name="cpu" size={18} /></span>
+          <h3>Isolated cores</h3>
+          <p>Service, database and load generator are pinned to separate cores, so they never compete for CPU time.</p>
+          {run && <div class="how-cpu"><CpuLayout layout={run.layout} machine={machine} compact /></div>}
+        </article>
+        <article class="card card-pad">
+          <span class="how-icon"><Icon name="layers" size={18} /></span>
+          <h3>Repeated and robust</h3>
+          <p>
+            Several passes in rotating order. Results are medians with a 95 % bootstrap confidence interval; outliers are
+            flagged, never silently removed.
+          </p>
+        </article>
+        <article class="card card-pad">
+          <span class="how-icon"><Icon name="checkCircle" size={18} /></span>
+          <h3>Verified work</h3>
+          <p>
+            Every implementation must pass functional checks before it is measured, and the backend harness counts the
+            database statements each request really runs.
+          </p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="explore-title">
+    <div class="container">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow"><Icon name="grid" /> Go deeper</p>
+          <h2 id="explore-title">Everything behind the headline</h2>
+          <p>The leaderboard shows four numbers. The dataset has many more, and all of it is open.</p>
+        </div>
+      </div>
+      <div class="grid grid-4">
+        {
+          domains.map((d) => (
+            <a class="card card-pad card-link entry" href={href(routes.domain(d.domain.id))}>
+              <Icon name="barsH" size={18} />
+              <h3>{d.domain.title}</h3>
+              <p>
+                {plural(d.implementations.length, 'implementation')}, {plural(d.scenarios.length, 'scenario')} and{' '}
+                {plural(Object.keys(d.metrics).length, 'metric')} with confidence intervals.
+              </p>
+              <span class="entry-cta">
+                Open explorer <Icon name="arrowRight" class="arrow" />
+              </span>
+            </a>
+          ))
+        }
+        {
+          featured && (
+            <a class="card card-pad card-link entry" href={href(routes.compare(featured.domain.id))}>
+              <Icon name="compare" size={18} />
+              <h3>Compare</h3>
+              <p>Put up to four implementations side by side and see the relative difference in every scenario.</p>
+              <span class="entry-cta">
+                Start comparing <Icon name="arrowRight" class="arrow" />
+              </span>
+            </a>
+          )
+        }
+        <a class="card card-pad card-link entry" href={href(routes.machines())}>
+          <Icon name="cpu" size={18} />
+          <h3>Machines</h3>
+          <p>Every run records the hardware fingerprint, kernel, Docker version and CPU layout it was measured on.</p>
+          <span class="entry-cta">See machines <Icon name="arrowRight" class="arrow" /></span>
+        </a>
+        <a class="card card-pad card-link entry" href={href(routes.data())}>
+          <Icon name="download" size={18} />
+          <h3>Open data</h3>
+          <p>
+            Download the dataset as JSON{project.data_license ? ` under ${project.data_license}` : ''}, or the raw per-pass
+            result bundles.
+          </p>
+          <span class="entry-cta">Get the data <Icon name="arrowRight" class="arrow" /></span>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="cta-band">
+        <div>
+          <h2>Missing your stack?</h2>
+          <p>
+            Implementations, scenarios and whole new domains are plain files in the repository. Add one, run it on your
+            hardware, and open a pull request.
+          </p>
+        </div>
+        <div class="cta-actions">
+          <a class="btn btn-primary" href={href(routes.contribute())}>How to contribute <Icon name="arrowRight" /></a>
+          <a class="btn btn-secondary" href={repoUrl(project, 'CONTRIBUTING.md', 'blob')}>
+            <Icon name="github" /> Contributing guide
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+</BaseLayout>
+
+<style>
+  .hero {
+    position: relative;
+    overflow: hidden;
+    border-bottom: 1px solid var(--border);
+  }
+  .hero-bg {
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(to right, var(--grid) 1px, transparent 1px),
+      linear-gradient(to bottom, var(--grid) 1px, transparent 1px);
+    background-size: 44px 44px;
+    mask-image: radial-gradient(ellipse 70% 80% at 30% 0%, #000 30%, transparent 75%);
+    -webkit-mask-image: radial-gradient(ellipse 70% 80% at 30% 0%, #000 30%, transparent 75%);
+    opacity: 0.9;
+  }
+  .hero-bg::after {
+    content: '';
+    position: absolute;
+    inset: -20% -10% auto auto;
+    width: 60%;
+    height: 120%;
+    background: radial-gradient(closest-side, var(--accent-soft), transparent 70%);
+  }
+  .hero-inner {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 40px;
+    align-items: center;
+    padding-block: clamp(48px, 7vw, 88px) clamp(44px, 6vw, 72px);
+  }
+  @media (min-width: 1080px) {
+    .hero-inner {
+      grid-template-columns: minmax(0, 1.25fr) minmax(0, 0.9fr);
+      gap: 56px;
+    }
+  }
+  .hero-snap {
+    display: none;
+    padding: 18px 20px 16px;
+    color: inherit;
+    text-decoration: none;
+    box-shadow: var(--shadow);
+    transition:
+      box-shadow 160ms var(--ease),
+      border-color 160ms var(--ease);
+  }
+  .hero-snap:hover {
+    text-decoration: none;
+    border-color: var(--border-strong);
+    box-shadow: var(--shadow-lg);
+  }
+  @media (min-width: 1080px) {
+    .hero-snap {
+      display: block;
+    }
+  }
+  .snap-head {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .snap-title {
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  .snap-sub {
+    font-size: 0.8125rem;
+    color: var(--muted);
+  }
+  .snap-hint {
+    margin-top: 4px;
+    font-size: 0.75rem;
+    line-height: 1.45;
+    color: var(--text-2);
+  }
+  .snap-flag {
+    display: inline-flex;
+    margin-left: 4px;
+    vertical-align: -1px;
+    color: var(--warn-icon);
+  }
+  .snap-rows {
+    display: grid;
+    gap: 12px;
+    list-style: none;
+    margin: 14px 0 0;
+    padding: 0;
+  }
+  .snap-rows li {
+    display: grid;
+    grid-template-columns: 18px minmax(0, 1fr) auto;
+    grid-template-areas: 'rank name val' '. bar bar';
+    column-gap: 10px;
+    row-gap: 6px;
+    align-items: baseline;
+  }
+  .snap-rank {
+    grid-area: rank;
+    font-size: 0.8125rem;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .snap-name {
+    grid-area: name;
+    font-size: 0.875rem;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .snap-val {
+    grid-area: val;
+    font-size: 0.875rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+  .snap-bar {
+    grid-area: bar;
+    display: block;
+    height: 6px;
+    border-radius: 0 3px 3px 0;
+    background: var(--track);
+  }
+  .snap-bar span {
+    display: block;
+    height: 100%;
+    border-radius: 0 3px 3px 0;
+    background: var(--bar);
+  }
+  .snap-foot {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: 16px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+    font-size: 0.75rem;
+    color: var(--muted);
+  }
+  .snap-more {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--accent);
+    font-weight: 500;
+  }
+  .hero-eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 5px 12px 5px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: color-mix(in srgb, var(--surface) 80%, transparent);
+    color: var(--text-2);
+    font-size: 0.8125rem;
+    font-weight: 500;
+    box-shadow: var(--shadow-sm);
+  }
+  .pulse {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--good-icon);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--good-icon) 22%, transparent);
+  }
+  .hero h1 {
+    margin-top: 22px;
+    max-width: 17ch;
+    font-size: clamp(2.375rem, 1.6rem + 2.9vw, 3.75rem);
+  }
+  .hero-lead {
+    margin-top: 20px;
+  }
+  .hero-cta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 32px;
+  }
+
+  .board-section {
+    padding-top: clamp(40px, 5vw, 64px);
+  }
+  .board-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 16px 32px;
+  }
+  .board-summary {
+    margin-top: 8px;
+    color: var(--text-2);
+    max-width: 60ch;
+  }
+  .board-notice {
+    margin-top: 20px;
+  }
+  .board-notice:empty {
+    display: none;
+  }
+  .highlights {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr));
+    list-style: none;
+    margin: 20px 0 28px;
+    padding: 0;
+  }
+  .highlight {
+    display: flex !important;
+    flex-direction: column;
+    height: 100%;
+    padding: 16px 18px;
+  }
+  .hl-label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--text-2);
+  }
+  .hl-value {
+    margin-top: 10px;
+    font-size: 2rem;
+    font-weight: 600;
+    letter-spacing: -0.035em;
+    line-height: 1.1;
+    color: var(--text);
+  }
+  .hl-unit {
+    margin-left: 4px;
+    font-size: 0.9375rem;
+    font-weight: 500;
+    letter-spacing: 0;
+    color: var(--muted);
+  }
+  .hl-winner {
+    margin-top: 6px;
+    font-size: 0.9375rem;
+    font-weight: 500;
+    color: var(--text);
+  }
+  .hl-hint {
+    margin-top: auto;
+    padding-top: 10px;
+    font-size: 0.75rem;
+    color: var(--muted);
+    line-height: 1.45;
+  }
+  @media (max-width: 639px) {
+    .highlights {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+    .highlight {
+      padding: 12px 14px;
+    }
+    .hl-value {
+      font-size: 1.5rem;
+      margin-top: 6px;
+    }
+    .hl-unit {
+      font-size: 0.8125rem;
+    }
+    .hl-winner {
+      font-size: 0.8125rem;
+    }
+    .hl-hint,
+    .dir-text {
+      display: none;
+    }
+  }
+  .board-foot {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 20px 32px;
+    margin-top: 20px;
+  }
+  .board-defs {
+    display: grid;
+    gap: 6px 24px;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+    flex: 1 1 520px;
+    margin: 0;
+    font-size: 0.8125rem;
+  }
+  .board-defs div {
+    display: flex;
+    gap: 8px;
+  }
+  .board-defs dt {
+    flex: none;
+    font-weight: 550;
+    color: var(--text-2);
+  }
+  .board-defs dd {
+    margin: 0;
+    color: var(--muted);
+  }
+  .board-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .how p {
+    margin-top: 6px;
+    color: var(--text-2);
+    font-size: 0.9375rem;
+  }
+  .how-icon {
+    display: inline-grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    margin-bottom: 14px;
+    border-radius: 9px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--text);
+  }
+  .how-cpu {
+    margin-top: 14px;
+  }
+  .how-cpu :global(.cpu-legend) {
+    font-size: 0.71875rem;
+    gap: 4px 12px;
+  }
+  .how-cpu :global(.cpu-legend .muted),
+  .how-cpu :global(.cpu-note) {
+    display: none;
+  }
+
+  .entry {
+    display: flex !important;
+    flex-direction: column;
+  }
+  .entry > :global(svg:first-child) {
+    color: var(--muted);
+  }
+  .entry h3 {
+    margin-top: 14px;
+  }
+  .entry p {
+    margin-top: 6px;
+    color: var(--text-2);
+    font-size: 0.9375rem;
+  }
+  .entry-cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: auto;
+    padding-top: 16px;
+    color: var(--accent);
+    font-size: 0.875rem;
+    font-weight: 500;
+  }
+
+  .cta-band {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    padding: clamp(24px, 4vw, 40px);
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border);
+    background:
+      radial-gradient(120% 140% at 100% 0%, var(--accent-soft), transparent 55%),
+      var(--surface);
+    box-shadow: var(--shadow-sm);
+  }
+  .cta-band p {
+    margin-top: 8px;
+    max-width: 58ch;
+    color: var(--text-2);
+  }
+  .cta-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+</style>

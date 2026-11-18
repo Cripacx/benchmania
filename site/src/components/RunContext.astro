@@ -1,0 +1,57 @@
+---
+import Icon from './Icon.astro';
+import RunBadges from './RunBadges.astro';
+import { formatDate, plural } from '../lib/format';
+import { machineName } from '../lib/model';
+import { href, routes } from '../lib/paths';
+import type { DomainData, Run } from '../lib/types';
+
+interface Props {
+  domain: DomainData;
+  run: Run;
+  /** Show the "Run details" link (hidden on the run page itself). */
+  detailsLink?: boolean;
+}
+
+const { domain, run, detailsLink = true } = Astro.props;
+const machine = domain.machines[run.machine];
+---
+
+<div class="run-context">
+  <RunBadges run={run} />
+  <div class="meta-row">
+    <a class="meta-link" href={href(routes.machine(run.machine))}>
+      <Icon name="cpu" />
+      {machineName(machine, run.machine)}
+    </a>
+    <span><Icon name="calendar" /><time datetime={run.created}>{formatDate(run.created)}</time></span>
+    <span><Icon name="layers" />{plural(run.passes, 'pass', 'passes')}</span>
+    {
+      detailsLink && (
+        <a class="meta-link strong" href={href(routes.run(domain.domain.id, run.id))}>
+          Run details <Icon name="arrowRight" />
+        </a>
+      )
+    }
+  </div>
+</div>
+
+<style>
+  .run-context {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 14px;
+  }
+  .meta-link {
+    color: var(--muted);
+  }
+  .meta-link:hover {
+    color: var(--text);
+    text-decoration: none;
+  }
+  .meta-link.strong {
+    color: var(--accent);
+    font-weight: 500;
+  }
+</style>

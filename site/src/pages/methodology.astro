@@ -1,0 +1,717 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Breadcrumbs from '../components/Breadcrumbs.astro';
+import CpuLayout from '../components/CpuLayout.astro';
+import Icon from '../components/Icon.astro';
+import { allDomains, getProject } from '../lib/dataset';
+import { betterText, plural } from '../lib/format';
+import { knownMethodologies, methodologyInfo } from '../lib/methodology';
+import {
+  defaultRun,
+  derivedExplanation,
+  groupLabel,
+  machineName,
+  metricGroups,
+  repoUrl,
+  scenarioKindLabel,
+  scenarioParams,
+  sortScenarios,
+} from '../lib/model';
+import { href, routes } from '../lib/paths';
+
+const project = getProject();
+const domains = allDomains();
+const versions = knownMethodologies();
+const runsByVersion = new Map<string, number>();
+for (const d of domains) for (const r of d.runs) runsByVersion.set(r.methodology ?? '', (runsByVersion.get(r.methodology ?? '') ?? 0) + 1);
+const extraVersions = [...runsByVersion.keys()].filter((v) => !versions.some((k) => k.version === v)).map((v) => methodologyInfo(v));
+
+const toc = [
+  { id: 'goals', label: 'Goals' },
+  { id: 'environment', label: 'Environment and limits' },
+  { id: 'layout', label: 'CPU layout' },
+  { id: 'scenarios', label: 'Scenarios' },
+  { id: 'metrics', label: 'Metrics' },
+  { id: 'statistics', label: 'Statistics' },
+  { id: 'quality', label: 'Quality controls' },
+  { id: 'machines', label: 'Machines and provenance' },
+  { id: 'versions', label: 'Methodology versions' },
+  { id: 'limitations', label: 'Limitations' },
+];
+
+const serviceText = (service: Record<string, unknown> | undefined) => {
+  const out: Array<[string, string]> = [];
+  if (!service) return out;
+  if (typeof service.cpus === 'number') out.push(['CPU limit', `${service.cpus} cores`]);
+  if (typeof service.memory === 'string')
+    out.push(['Memory limit', service.memory.replace(/^(\d+)g$/i, '$1 GiB').replace(/^(\d+)m$/i, '$1 MiB')]);
+  for (const [k, v] of Object.entries(service)) {
+    if (k === 'cpus' || k === 'memory') continue;
+    if (typeof v === 'string' || typeof v === 'number') out.push([k.replace(/_/g, ' '), String(v)]);
+  }
+  return out;
+};
+---
+
+<BaseLayout title="Methodology" description="How results are produced, summarized and checked, and how to read them." section="methodology">
+  <div class="container">
+    <header class="page-head">
+      <Breadcrumbs items={[{ label: 'Home', path: routes.home() }, { label: 'Methodology' }]} />
+      <h1>Methodology</h1>
+      <p class="lead">
+        How every number on this site is produced, summarized and checked. The full reference lives in the repository; this
+        page combines it with the parameters recorded in the published data.
+      </p>
+      <div class="head-links">
+        <a class="btn btn-secondary btn-sm" href={repoUrl(project, 'docs/methodology.md', 'blob')}>
+          <Icon name="book" /> Methodology document
+        </a>
+        <a class="btn btn-ghost btn-sm" href={repoUrl(project, 'docs/architecture.md', 'blob')}>
+          <Icon name="layers" /> Architecture
+        </a>
+      </div>
+    </header>
+
+    <div class="doc">
+      <nav class="toc" aria-label="On this page">
+        <p class="toc-title">On this page</p>
+        <ol>
+          {toc.map((t) => <li><a href={`#${t.id}`}>{t.label}</a></li>)}
+        </ol>
+      </nav>
+
+      <div class="doc-body">
+        <section id="goals" class="doc-section">
+          <h2>Goals</h2>
+          <ol class="goals">
+            <li>
+              <strong>Production-shaped conditions.</strong> Services run under the resource limits of a small production pod,
+              against a real database, with realistic request mixes, not only at saturation.
+            </li>
+            <li>
+              <strong>Same work for everyone.</strong> Every implementation passes the same functional checks, and the work it
+              does per request is measured, not assumed.
+            </li>
+            <li>
+              <strong>Transparent and reproducible.</strong> Every number comes with the machine, the exact versions, the
+              configuration and the per-pass raw values.
+            </li>
+            <li>
+              <strong>Honest uncertainty.</strong> Medians with confidence intervals, and quality flags instead of silent
+              filtering.
+            </li>
+          </ol>
+        </section>
+
+        <section id="environment" class="doc-section">
+          <h2>Environment and resource limits</h2>
+          <p>
+            Each implementation runs alone in its own container with fixed limits. Supporting services (the
+            <em>environment</em>, such as a database) and the load generator run in separate containers on separate cores.
+            All containers share one network namespace and talk over loopback, so no NAT or bridge sits in the request path.
+          </p>
+          {
+            domains.map((d) => (
+              <div class="card card-pad env-card">
+                <h3>{d.domain.title}</h3>
+                {d.domain.description && <p class="text-2">{d.domain.description}</p>}
+                <dl class="env-stats">
+                  {serviceText(d.domain.service).map(([k, v]) => (
+                    <div>
+                      <dt>{k}</dt>
+                      <dd>{v}</dd>
+                    </div>
+                  ))}
+                  <div>
+                    <dt>Scenarios</dt>
+                    <dd>{d.scenarios.length}</dd>
+                  </div>
+                  <div>
+                    <dt>Metrics</dt>
+                    <dd>{Object.keys(d.metrics).length}</dd>
+                  </div>
+                </dl>
+              </div>
+            ))
+          }
+        </section>
+
+        <section id="layout" class="doc-section">
+          <h2>CPU layout</h2>
+          <p>The layout is computed from the machine's topology at the start of every run and stored with the results:</p>
+          <ol>
+            <li>
+              The service gets one logical CPU per physical core for as many cores as its CPU limit. The SMT siblings of those
+              cores stay idle, so the service never shares a core's execution units with other work.
+            </li>
+            <li>
+              The remaining physical cores are split between the environment and the load generator; the load generator gets
+              the larger half because it must never be the bottleneck.
+            </li>
+            <li>On machines too small for this, roles share CPUs and the run carries a warning in its quality flags.</li>
+          </ol>
+          {
+            domains.map((d) => {
+              const run = defaultRun(d);
+              return run ? (
+                <figure class="card card-pad layout-card">
+                  <CpuLayout layout={run.layout} machine={d.machines[run.machine]} />
+                  <figcaption class="muted">
+                    {d.domain.title}, default run on {machineName(d.machines[run.machine], run.machine)}.
+                  </figcaption>
+                </figure>
+              ) : null;
+            })
+          }
+        </section>
+
+        <section id="scenarios" class="doc-section">
+          <h2>Scenarios</h2>
+          <p>
+            Scenarios are declared as files in the repository; the list below comes straight from the dataset. Closed-loop
+            scenarios keep a fixed number of connections busy to find the maximum throughput; fixed-rate scenarios send the same
+            request rate to every implementation and measure latency with coordinated-omission correction.
+          </p>
+          {
+            domains.map((d) => (
+              <div class="table-wrap scen-table" tabindex="0" role="region" aria-label={`${d.domain.title} scenarios`}>
+                <table class="data">
+                  <caption>{d.domain.title}</caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">Scenario</th>
+                      <th scope="col">Kind</th>
+                      <th scope="col">What it does</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sortScenarios(d.scenarios).map((s) => (
+                      <tr>
+                        <th scope="row">
+                          {s.title}
+                          <span class="mono id">{s.id}</span>
+                        </th>
+                        <td class="nowrap">{scenarioKindLabel(s.kind)}</td>
+                        <td>
+                          {s.description}
+                          {scenarioParams(s, d.scenarios).length > 0 && (
+                            <span class="params">
+                              {scenarioParams(s, d.scenarios).map((p) => (
+                                <span class="tag">{p}</span>
+                              ))}
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ))
+          }
+        </section>
+
+        <section id="metrics" class="doc-section">
+          <h2>Metrics</h2>
+          <p>
+            The metric registry defines every value an implementation can be measured on: label, unit, which direction is
+            better and how prominently the site shows it. <span class="badge">primary</span> metrics are shown first,
+            <span class="badge">secondary</span> ones on request and <span class="badge">diagnostic</span> ones mainly explain
+            measurement quality.
+          </p>
+          {
+            domains.map((d) => (
+              <>
+                {domains.length > 1 && <h3>{d.domain.title}</h3>}
+                {metricGroups(d).map(({ group, metrics }) => (
+                  <details class="metric-group" open={group === 'summary' || group === 'throughput' || group === 'latency'}>
+                    <summary>
+                      <span>{groupLabel(group)}</span>
+                      <span class="muted">{plural(metrics.length, 'metric')}</span>
+                    </summary>
+                    <dl class="metric-list">
+                      {metrics.map((m) => (
+                        <div class="metric-item" id={`metric-${m.id}`}>
+                          <dt>
+                            <span class="m-label">{m.label}</span>
+                            <span class="m-meta">
+                              {m.unit && <span class="tag">{m.unit}</span>}
+                              <span class={`badge ${m.visibility === 'primary' ? 'badge-info' : 'badge-outline'}`}>
+                                {m.visibility ?? 'secondary'}
+                              </span>
+                            </span>
+                          </dt>
+                          <dd>
+                            <span class="dir">
+                              {m.better === 'higher' && <Icon name="arrowUp" size={12} strokeWidth={2} />}
+                              {m.better === 'lower' && <Icon name="arrowDown" size={12} strokeWidth={2} />}
+                              {betterText(m.better)}
+                            </span>
+                            {m.description && <p>{m.description}</p>}
+                            {derivedExplanation(d, m.id) && (
+                              <p class="m-derived">
+                                <strong>Computed:</strong> {derivedExplanation(d, m.id)}
+                              </p>
+                            )}
+                            <code class="m-id">{m.id}</code>
+                          </dd>
+                        </div>
+                      ))}
+                    </dl>
+                  </details>
+                ))}
+              </>
+            ))
+          }
+        </section>
+
+        <section id="statistics" class="doc-section">
+          <h2>Statistics</h2>
+          <div class="stat-grid">
+            <div class="card card-pad">
+              <h3>Median of passes</h3>
+              <p>
+                A run repeats every measurement in several passes (five by default). Each metric is summarized by its median,
+                which a single disturbed pass cannot move far.
+              </p>
+            </div>
+            <div class="card card-pad">
+              <h3>95 % bootstrap interval</h3>
+              <p>
+                The uncertainty of the median is a percentile bootstrap interval with 2,000 resamples and a fixed seed, so
+                summaries are reproducible. With fewer than three passes there is no interval, and the site says so.
+              </p>
+            </div>
+            <div class="card card-pad">
+              <h3>Outliers are flagged</h3>
+              <p>
+                A pass whose value has a robust z-score above 3.5 (based on the median absolute deviation) is marked, never
+                silently removed. Throughput varying more than 10 % between passes is flagged too.
+              </p>
+            </div>
+            <div class="card card-pad">
+              <h3>Changing order</h3>
+              <p>
+                The order of implementations changes every pass (a shifted Williams design), so each one runs at a different
+                position and after a different implementation each time. What one leaves behind, such as heat or cache
+                contents, does not always hit the same successor.
+              </p>
+            </div>
+          </div>
+          <p class="note">
+            Derived metrics such as the throughput index are computed from the medians of one run, so they carry no interval of
+            their own. Rankings count implementations with equal values as tied.
+          </p>
+        </section>
+
+        <section id="quality" class="doc-section">
+          <h2>Quality controls</h2>
+          <div class="table-wrap" tabindex="0" role="region" aria-label="Quality controls">
+            <table class="data">
+              <thead>
+                <tr>
+                  <th scope="col">Check</th>
+                  <th scope="col">Effect</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">Functional checks before measuring: values, shapes, content types, persisted updates, totals, rejected invalid input</th>
+                  <td>Implementation is excluded from the run</td>
+                </tr>
+                <tr>
+                  <th scope="row">Database statements per request (pg_stat_statements) deviate more than 3 % from the scenario specification</th>
+                  <td>Result flagged</td>
+                </tr>
+                <tr>
+                  <th scope="row">Errors during a measurement (socket errors, timeouts, non-2xx/3xx)</th>
+                  <td>Result flagged with count and rate; failed requests never count as throughput</td>
+                </tr>
+                <tr>
+                  <th scope="row">More than 1 % failed requests, a throughput of zero or a missing result in one of the workloads behind an index</th>
+                  <td>No index for that implementation; its scenario results stay visible</td>
+                </tr>
+                <tr>
+                  <th scope="row">The measurement of an implementation fails in a pass</th>
+                  <td>Flagged as an error; that pass is missing from the number of passes (n) behind its values</td>
+                </tr>
+                <tr>
+                  <th scope="row">Load generator CPU above 90 %</th>
+                  <td>Throughput flagged as a lower bound</td>
+                </tr>
+                <tr>
+                  <th scope="row">Hypervisor steal time above the limit (2 % by default)</th>
+                  <td>Measurement repeated (twice by default), then flagged</td>
+                </tr>
+                <tr>
+                  <th scope="row">Fixed-rate scenario reaches less than 97 % of the target rate</th>
+                  <td>Result flagged</td>
+                </tr>
+                <tr>
+                  <th scope="row">A result bundle's summary does not match its per-pass data, or the bundle is filed under the wrong machine or run id</th>
+                  <td>Rejected by CI; published numbers are always recomputed from the per-pass values</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="note">
+            Flags appear next to the affected value in the explorer, on implementation pages and on the run page.
+          </p>
+        </section>
+
+        <section id="machines" class="doc-section">
+          <h2>Machines and provenance</h2>
+          <p>
+            Absolute throughput depends heavily on the CPU, so the primary comparison is always <strong>within one run</strong>.
+            Across machines, relative indices and CPU time per request are more meaningful. Every run stores the machine
+            fingerprint (CPU model, cores, SMT, governor, turbo, memory, kernel, OS, virtualization, Docker version) and the CPU
+            layout. <a href={href(routes.machines())}>See all machines.</a>
+          </p>
+          <div class="grid grid-2 prov">
+            <div class="card card-pad">
+              <h3><Icon name="shield" class="inline-icon" /> Reference</h3>
+              <p>
+                Measured by the maintainers themselves, who list the run id in the repository. The machine alone does not
+                decide it: every machine of the same model has the same id. The default view prefers complete reference runs.
+              </p>
+            </div>
+            <div class="card card-pad">
+              <h3><Icon name="users" class="inline-icon" /> Community</h3>
+              <p>
+                Submitted by anyone as a pull request containing a result bundle. CI verifies the bundle; maintainers look for
+                implausible values.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <section id="versions" class="doc-section">
+          <h2>Methodology versions</h2>
+          <p>Every run records the methodology it was measured with. Older versions stay visible, clearly labelled.</p>
+          <div class="versions">
+            {
+              [...versions, ...extraVersions].map((v) => (
+                <div class="card card-pad version">
+                  <div class="version-head">
+                    <h3>{v.label}</h3>
+                    {v.preliminary ? (
+                      <span class="badge badge-warning">
+                        <Icon name="alert" /> Preliminary
+                      </span>
+                    ) : (
+                      <span class="badge badge-outline">Current</span>
+                    )}
+                  </div>
+                  <p>{v.summary}</p>
+                  <p class="muted small">
+                    {plural(runsByVersion.get(v.version) ?? 0, 'published run')} with this version.
+                  </p>
+                </div>
+              ))
+            }
+          </div>
+        </section>
+
+        <section id="limitations" class="doc-section">
+          <h2>Limitations</h2>
+          <ul>
+            <li>
+              Start-up time includes <code>docker start</code>. The overhead is identical for every implementation but means the
+              numbers are not process start times.
+            </li>
+            <li>CPU package energy covers the whole package, including the database and the load generator; compare it within one run only.</li>
+            <li>Memory (PSS) is sampled once per second, so very short spikes can be missed. The cgroup's anonymous-memory peak complements it.</li>
+            <li>The load generator shares the machine. Its CPU use is measured and flagged when it could limit throughput.</li>
+            <li>
+              Implementations are written to be idiomatic, but configuration choices such as pool sizes and worker counts matter.
+              They are documented on each implementation page; better configurations are welcome as pull requests.
+            </li>
+            <li>
+              Categories matter: a bare server without a framework does less work than a full-stack framework. Compare like with
+              like.
+            </li>
+            <li>Workloads are synthetic. They are shaped after common production endpoints but cannot represent every application.</li>
+          </ul>
+        </section>
+      </div>
+    </div>
+  </div>
+</BaseLayout>
+
+<style>
+  .head-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 20px;
+  }
+  .doc {
+    display: grid;
+    gap: 32px;
+    padding-bottom: clamp(48px, 6vw, 88px);
+  }
+  @media (min-width: 1024px) {
+    .doc {
+      grid-template-columns: 200px minmax(0, 1fr);
+      gap: 56px;
+    }
+    .toc {
+      position: sticky;
+      top: calc(var(--header-h) + 24px);
+      align-self: start;
+    }
+  }
+  .toc {
+    font-size: 0.875rem;
+  }
+  .toc-title {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+  .toc ol {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px 14px;
+  }
+  @media (min-width: 1024px) {
+    .toc ol {
+      display: grid;
+      gap: 2px;
+      border-left: 1px solid var(--border);
+    }
+    .toc a {
+      display: block;
+      padding: 4px 0 4px 14px;
+      margin-left: -1px;
+      border-left: 1px solid transparent;
+    }
+    .toc a:hover {
+      border-left-color: var(--text);
+    }
+  }
+  .toc a {
+    color: var(--text-2);
+  }
+  .toc a:hover {
+    color: var(--text);
+    text-decoration: none;
+  }
+  .doc-body {
+    min-width: 0;
+    max-width: 880px;
+  }
+  .doc-section + .doc-section {
+    margin-top: 56px;
+    padding-top: 40px;
+    border-top: 1px solid var(--border);
+  }
+  .doc-section > h2 {
+    margin-bottom: 14px;
+  }
+  .doc-section > p,
+  .doc-section > ol,
+  .doc-section > ul {
+    color: var(--text-2);
+    max-width: 75ch;
+  }
+  .doc-section > ol,
+  .doc-section > ul {
+    padding-left: 1.2em;
+  }
+  .doc-section li + li {
+    margin-top: 8px;
+  }
+  .doc-section > * + * {
+    margin-top: 16px;
+  }
+  .goals strong {
+    color: var(--text);
+  }
+  .env-card h3 {
+    margin-bottom: 8px;
+  }
+  .env-card p {
+    font-size: 0.9375rem;
+  }
+  .env-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 12px;
+    margin: 18px 0 0;
+  }
+  .env-stats div {
+    padding: 12px 14px;
+    border-radius: var(--radius);
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+  }
+  .env-stats dt {
+    font-size: 0.75rem;
+    color: var(--muted);
+    text-transform: capitalize;
+  }
+  .env-stats dd {
+    margin: 2px 0 0;
+    font-size: 1.125rem;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+  }
+  .layout-card {
+    margin-inline: 0;
+  }
+  .layout-card > figcaption {
+    margin-top: 14px;
+    font-size: 0.8125rem;
+  }
+  .scen-table th[scope='row'] {
+    min-width: 150px;
+  }
+  .id {
+    display: block;
+    margin-top: 2px;
+    font-size: 0.6875rem;
+    color: var(--muted);
+    font-weight: 400;
+  }
+  .params {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 8px;
+  }
+  .params .tag {
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+  }
+  .metric-group {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+  }
+  .metric-group + .metric-group {
+    margin-top: 8px;
+  }
+  .metric-group > summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 16px;
+    cursor: pointer;
+    font-weight: 600;
+    list-style: none;
+  }
+  .metric-group > summary::-webkit-details-marker {
+    display: none;
+  }
+  .metric-group > summary .muted {
+    font-weight: 400;
+    font-size: 0.8125rem;
+  }
+  .metric-group > summary::after {
+    content: '';
+    width: 7px;
+    height: 7px;
+    border-right: 1.5px solid var(--muted);
+    border-bottom: 1.5px solid var(--muted);
+    transform: rotate(45deg);
+    margin-left: 4px;
+  }
+  .metric-group[open] > summary::after {
+    transform: rotate(-135deg);
+  }
+  .metric-group > summary span:first-child {
+    flex: 1;
+  }
+  .metric-list {
+    margin: 0;
+    border-top: 1px solid var(--border);
+  }
+  .metric-item {
+    display: grid;
+    gap: 6px 24px;
+    padding: 14px 16px;
+  }
+  .metric-item + .metric-item {
+    border-top: 1px solid var(--border);
+  }
+  @media (min-width: 720px) {
+    .metric-item {
+      grid-template-columns: 230px 1fr;
+    }
+  }
+  .metric-item dt {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .m-label {
+    font-weight: 550;
+  }
+  .m-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .metric-item dd {
+    margin: 0;
+    font-size: 0.875rem;
+    color: var(--text-2);
+  }
+  .metric-item dd p {
+    margin-top: 4px;
+  }
+  .m-derived {
+    font-size: 0.8125rem;
+    color: var(--muted);
+  }
+  .m-derived strong {
+    color: var(--text-2);
+    font-weight: 550;
+  }
+  .m-id {
+    display: inline-block;
+    margin-top: 6px;
+    font-size: 0.6875rem;
+    color: var(--muted);
+  }
+  .stat-grid {
+    display: grid;
+    gap: 12px;
+  }
+  @media (min-width: 720px) {
+    .stat-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+  .stat-grid p,
+  .prov p,
+  .version p {
+    margin-top: 6px;
+    font-size: 0.9375rem;
+    color: var(--text-2);
+  }
+  .note {
+    font-size: 0.875rem;
+    color: var(--muted) !important;
+  }
+  .versions {
+    display: grid;
+    gap: 12px;
+  }
+  .version-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .small {
+    font-size: 0.8125rem;
+  }
+</style>

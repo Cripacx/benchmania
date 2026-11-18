@@ -1,0 +1,28 @@
+---
+/** /<domain>/runs/<run>/<impl>/: one implementation in one specific run (or "not measured in this run"). */
+import ImplementationPage from '../../../../../components/ImplementationPage.astro';
+import { allDomains } from '../../../../../lib/dataset';
+import { implementationPageIds } from '../../../../../lib/model';
+import type { DomainData, Run } from '../../../../../lib/types';
+
+export function getStaticPaths() {
+  return allDomains().flatMap((domain) =>
+    domain.runs.flatMap((run) =>
+      implementationPageIds(domain).map((id) => ({
+        params: { domain: domain.domain.id, run: run.id, impl: id },
+        props: { domain, run, implId: id },
+      })),
+    ),
+  );
+}
+
+interface Props {
+  domain: DomainData;
+  run: Run;
+  implId: string;
+}
+
+const { domain, run, implId } = Astro.props;
+---
+
+<ImplementationPage domain={domain} implId={implId} run={run} scoped />

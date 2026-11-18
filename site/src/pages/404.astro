@@ -1,0 +1,49 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Icon from '../components/Icon.astro';
+import { allDomains } from '../lib/dataset';
+import { href, routes } from '../lib/paths';
+
+const domains = allDomains();
+---
+
+<BaseLayout title="Page not found" noindex>
+  <div class="container nf">
+    <p class="code mono">404</p>
+    <h1>This page does not exist</h1>
+    <p class="lead">
+      The link may be outdated, or the implementation or run it pointed to is no longer part of the published data.
+    </p>
+    <div class="actions">
+      <a class="btn btn-primary" href={href(routes.home())}>Back to the start <Icon name="arrowRight" /></a>
+      {
+        domains.map((d) => (
+          <a class="btn btn-secondary" href={href(routes.domain(d.domain.id))}>
+            {d.domain.title}
+          </a>
+        ))
+      }
+      <a class="btn btn-ghost" href={href(routes.data())}>Data</a>
+    </div>
+  </div>
+</BaseLayout>
+
+<style>
+  .nf {
+    padding-block: clamp(72px, 12vw, 160px);
+  }
+  .code {
+    font-size: 0.875rem;
+    color: var(--muted);
+    margin-bottom: 12px;
+  }
+  .lead {
+    margin-top: 14px;
+  }
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 28px;
+  }
+</style>

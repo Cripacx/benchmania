@@ -1,0 +1,21 @@
+---
+/** /<domain>/runs/<run>/compare/: the compare page for one specific run. */
+import ComparePage from '../../../../../components/ComparePage.astro';
+import { allDomains } from '../../../../../lib/dataset';
+import type { DomainData, Run } from '../../../../../lib/types';
+
+export function getStaticPaths() {
+  return allDomains().flatMap((domain) =>
+    domain.runs.map((run) => ({ params: { domain: domain.domain.id, run: run.id }, props: { domain, run } })),
+  );
+}
+
+interface Props {
+  domain: DomainData;
+  run: Run;
+}
+
+const { domain, run } = Astro.props;
+---
+
+<ComparePage domain={domain} run={run} scoped />

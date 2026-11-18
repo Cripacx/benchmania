@@ -1,0 +1,18 @@
+---
+import ComparePage from '../../../components/ComparePage.astro';
+import { allDomains } from '../../../lib/dataset';
+import { defaultRun } from '../../../lib/model';
+import type { DomainData } from '../../../lib/types';
+
+export function getStaticPaths() {
+  return allDomains().map((domain) => ({ params: { domain: domain.domain.id }, props: { domain } }));
+}
+
+interface Props {
+  domain: DomainData;
+}
+
+const { domain } = Astro.props;
+---
+
+<ComparePage domain={domain} run={defaultRun(domain)} />

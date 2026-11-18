@@ -1,0 +1,21 @@
+---
+import ImplementationPage from '../../../components/ImplementationPage.astro';
+import { allDomains } from '../../../lib/dataset';
+import { defaultRun, implementationPageIds } from '../../../lib/model';
+import type { DomainData } from '../../../lib/types';
+
+export function getStaticPaths() {
+  return allDomains().flatMap((domain) =>
+    implementationPageIds(domain).map((id) => ({ params: { domain: domain.domain.id, impl: id }, props: { domain, implId: id } })),
+  );
+}
+
+interface Props {
+  domain: DomainData;
+  implId: string;
+}
+
+const { domain, implId } = Astro.props;
+---
+
+<ImplementationPage domain={domain} implId={implId} run={defaultRun(domain)} />

@@ -1,0 +1,27 @@
+---
+import Icon from './Icon.astro';
+import { href } from '../lib/paths';
+
+interface Props {
+  items: Array<{ label: string; path?: string }>;
+}
+
+const { items } = Astro.props;
+---
+
+<nav class="crumbs" aria-label="Breadcrumb">
+  <ol>
+    {
+      items.map((item, i) => (
+        <li>
+          {i > 0 && <Icon name="chevronRight" size={12} />}
+          {item.path && i < items.length - 1 ? (
+            <a href={href(item.path)}>{item.label}</a>
+          ) : (
+            <span aria-current={i === items.length - 1 ? 'page' : undefined}>{item.label}</span>
+          )}
+        </li>
+      ))
+    }
+  </ol>
+</nav>

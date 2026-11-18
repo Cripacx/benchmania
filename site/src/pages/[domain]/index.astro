@@ -1,0 +1,62 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import ExplorerPage from '../../components/ExplorerPage.astro';
+import Breadcrumbs from '../../components/Breadcrumbs.astro';
+import { allDomains } from '../../lib/dataset';
+import { defaultRun } from '../../lib/model';
+import { routes } from '../../lib/paths';
+import type { DomainData } from '../../lib/types';
+
+export function getStaticPaths() {
+  return allDomains().map((domain) => ({ params: { domain: domain.domain.id }, props: { domain } }));
+}
+
+interface Props {
+  domain: DomainData;
+}
+
+const { domain } = Astro.props;
+const run = defaultRun(domain);
+---
+
+<BaseLayout title={domain.domain.title} description={domain.domain.summary} section={`domain:${domain.domain.id}`}>
+  <div class="container">
+    <header class="page-head">
+      <Breadcrumbs items={[{ label: 'Home', path: routes.home() }, { label: domain.domain.title }]} />
+      <h1>{domain.domain.title}</h1>
+      <p class="lead">{domain.domain.summary}</p>
+      {
+        domain.domain.description && (
+          <details class="disclosure about">
+            <summary>About this domain</summary>
+            <p>{domain.domain.description}</p>
+          </details>
+        )
+      }
+    </header>
+    <div class="explorer-wrap">
+      {
+        run ? (
+          <ExplorerPage domain={domain} run={run} />
+        ) : (
+          <div class="card card-pad empty">No runs have been published for this domain yet.</div>
+        )
+      }
+    </div>
+  </div>
+</BaseLayout>
+
+<style>
+  .about {
+    margin-top: 16px;
+  }
+  .about p {
+    margin-top: 10px;
+    max-width: 75ch;
+    color: var(--text-2);
+    font-size: 0.9375rem;
+  }
+  .explorer-wrap {
+    padding-bottom: clamp(48px, 6vw, 88px);
+  }
+</style>

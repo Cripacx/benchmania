@@ -1,0 +1,153 @@
+---
+/**
+ * Logical CPUs of the machine colored by role (service, environment, load generator, idle).
+ * Only facts from the run's layout are drawn; the physical core pairing is not inferred.
+ */
+import type { CpuLayout, Machine } from '../lib/types';
+
+interface Props {
+  layout: CpuLayout | undefined;
+  machine: Machine | undefined;
+  compact?: boolean;
+}
+
+const { layout, machine, compact = false } = Astro.props;
+const roles = [
+  { id: 'service', label: 'Service under test', cpus: layout?.service ?? [] },
+  { id: 'environment', label: 'Environment (database)', cpus: layout?.environment ?? [] },
+  { id: 'loadgen', label: 'Load generator', cpus: layout?.loadgen ?? [] },
+  { id: 'idle', label: 'Kept idle', cpus: layout?.idle ?? [] },
+];
+const assigned = new Map<number, string>();
+for (const r of roles) for (const c of r.cpus) if (!assigned.has(c)) assigned.set(c, r.id);
+const maxCpu = Math.max(-1, ...assigned.keys());
+const logical = Math.max(machine?.cpu?.logical ?? 0, maxCpu + 1);
+const cells = Array.from({ length: logical }, (_, i) => ({ cpu: i, role: assigned.get(i) ?? 'none' }));
+const hasLayout = assigned.size > 0;
+const roleLabel = (id: string) => roles.find((r) => r.id === id)?.label ?? 'Unassigned';
+---
+
+{
+  hasLayout ? (
+    <figure class={`cpu-layout ${compact ? 'compact' : ''}`}>
+      <ol class="cpu-cells" aria-label="Logical CPUs by role">
+        {cells.map((c) => (
+          <li class={`cpu-cell role-${c.role}`} title={`CPU ${c.cpu}: ${roleLabel(c.role)}`}>
+            <span class="visually-hidden">
+              CPU {c.cpu}: {roleLabel(c.role)}
+            </span>
+            <span aria-hidden="true">{c.cpu}</span>
+          </li>
+        ))}
+      </ol>
+      <figcaption>
+        <ul class="cpu-legend">
+          {roles
+            .filter((r) => r.cpus.length > 0)
+            .map((r) => (
+              <li>
+                <span class={`dot role-${r.id}`} />
+                {r.label}
+                <span class="muted num">{r.cpus.join(', ')}</span>
+              </li>
+            ))}
+        </ul>
+        {layout?.smt !== undefined && (
+          <p class="muted cpu-note">
+            {layout.smt
+              ? 'SMT is on. The service gets one logical CPU per physical core; the SMT siblings of those cores stay idle.'
+              : 'SMT is off on this machine.'}
+          </p>
+        )}
+      </figcaption>
+    </figure>
+  ) : (
+    <p class="muted">This run does not record a CPU layout.</p>
+  )
+}
+
+<style>
+  .cpu-layout {
+    margin: 0;
+  }
+  .cpu-cells {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(38px, 1fr));
+    gap: 4px;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    max-width: 560px;
+  }
+  .compact .cpu-cells {
+    grid-template-columns: repeat(auto-fill, minmax(26px, 1fr));
+    gap: 3px;
+  }
+  .cpu-cell {
+    --role: var(--role-idle);
+    display: grid;
+    place-items: center;
+    height: 34px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--text);
+    background: color-mix(in srgb, var(--role) 24%, var(--surface));
+    box-shadow: inset 0 -3px 0 var(--role);
+  }
+  .compact .cpu-cell {
+    height: 26px;
+    border-radius: 5px;
+    font-size: 0.6875rem;
+  }
+  .role-service {
+    --role: var(--series-1);
+  }
+  .role-environment {
+    --role: var(--series-2);
+  }
+  .role-loadgen {
+    --role: var(--series-3);
+  }
+  .role-idle {
+    --role: var(--role-idle);
+    color: var(--text-2);
+  }
+  .role-none {
+    background: transparent;
+    box-shadow: inset 0 0 0 1px var(--border-strong);
+    color: var(--muted);
+  }
+  .dot.role-service,
+  .dot.role-environment,
+  .dot.role-loadgen,
+  .dot.role-idle {
+    background: var(--role);
+  }
+  figcaption {
+    margin-top: 12px;
+  }
+  .cpu-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 18px;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    font-size: 0.8125rem;
+    color: var(--text-2);
+  }
+  .cpu-legend li {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+  }
+  .cpu-legend .muted {
+    font-size: 0.75rem;
+  }
+  .cpu-note {
+    margin-top: 8px;
+    font-size: 0.8125rem;
+  }
+</style>

@@ -1,0 +1,119 @@
+---
+/**
+ * Shared body of the domain explorer: used by /<domain>/ (default run) and /<domain>/runs/<id>/ (`scoped`, whose
+ * links stay inside that run).
+ */
+import Icon from './Icon.astro';
+import RunContext from './RunContext.astro';
+import RunNotice from './RunNotice.astro';
+import { ExplorerIsland } from './islands/Islands';
+import { explorerProps } from '../lib/islandProps';
+import { plural } from '../lib/format';
+import { measuredScenarios, runImplementationIds, unmeasuredScenarios } from '../lib/model';
+import { basePath, href, routes } from '../lib/paths';
+import { encodeIslandProps } from '../lib/view';
+import type { DomainData, Run } from '../lib/types';
+
+interface Props {
+  domain: DomainData;
+  run: Run;
+  showContext?: boolean;
+  /** True on /<domain>/runs/<run>/. */
+  scoped?: boolean;
+}
+
+const { domain, run, showContext = true, scoped = false } = Astro.props;
+const base = basePath();
+const scope = scoped ? run.id : null;
+const props = explorerProps(domain, run, base, scope);
+const implIds = runImplementationIds(domain, run);
+const missingScenarios = unmeasuredScenarios(domain, run);
+---
+
+{
+  showContext && (
+    <div class="ex-context">
+      <RunContext domain={domain} run={run} />
+      <RunNotice domain={domain} run={run} />
+    </div>
+  )
+}
+
+<ExplorerIsland client:load payload={encodeIslandProps(props)} />
+
+{
+  missingScenarios.length > 0 && (
+    <p class="ex-missing muted">
+      <Icon name="info" class="inline-icon" /> {`Not measured in this run: ${missingScenarios.map((s) => s.title).join(', ')}.`}
+    </p>
+  )
+}
+
+<section class="ex-index" aria-labelledby="ex-index-title">
+  <h2 id="ex-index-title">Implementations in this run</h2>
+  <p class="muted">
+    {plural(implIds.length, 'implementation')} · {plural(measuredScenarios(domain, run).length, 'scenario')} measured. Every
+    page lists all scenarios and metrics of one implementation.
+  </p>
+  <ul class="ex-index-list">
+    {
+      implIds.map((id) => {
+        const impl = domain.implementations.find((i) => i.id === id);
+        return (
+          <li>
+            <a href={href(routes.implementation(domain.domain.id, id, scope))}>
+              <span class="ex-index-name">{impl?.name ?? id}</span>
+              {impl?.variant && <span class="muted"> · {impl.variant}</span>}
+            </a>
+          </li>
+        );
+      })
+    }
+  </ul>
+</section>
+
+<style>
+  .ex-context {
+    display: grid;
+    gap: 16px;
+    margin-bottom: 32px;
+  }
+  .ex-missing {
+    margin-top: 16px;
+    font-size: 0.8125rem;
+  }
+  .ex-index {
+    margin-top: 56px;
+    padding-top: 32px;
+    border-top: 1px solid var(--border);
+  }
+  .ex-index h2 {
+    font-size: 1.125rem;
+  }
+  .ex-index > p {
+    margin-top: 4px;
+    font-size: 0.875rem;
+  }
+  .ex-index-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr));
+    gap: 2px 24px;
+    list-style: none;
+    margin: 16px 0 0;
+    padding: 0;
+    font-size: 0.875rem;
+  }
+  .ex-index-list a {
+    display: block;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+  }
+  .ex-index-list a:hover {
+    color: var(--accent);
+    text-decoration: none;
+  }
+  .ex-index-name {
+    font-weight: 500;
+  }
+</style>
