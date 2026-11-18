@@ -1,0 +1,13 @@
+#!/usr/local/bin/python3
+"""bench hash <bytes>: SHA-256 of <bytes> bytes where byte i = i % 251."""
+import hashlib
+import sys
+
+n = int(sys.argv[2])
+pattern = memoryview(bytes(i % 251 for i in range(251 * 4096)))
+h = hashlib.sha256()
+while n > 0:
+    chunk = min(n, len(pattern))
+    h.update(pattern[:chunk])
+    n -= chunk
+print(h.hexdigest())

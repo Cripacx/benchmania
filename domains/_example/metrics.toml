@@ -1,0 +1,26 @@
+[wall_ms]
+label = "Run time"
+unit = "ms"
+better = "lower"
+group = "time"
+decimals = 1
+visibility = "primary"
+description = "Wall-clock time of the command inside the running container (excludes container start)."
+
+[cpu_ms]
+label = "CPU time"
+unit = "ms"
+better = "lower"
+group = "cpu"
+decimals = 1
+visibility = "primary"
+description = "CPU time of the container's cgroup while the command ran."
+
+[peak_mib]
+label = "Peak memory"
+unit = "MiB"
+better = "lower"
+group = "memory"
+decimals = 1
+visibility = "secondary"
+description = "memory.peak of the container cgroup (kernel 5.19+)."

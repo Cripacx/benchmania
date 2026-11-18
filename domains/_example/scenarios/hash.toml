@@ -1,0 +1,7 @@
+id = "hash"
+title = "SHA-256 of 32 MiB"
+kind = "command"
+order = 10
+description = "Hashes 32 MiB of deterministic data that the implementation generates itself."
+command = ["/bench", "hash", "33554432"]
+expect_stdout = "1cbd22e11bc209926b1e050d644779ba4105d7a023109c3b78bb35edf5c7c292"

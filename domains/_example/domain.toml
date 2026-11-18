@@ -1,0 +1,24 @@
+# Example domain: the smallest complete domain, used as a template and as the extensibility test in CI.
+# It times a command-line program in a container. Copy this directory to start a new domain.
+id = "example"
+title = "Example: command-line programs"
+summary = "Times a short command in a fresh container. Template for new domains; not published."
+status = "example"
+harness = "harness:CommandHarness"
+methodology_version = "1"
+
+[service]
+cpus = 1
+memory = "256m"
+
+[defaults]
+repetitions = 5
+
+[quick]
+repetitions = 2
+
+[[headline]]
+scenario = "hash"
+metric = "wall_ms"
+label = "Run time"
+hint = "Median wall-clock time of the command."

@@ -1,0 +1,8 @@
+id = "go-crypto"
+name = "Go · crypto/sha256"
+language = "Go"
+category = "tool"
+description = "crypto/sha256 from the Go standard library."
+
+[versions]
+language = "1.27.4"
