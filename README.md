@@ -1,6 +1,6 @@
-# Machbench
+# Benchmania
 
-**Community-driven, reproducible performance benchmarks.** Machbench measures how software performs under
+**Community-driven, reproducible performance benchmarks.** Benchmania measures how software performs under
 realistic, controlled conditions. Anyone can contribute implementations, benchmark domains and measurements
 from their own hardware; every number is published with the hardware, versions and raw data behind it.
 
@@ -17,7 +17,7 @@ the suite on their own hardware and contribute results.
 
 ## Community-driven
 
-Machbench is run by its contributors. Implementations, domains and measurements all arrive as pull requests;
+Benchmania is run by its contributors. Implementations, domains and measurements all arrive as pull requests;
 changes to the engine, the harnesses and the list of reference runs are reviewed by the maintainers, and
 methodology problems are discussed in public issues. Every published run is labelled with who measured it:
 **reference** for runs the maintainers measured themselves, **community** for every other merged run. There
@@ -26,10 +26,10 @@ are no community runs yet, so a measurement from other hardware is the most usef
 To add a measurement from your machine (Linux with rootful Docker and cgroup v2, see the requirements below):
 
 ```sh
-./machbench doctor                                # is this machine suitable?
-./machbench check backend                         # every implementation must pass
-./machbench run backend --label "My workstation"  # several hours; writes results/backend/<machine>/<run>.json
-./machbench validate
+./benchmania doctor                                # is this machine suitable?
+./benchmania check backend                         # every implementation must pass
+./benchmania run backend --label "My workstation"  # several hours; writes results/backend/<machine>/<run>.json
+./benchmania validate
 ```
 
 Then open a pull request that adds only that bundle file. [CONTRIBUTING.md](CONTRIBUTING.md) explains the
@@ -41,15 +41,15 @@ review, and [Submitting results](docs/guides/submitting-results.md) has the deta
 Requirements: Linux x86_64 or arm64 with Docker (rootful, cgroup v2), at least 4 physical CPU cores for
 publishable results, Python 3.11 or newer. Node.js 22.23.4 or newer only to view the website locally. The
 engine uses only the Python standard library; the load generators and measurement tools run in a runner
-container that `./machbench check` and `./machbench run` build from `core/runner/`, and every implementation
+container that `./benchmania check` and `./benchmania run` build from `core/runner/`, and every implementation
 is built as its own Docker image.
 
 ```sh
-git clone https://github.com/machbench/machbench && cd machbench
-./machbench doctor                                            # checks Docker, cgroup v2 and the CPU layout
-./machbench list                                              # domains, scenarios, implementations
-./machbench check backend --impl go-nethttp rust-axum         # build two implementations, run the functional checks
-./machbench run backend --impl go-nethttp rust-axum --quick --passes 1
+git clone https://github.com/benchmania/benchmania && cd benchmania
+./benchmania doctor                                            # checks Docker, cgroup v2 and the CPU layout
+./benchmania list                                              # domains, scenarios, implementations
+./benchmania check backend --impl go-nethttp rust-axum         # build two implementations, run the functional checks
+./benchmania run backend --impl go-nethttp rust-axum --quick --passes 1
 ```
 
 The quick run writes a result bundle to `results/backend/`. Quick runs are smoke tests: they are marked as
@@ -58,8 +58,8 @@ such and never published (`publish` skips them), so do not commit that file. For
 a while), then build the website dataset and look at it:
 
 ```sh
-./machbench run backend
-./machbench publish                                           # result bundles -> site/src/data
+./benchmania run backend
+./benchmania publish                                           # result bundles -> site/src/data
 cd site && npm ci && npm run dev
 ```
 
@@ -70,7 +70,7 @@ with the current methodology (5 passes) and a preliminary one from the pre-relea
 ## How it works
 
 ```
-machbench.toml          project identity and run defaults (rename the project here)
+benchmania.toml          project identity and run defaults (rename the project here)
 core/benchcore/         engine: manifests, runner, CPU layout, collectors, load generators, statistics, bundles
 core/runner/            runner image: Alpine at a fixed release with its packages (python3, wrk, docker-cli)
                         and oha at a fixed version, verified by checksum
@@ -80,7 +80,7 @@ site/                   website, built from the dataset that `publish` generates
 docs/                   methodology, architecture, contributor guides, decision records
 ```
 
-`./machbench run` starts a privileged runner container with access to the Docker socket and the host's
+`./benchmania run` starts a privileged runner container with access to the Docker socket and the host's
 cgroups. The runner pins itself to the load-generator CPUs, starts the domain's environment (for the backend:
 PostgreSQL), builds and checks every implementation, then measures them in several passes, in a different
 order each pass. Every measurement window records throughput and latency from the load generator plus CPU time from
@@ -103,7 +103,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the workflow and review rules.
 
 ## Renaming the project
 
-The name lives in `machbench.toml`. Code and the website read it from there. To rename everything, including
+The name lives in `benchmania.toml`. Code and the website read it from there. To rename everything, including
 documentation and the CLI wrapper: `python3 tools/rename_project.py "NewName"`.
 
 ## License

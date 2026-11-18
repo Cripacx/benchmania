@@ -27,9 +27,9 @@ jobs:
       - name: Unit tests
         run: python -m pytest -q tests
       - name: Validate manifests and result bundles
-        run: ./machbench validate
+        run: ./benchmania validate
       - name: Build the website dataset
-        run: ./machbench publish --out /tmp/site-data
+        run: ./benchmania publish --out /tmp/site-data
 
   site:
     name: Website
@@ -51,7 +51,7 @@ jobs:
           cache-dependency-path: site/package-lock.json
       - name: Regenerate dataset from result bundles
         working-directory: .
-        run: ./machbench publish
+        run: ./benchmania publish
       - run: npm ci
       - run: npm run check
       - run: npm test

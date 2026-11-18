@@ -18,7 +18,7 @@ npm run verify      # post-build checks on dist/ (run after build, with the same
 npm run ci          # all four in order
 ```
 
-To refresh the dataset from the result bundles, run `./machbench publish` (or `python machbench publish`) from the
+To refresh the dataset from the result bundles, run `./benchmania publish` (or `python benchmania publish`) from the
 repository root. It writes `site/src/data/index.json` and one `<domain>.json` per domain. Never edit those files by
 hand.
 
@@ -26,7 +26,7 @@ hand.
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `BASE_PATH` | `/` | Sub-path the site is served from, e.g. `/machbench/` for a GitHub Pages project site |
+| `BASE_PATH` | `/` | Sub-path the site is served from, e.g. `/benchmania/` for a GitHub Pages project site |
 | `SITE_URL` | origin of `project.site_url` in `index.json` | Public origin for canonical URLs and the sitemap |
 
 Every internal link and asset goes through `href()` / `joinBase()` in `src/lib/paths.ts`, so the same source works
@@ -35,7 +35,7 @@ workflow (`.github/workflows/pages.yml`) builds for the root of `project.site_ur
 also builds under a sub-path.
 
 ```sh
-BASE_PATH=/machbench/ npm run build && BASE_PATH=/machbench/ npm run verify
+BASE_PATH=/benchmania/ npm run build && BASE_PATH=/benchmania/ npm run verify
 ```
 
 ## Data contract (summary)
@@ -114,7 +114,7 @@ Layers:
 ## Adding a domain
 
 Nothing in the site needs to change. Add the domain to the repository (see `docs/guides/adding-a-domain.md`) with its
-metric registry and `headline` list, publish results, and run `./machbench publish`. The new `<domain>.json` and its
+metric registry and `headline` list, publish results, and run `./benchmania publish`. The new `<domain>.json` and its
 entry in `index.json` create the explorer, runs, implementation and compare pages, the navigation entry and the
 methodology sections. The home page features the first domain in `index.json`.
 

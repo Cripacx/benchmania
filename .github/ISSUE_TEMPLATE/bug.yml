@@ -12,5 +12,5 @@ body:
     id: repro
     attributes:
       label: Steps and output
-      description: Command, full output and the output of `./machbench doctor`.
+      description: Command, full output and the output of `./benchmania doctor`.
       render: text

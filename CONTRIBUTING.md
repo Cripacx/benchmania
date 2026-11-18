@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for helping. Machbench is run by its contributors: implementations, benchmark domains and the
+Thanks for helping. Benchmania is run by its contributors: implementations, benchmark domains and the
 published measurements all arrive as pull requests, and anyone can open one. Changes to the engine, the
 harnesses and the list of reference runs are reviewed by the maintainers (see `.github/CODEOWNERS`), and
 methodology problems are discussed in public issues. Benchmarks are only as good as their fairness, so
@@ -25,10 +25,10 @@ Results from more machines make every comparison more useful. On Linux
 with rootful Docker and cgroup v2 (at least 4 physical cores), from a clean checkout:
 
 ```sh
-./machbench doctor
-./machbench check backend
-./machbench run backend --label "My workstation"   # several hours
-./machbench validate
+./benchmania doctor
+./benchmania check backend
+./benchmania run backend --label "My workstation"   # several hours
+./benchmania validate
 ```
 
 A results pull request adds only the bundle file (`results/<domain>/<machine-id>/<run-id>.json`): no changes
@@ -51,7 +51,7 @@ your run on the local website.
 1. **Idiomatic and production-like.** Use the framework the way its documentation recommends for
    production. No benchmark-only tricks: no response caching, no precomputed responses, no disabled
    validation, no skipped database work.
-2. **Same work.** Every implementation must pass the functional checks (`./machbench check <domain>`).
+2. **Same work.** Every implementation must pass the functional checks (`./benchmania check <domain>`).
    The backend harness also counts database statements per request; a mismatch is flagged in the results.
 3. **Pinned versions.** Exact image tags, exact dependency versions and committed lockfiles. Declare the
    versions in `impl.toml`.
@@ -67,8 +67,8 @@ your run on the local website.
 ## Workflow
 
 1. Fork, create a branch, make the change.
-2. Run `python -m pytest tests`, `./machbench validate` and, for implementation changes,
-   `./machbench check <domain> --impl <id>` and a short `./machbench run <domain> --impl <id> --quick --passes 1`.
+2. Run `python -m pytest tests`, `./benchmania validate` and, for implementation changes,
+   `./benchmania check <domain> --impl <id>` and a short `./benchmania run <domain> --impl <id> --quick --passes 1`.
 3. Open a pull request. CI runs unit tests, validates manifests and result bundles, builds the website and
    runs an end-to-end smoke test of changed implementations.
 4. Published numbers come from dedicated hardware runs, never from CI machines.
@@ -78,11 +78,11 @@ your run on the local website.
 ```sh
 python -m pip install pytest
 python -m pytest tests          # engine tests (no Docker needed)
-./machbench validate            # manifests and bundles
-./machbench publish && cd site && npm ci && npm run dev   # website with the current dataset
+./benchmania validate            # manifests and bundles
+./benchmania publish && cd site && npm ci && npm run dev   # website with the current dataset
 ```
 
-`./machbench publish` writes `site/src/data/*.json`. These files are generated (they contain a timestamp) and
+`./benchmania publish` writes `site/src/data/*.json`. These files are generated (they contain a timestamp) and
 ignored by git; never commit them.
 
 Everything in this repository — code, comments, documentation, commit messages — is written in English.

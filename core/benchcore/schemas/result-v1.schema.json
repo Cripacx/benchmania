@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "benchcore.result/v1",
   "title": "Result bundle",
-  "description": "One benchmark run of one domain on one machine. The summary is derived from the passes; `./machbench validate` recomputes it.",
+  "description": "One benchmark run of one domain on one machine. The summary is derived from the passes; `./benchmania validate` recomputes it.",
   "type": "object",
   "required": ["schema", "id", "domain", "created", "status", "methodology", "machine", "implementations", "scenarios", "passes", "summary"],
   "properties": {

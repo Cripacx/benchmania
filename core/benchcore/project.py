@@ -1,4 +1,4 @@
-"""Project configuration (machbench.toml at the repository root).
+"""Project configuration (benchmania.toml at the repository root).
 
 All user-facing naming comes from here so the project can be renamed in one place.
 """
@@ -8,7 +8,7 @@ import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 
-CONFIG_FILE = "machbench.toml"
+CONFIG_FILE = "benchmania.toml"
 
 
 @dataclass(frozen=True)

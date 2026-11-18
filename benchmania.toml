@@ -1,12 +1,12 @@
 # Project identity. Every user-facing name is read from here (CLI, container names, website).
 # To rename the project, change these values and run: python tools/rename_project.py <NewName>
 [project]
-name = "Machbench"
-slug = "machbench"
+name = "Benchmania"
+slug = "benchmania"
 tagline = "Community-driven, reproducible performance benchmarks"
-description = "Machbench measures how software performs under realistic, controlled conditions. Anyone can contribute implementations, benchmark domains and measurements from their own hardware; every number is published with the hardware, versions and raw data behind it."
-repository = "https://github.com/machbench/machbench"
-site_url = "https://machbench.github.io"
+description = "Benchmania measures how software performs under realistic, controlled conditions. Anyone can contribute implementations, benchmark domains and measurements from their own hardware; every number is published with the hardware, versions and raw data behind it."
+repository = "https://github.com/benchmania/benchmania"
+site_url = "https://benchmania.github.io"
 license = "MIT"
 data_license = "CC-BY-4.0"
 

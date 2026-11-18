@@ -6,8 +6,8 @@ describe('base path handling', () => {
     expect(normalizeBase(undefined)).toBe('/');
     expect(normalizeBase('')).toBe('/');
     expect(normalizeBase('/')).toBe('/');
-    expect(normalizeBase('machbench')).toBe('/machbench/');
-    expect(normalizeBase('/machbench')).toBe('/machbench/');
+    expect(normalizeBase('benchmania')).toBe('/benchmania/');
+    expect(normalizeBase('/benchmania')).toBe('/benchmania/');
     expect(normalizeBase(' /a/b/ ')).toBe('/a/b/');
   });
 

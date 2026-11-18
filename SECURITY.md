@@ -2,7 +2,7 @@
 
 ## What the runner can do
 
-`./machbench run` and `./machbench check` start a **privileged** container with the host PID and cgroup
+`./benchmania run` and `./benchmania check` start a **privileged** container with the host PID and cgroup
 namespaces and the Docker socket. That is necessary to read exact CPU and memory figures of other
 containers. What this means for the code involved:
 

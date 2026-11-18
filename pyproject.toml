@@ -9,7 +9,7 @@ dependencies = []
 test = ["pytest>=8"]
 
 [project.scripts]
-machbench = "benchcore.cli:main"
+benchmania = "benchcore.cli:main"
 
 [build-system]
 requires = ["setuptools>=70"]
