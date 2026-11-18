@@ -10,6 +10,8 @@ import { formatDate, formatNumber, plural } from '../lib/format';
 import { methodologyInfo } from '../lib/methodology';
 import { leaderboardProps } from '../lib/islandProps';
 import {
+  communityRunsNote,
+  communityStatus,
   defaultRun,
   flagNote,
   headlineValue,
@@ -19,6 +21,7 @@ import {
   metricIdsInRun,
   metricOrFallback,
   rankMap,
+  repoPage,
   repoUrl,
   runImplementationIds,
   valueFlagNote,
@@ -33,9 +36,34 @@ const featured = domains[0];
 const run = featured ? defaultRun(featured) : undefined;
 const base = basePath();
 
-const totalImpls = domains.reduce((acc, d) => acc + d.implementations.length, 0);
+const community = communityStatus(domains);
+const totalImpls = community.implementations;
 const totalLanguages = new Set(domains.flatMap((d) => d.implementations.map((i) => i.language))).size;
-const totalRuns = domains.reduce((acc, d) => acc + d.runs.length, 0);
+const totalRuns = community.runs;
+
+const ways = [
+  {
+    icon: 'server' as const,
+    title: 'Measure on your hardware',
+    text: 'Run the suite on a Linux machine with Docker and open a pull request that adds the result bundle.',
+    cta: 'Submit a run',
+    href: href(routes.contribute('submit')),
+  },
+  {
+    icon: 'plus' as const,
+    title: 'Add an implementation',
+    text: 'A language, framework or variant: a directory with an impl.toml, a Dockerfile and the source.',
+    cta: 'Add an implementation',
+    href: href(routes.contribute('implementation')),
+  },
+  {
+    icon: 'layers' as const,
+    title: 'Add a domain',
+    text: 'A new area such as databases or compute. Domains are discovered automatically and get their own pages.',
+    cta: 'Add a domain',
+    href: href(routes.contribute('domain')),
+  },
+];
 
 const lb = featured && run ? leaderboardProps(featured, run, base) : null;
 
@@ -102,7 +130,14 @@ const machine = featured && run ? featured.machines[run.machine] : undefined;
           plural(totalRuns, 'published run')
         }
       </p>
-      <h1>{project.tagline}</h1>
+      <h1>
+        {project.tagline.split(' ').map((word, i) => (
+          <>
+            {i > 0 && ' '}
+            <span class="word">{word}</span>
+          </>
+        ))}
+      </h1>
       <p class="lead hero-lead">{project.description}</p>
       <div class="hero-cta">
         {
@@ -112,8 +147,10 @@ const machine = featured && run ? featured.machines[run.machine] : undefined;
             </a>
           )
         }
-        <a class="btn btn-secondary" href={href(routes.methodology())}>How we measure</a>
-        <a class="btn btn-ghost" href={project.repository}><Icon name="github" /> Source on GitHub</a>
+        <a class="btn btn-secondary" href={href(routes.contribute())}>
+          <Icon name="users" /> Contribute your results
+        </a>
+        <a class="btn btn-ghost" href={href(routes.methodology())}>How we measure</a>
       </div>
       </div>
       {
@@ -254,6 +291,72 @@ const machine = featured && run ? featured.machines[run.machine] : undefined;
     )
   }
 
+  <section class="section" id="community" aria-labelledby="community-title">
+    <div class="container">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow"><Icon name="users" /> Community</p>
+          <h2 id="community-title">Run by its contributors</h2>
+          <p>
+            Implementations, domains and measurements all arrive as pull requests. Run the suite on your own machine and
+            your results are published next to everyone else's, with the hardware they were measured on.
+          </p>
+        </div>
+        <div class="cta-actions">
+          <a class="btn btn-secondary" href={repoUrl(project, 'CONTRIBUTING.md', 'blob')}>
+            <Icon name="book" /> Contributing guide
+          </a>
+          <a class="btn btn-ghost" href={repoPage(project, 'discussions')}>Ideas and questions</a>
+        </div>
+      </div>
+      <ul class="grid grid-3 ways" aria-label="Ways to take part">
+        {
+          ways.map((w) => (
+            <li>
+              <a class="card card-pad card-link entry" href={w.href}>
+                <Icon name={w.icon} size={18} />
+                <h3>{w.title}</h3>
+                <p>{w.text}</p>
+                <span class="entry-cta">
+                  {w.cta} <Icon name="arrowRight" class="arrow" />
+                </span>
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+      <div class="card community-status">
+        <dl class="status-counts">
+          <div>
+            <dt>Published runs</dt>
+            <dd>{formatNumber(community.runs, 0)}</dd>
+          </div>
+          <div>
+            <dt>Machines</dt>
+            <dd>{formatNumber(community.machines, 0)}</dd>
+          </div>
+          <div>
+            <dt>Reference runs</dt>
+            <dd>{formatNumber(community.reference, 0)}</dd>
+          </div>
+          <div>
+            <dt>Community runs</dt>
+            <dd>{formatNumber(community.community, 0)}</dd>
+          </div>
+        </dl>
+        <div class="status-text">
+          <p>
+            <strong>{communityRunsNote(community)}</strong> Reference runs are measured by the maintainers; every other
+            merged run is labelled community.
+          </p>
+          <a class="btn btn-primary btn-sm" href={href(routes.contribute('submit'))}>
+            Submit a run <Icon name="arrowRight" />
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <section class="section" aria-labelledby="how-title">
     <div class="container">
       <div class="section-head">
@@ -367,25 +470,6 @@ const machine = featured && run ? featured.machines[run.machine] : undefined;
     </div>
   </section>
 
-  <section class="section">
-    <div class="container">
-      <div class="cta-band">
-        <div>
-          <h2>Missing your stack?</h2>
-          <p>
-            Implementations, scenarios and whole new domains are plain files in the repository. Add one, run it on your
-            hardware, and open a pull request.
-          </p>
-        </div>
-        <div class="cta-actions">
-          <a class="btn btn-primary" href={href(routes.contribute())}>How to contribute <Icon name="arrowRight" /></a>
-          <a class="btn btn-secondary" href={repoUrl(project, 'CONTRIBUTING.md', 'blob')}>
-            <Icon name="github" /> Contributing guide
-          </a>
-        </div>
-      </div>
-    </div>
-  </section>
 </BaseLayout>
 
 <style>
@@ -568,8 +652,12 @@ const machine = featured && run ? featured.machines[run.machine] : undefined;
   }
   .hero h1 {
     margin-top: 22px;
-    max-width: 17ch;
+    max-width: 24ch;
+    text-wrap: balance;
     font-size: clamp(2.375rem, 1.6rem + 2.9vw, 3.75rem);
+  }
+  .hero h1 .word {
+    white-space: nowrap; /* never break inside a hyphenated word */
   }
   .hero-lead {
     margin-top: 20px;
@@ -765,28 +853,73 @@ const machine = featured && run ? featured.machines[run.machine] : undefined;
     font-weight: 500;
   }
 
-  .cta-band {
+  .cta-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .ways {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .ways li,
+  .ways .entry {
+    height: 100%;
+  }
+  .community-status {
+    display: grid;
+    gap: 16px 32px;
+    margin-top: 16px;
+    padding: 18px clamp(16px, 2.4vw, 24px);
+    background:
+      radial-gradient(120% 160% at 100% 0%, var(--accent-soft), transparent 55%),
+      var(--surface);
+  }
+  @media (min-width: 900px) {
+    .community-status {
+      grid-template-columns: auto minmax(0, 1fr);
+      align-items: center;
+    }
+  }
+  .status-counts {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, auto));
+    gap: 8px 28px;
+    margin: 0;
+  }
+  @media (max-width: 559px) {
+    .status-counts {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+  .status-counts dt {
+    font-size: 0.75rem;
+    color: var(--muted);
+  }
+  .status-counts dd {
+    margin: 2px 0 0;
+    font-size: 1.5rem;
+    font-weight: 600;
+    letter-spacing: -0.03em;
+    line-height: 1.15;
+    font-variant-numeric: tabular-nums;
+  }
+  .status-text {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
-    gap: 24px;
-    padding: clamp(24px, 4vw, 40px);
-    border-radius: var(--radius-lg);
-    border: 1px solid var(--border);
-    background:
-      radial-gradient(120% 140% at 100% 0%, var(--accent-soft), transparent 55%),
-      var(--surface);
-    box-shadow: var(--shadow-sm);
+    gap: 12px 20px;
   }
-  .cta-band p {
-    margin-top: 8px;
-    max-width: 58ch;
+  .status-text p {
+    flex: 1 1 32ch;
+    max-width: 60ch;
+    font-size: 0.9375rem;
     color: var(--text-2);
   }
-  .cta-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
+  .status-text strong {
+    color: var(--text);
+    font-weight: 600;
   }
 </style>

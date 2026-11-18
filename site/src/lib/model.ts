@@ -430,6 +430,61 @@ export function provenanceInfo(p: string | null | undefined): ProvenanceInfo {
   return { id: 'unknown', label: 'Unlabelled', description: 'The dataset does not say who measured this run.' };
 }
 
+export interface CommunityStatus {
+  /** Published runs across all domains. */
+  runs: number;
+  /** Runs by provenance; `unlabelled` are runs whose provenance the dataset does not state. */
+  reference: number;
+  community: number;
+  unlabelled: number;
+  /** Distinct machines with at least one run, and how many of them have a community run. */
+  machines: number;
+  communityMachines: number;
+  /** Implementations across all domains. */
+  implementations: number;
+  domains: number;
+}
+
+/** Who measured what: the honest, dataset-derived state of the community model. */
+export function communityStatus(domains: Array<Pick<DomainData, 'runs' | 'implementations'>>): CommunityStatus {
+  const status: CommunityStatus = {
+    runs: 0,
+    reference: 0,
+    community: 0,
+    unlabelled: 0,
+    machines: 0,
+    communityMachines: 0,
+    implementations: 0,
+    domains: domains.length,
+  };
+  const machines = new Set<string>();
+  const communityMachines = new Set<string>();
+  for (const d of domains) {
+    status.implementations += d.implementations.length;
+    for (const run of d.runs) {
+      status.runs += 1;
+      machines.add(run.machine);
+      const id = provenanceInfo(run.provenance).id;
+      if (id === 'reference') status.reference += 1;
+      else if (id === 'community') {
+        status.community += 1;
+        communityMachines.add(run.machine);
+      } else status.unlabelled += 1;
+    }
+  }
+  status.machines = machines.size;
+  status.communityMachines = communityMachines.size;
+  return status;
+}
+
+/** One sentence on community runs; with none yet it reads as an invitation, never as a claim. */
+export function communityRunsNote(status: Pick<CommunityStatus, 'community' | 'communityMachines'>): string {
+  if (status.community === 0) return 'No community runs yet. Add the first.';
+  const runs = `${status.community} community ${status.community === 1 ? 'run' : 'runs'}`;
+  const machines = `${status.communityMachines} ${status.communityMachines === 1 ? 'machine' : 'machines'}`;
+  return `${runs} from ${machines} so far.`;
+}
+
 /** Human-readable machine name: the reference label if the machine is a reference machine. */
 export function machineName(machine: Machine | undefined, fallbackId = ''): string {
   return machine?.reference?.label || machine?.label || machine?.id || fallbackId || 'Unknown machine';
@@ -683,6 +738,11 @@ export function repoUrl(project: Pick<Project, 'repository'>, path = '', kind: '
   const repo = project.repository.replace(/\/+$/, '');
   const clean = normalizePosix(path);
   return clean ? `${repo}/${kind}/${ref}/${clean}` : repo;
+}
+
+/** A repository page on the forge: issues (bugs, proposals) or discussions (ideas, questions). */
+export function repoPage(project: Pick<Project, 'repository'>, page: 'issues' | 'discussions'): string {
+  return `${project.repository.replace(/\/+$/, '')}/${page}`;
 }
 
 /** Links to an implementation's directory and, if it builds from shared sources, to those. */

@@ -1,7 +1,8 @@
 # Machbench
 
-**Open, reproducible performance benchmarks.** Machbench measures how software performs under realistic,
-controlled conditions and publishes every number together with the hardware, versions and raw data behind it.
+**Community-driven, reproducible performance benchmarks.** Machbench measures how software performs under
+realistic, controlled conditions. Anyone can contribute implementations, benchmark domains and measurements
+from their own hardware; every number is published with the hardware, versions and raw data behind it.
 
 The first domain is **backend services**: the same HTTP API with a PostgreSQL database, implemented in Go,
 Rust, C# (.NET 10 and 11, JIT and Native AOT), Java (Spring Boot on the JVM, with an AOT cache and as a
@@ -13,6 +14,27 @@ queries, updates, a list endpoint, a JSON POST, low and high concurrency, and la
 The platform is built so that new **domains** (databases, compute kernels, frontends, AI inference, …),
 **scenarios** and **implementations** can be added without touching the engine, and so that anyone can run
 the suite on their own hardware and contribute results.
+
+## Community-driven
+
+Machbench is run by its contributors. Implementations, domains and measurements all arrive as pull requests;
+changes to the engine, the harnesses and the list of reference runs are reviewed by the maintainers, and
+methodology problems are discussed in public issues. Every published run is labelled with who measured it:
+**reference** for runs the maintainers measured themselves, **community** for every other merged run. There
+are no community runs yet, so a measurement from other hardware is the most useful contribution right now.
+
+To add a measurement from your machine (Linux with rootful Docker and cgroup v2, see the requirements below):
+
+```sh
+./machbench doctor                                # is this machine suitable?
+./machbench check backend                         # every implementation must pass
+./machbench run backend --label "My workstation"  # several hours; writes results/backend/<machine>/<run>.json
+./machbench validate
+```
+
+Then open a pull request that adds only that bundle file. [CONTRIBUTING.md](CONTRIBUTING.md) explains the
+review, and [Submitting results](docs/guides/submitting-results.md) has the details. Ideas and questions go to
+[Discussions](../../discussions), bugs and proposals to [issues](../../issues).
 
 ## Quick start
 
@@ -71,10 +93,10 @@ Read more: [methodology](docs/methodology.md) · [architecture](docs/architectur
 
 ## Contributing
 
+- [Run on your hardware and submit results](docs/guides/submitting-results.md) — a pull request with one bundle file
 - [Add an implementation](docs/guides/adding-an-implementation.md) — a directory with `impl.toml`, a Dockerfile and your code
 - [Add a scenario](docs/guides/adding-a-scenario.md) — one TOML file
 - [Add a domain](docs/guides/adding-a-domain.md) — start from `domains/_example`
-- [Run on your hardware and submit results](docs/guides/submitting-results.md)
 - [Report a methodological problem](../../issues/new?template=methodology.yml) — fairness reports are very welcome
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the workflow and review rules.

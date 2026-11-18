@@ -6,7 +6,7 @@ import Icon from '../components/Icon.astro';
 import RunBadges from '../components/RunBadges.astro';
 import { allDomains, getProject } from '../lib/dataset';
 import { formatDate, isNum, plural } from '../lib/format';
-import { machineName, repoUrl } from '../lib/model';
+import { communityStatus, machineName, repoUrl } from '../lib/model';
 import { href, routes } from '../lib/paths';
 import type { DomainData, Machine, Run } from '../lib/types';
 
@@ -23,6 +23,7 @@ const list = [...machines.values()].sort(
   (a, b) => Number(!!b.machine.reference) - Number(!!a.machine.reference) || b.runs.length - a.runs.length,
 );
 const referenceCount = list.filter((m) => m.machine.reference).length;
+const community = communityStatus(domains);
 
 const yesNo = (v: boolean | null | undefined) => (v === true ? 'on' : v === false ? 'off' : 'unknown');
 const specs = (m: Machine): Array<[string, string]> => {
@@ -130,11 +131,26 @@ const specs = (m: Machine): Array<[string, string]> => {
           );
         })
       }
+      <aside class="card add-machine" aria-labelledby="add-machine-title">
+        <div>
+          <h2 id="add-machine-title"><Icon name="plus" class="inline-icon" /> Add your machine</h2>
+          <p>
+            {
+              community.communityMachines === 0
+                ? 'No community machines yet. Run the suite on yours and submit the result bundle; it appears here, labelled community.'
+                : `${plural(community.communityMachines, 'machine')} with community runs so far. Run the suite on yours and submit the result bundle; it appears here, labelled community.`
+            }
+          </p>
+        </div>
+        <a class="btn btn-primary btn-sm" href={href(routes.contribute('submit'))}>
+          Submit a run <Icon name="arrowRight" />
+        </a>
+      </aside>
       <p class="muted note">
         <Icon name="info" class="inline-icon" /> A run counts as a reference run only when the maintainers measured it
         themselves and listed its run id in{' '}
         <a href={repoUrl(project, 'results/reference-runs.toml', 'blob')}>results/reference-runs.toml</a>; the machine alone
-        does not decide it. Want to add your machine? See <a href={href(routes.contribute())}>how to submit results</a>.
+        does not decide it.
       </p>
     </div>
   </div>
@@ -232,5 +248,27 @@ const specs = (m: Machine): Array<[string, string]> => {
   }
   .note {
     font-size: 0.8125rem;
+  }
+  .add-machine {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px 24px;
+    padding: 18px clamp(16px, 2.4vw, 24px);
+    border-style: dashed;
+    border-color: var(--border-strong);
+  }
+  .add-machine > div {
+    flex: 1 1 40ch;
+  }
+  .add-machine h2 {
+    font-size: 1rem;
+  }
+  .add-machine p {
+    margin-top: 4px;
+    max-width: 68ch;
+    color: var(--text-2);
+    font-size: 0.9375rem;
   }
 </style>

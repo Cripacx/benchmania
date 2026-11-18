@@ -3,19 +3,32 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 import Breadcrumbs from '../components/Breadcrumbs.astro';
 import Icon from '../components/Icon.astro';
 import { allDomains, getProject } from '../lib/dataset';
-import { repoUrl } from '../lib/model';
-import { routes } from '../lib/paths';
+import { communityRunsNote, communityStatus, repoPage, repoUrl } from '../lib/model';
+import { plural } from '../lib/format';
+import { href, routes } from '../lib/paths';
 
 const project = getProject();
 const cli = `./${project.slug}`;
 const domains = allDomains();
+const community = communityStatus(domains);
 const domainId = domains[0]?.domain.id ?? '<domain>';
 const sampleImpl = domains[0]?.implementations[0]?.id ?? '<existing-id>';
 const guide = (file: string) => repoUrl(project, `docs/guides/${file}`, 'blob');
-const issues = `${project.repository.replace(/\/+$/, '')}/issues`;
+const issues = repoPage(project, 'issues');
+const discussions = repoPage(project, 'discussions');
+const repoDir = project.repository.replace(/\/+$/, '').split('/').pop() || project.slug;
+
+const submitCode = [
+  `git clone ${project.repository} && cd ${repoDir}`,
+  `${cli} doctor`,
+  `${cli} check ${domainId}`,
+  `${cli} run ${domainId} --label "My workstation"`,
+  `${cli} validate`,
+].join('\n');
 
 const paths = [
   {
+    id: 'implementation',
     icon: 'plus' as const,
     title: 'Add an implementation',
     text: 'A new language, framework or variant. Implementations are a directory with an impl.toml, a Dockerfile and the source.',
@@ -23,6 +36,7 @@ const paths = [
     code: `${cli} scaffold ${domainId} my-framework --from ${sampleImpl}\n${cli} validate\n${cli} check ${domainId} --impl my-framework`,
   },
   {
+    id: 'scenario',
     icon: 'activity' as const,
     title: 'Add a scenario',
     text: 'A new workload is one TOML file. Its kind must be one the domain harness understands; database work per request is declared and verified.',
@@ -30,58 +44,117 @@ const paths = [
     code: `# domains/${domainId}/scenarios/db-c64.toml\nid = "db-c64"\ntitle = "Single query, 64 connections"\nkind = "http"\norder = 95\npath = "/db"\nconnections = 64\nwork = { select = 1 }`,
   },
   {
-    icon: 'grid' as const,
+    id: 'domain',
+    icon: 'layers' as const,
     title: 'Add a domain',
     text: 'A whole new area such as databases or compute. Domains are discovered automatically, and this website creates their pages as soon as they have results.',
     guide: guide('adding-a-domain.md'),
     code: `cp -r domains/_example domains/databases\n${cli} check databases\n${cli} run databases --quick --passes 2`,
   },
-  {
-    icon: 'server' as const,
-    title: 'Run on your hardware',
-    text: 'Linux with rootful Docker and cgroup v2. Submitted runs are labelled community; quick smoke-test runs are never published.',
-    guide: guide('submitting-results.md'),
-    code: `${cli} doctor\n${cli} check ${domainId}\n${cli} run ${domainId} --label "My workstation"\n${cli} validate`,
-  },
 ];
 ---
 
-<BaseLayout title="Contribute" description="Add implementations, scenarios or domains, and submit results from your own hardware." section="contribute">
+<BaseLayout
+  title="Contribute"
+  description="Submit measurements from your own hardware, add implementations, scenarios or whole domains."
+  section="contribute"
+>
   <div class="container">
     <header class="page-head">
       <Breadcrumbs items={[{ label: 'Home', path: routes.home() }, { label: 'Contribute' }]} />
       <h1>Contribute</h1>
       <p class="lead">
-        Benchmarks are only as good as their fairness, so contributions that find problems are as valuable as new
-        implementations. Everything is plain files in the repository.
+        {project.name} is run by its contributors. Every implementation, benchmark domain and published measurement arrives
+        as a pull request, and anyone can open one. Results from more machines make every comparison more useful.
       </p>
       <div class="head-links">
-        <a class="btn btn-primary btn-sm" href={repoUrl(project, 'CONTRIBUTING.md', 'blob')}><Icon name="book" /> Contributing guide</a>
-        <a class="btn btn-secondary btn-sm" href={project.repository}><Icon name="github" /> Repository</a>
-        <a class="btn btn-ghost btn-sm" href={issues}>Open an issue</a>
+        <a class="btn btn-primary btn-sm" href="#submit">Submit a measurement <Icon name="arrowDown" /></a>
+        <a class="btn btn-secondary btn-sm" href={repoUrl(project, 'CONTRIBUTING.md', 'blob')}><Icon name="book" /> Contributing guide</a>
+        <a class="btn btn-ghost btn-sm" href={discussions}>Ideas and questions</a>
       </div>
     </header>
 
     <div class="contribute">
-      <div class="paths">
-        {
-          paths.map((p, i) => (
-            <article class="card path">
-              <div class="path-text">
-                <span class="step">{String(i + 1).padStart(2, '0')}</span>
-                <h2>
-                  <Icon name={p.icon} size={18} /> {p.title}
-                </h2>
-                <p>{p.text}</p>
-                <a class="path-link" href={p.guide}>
-                  Read the guide <Icon name="arrowUpRight" size={14} />
-                </a>
-              </div>
-              <pre class="path-code"><code>{p.code}</code></pre>
-            </article>
-          ))
-        }
-      </div>
+      <section id="submit" class="anchor" aria-labelledby="submit-title">
+        <div class="card path submit">
+          <div class="path-text">
+            <p class="eyebrow"><Icon name="server" /> Measure on your hardware</p>
+            <h2 id="submit-title">Submit a measurement</h2>
+            <ol class="steps">
+              <li>
+                Use Linux with rootful Docker and cgroup v2, at least 4 physical cores and Python 3.11 or newer. Close other
+                workloads; on a laptop use mains power.
+              </li>
+              <li>
+                <code>doctor</code> checks the machine and <code>check</code> builds every implementation and runs the
+                functional checks. Then run the whole suite from a clean checkout: it takes several hours, so start it in
+                <code>tmux</code> or with <code>nohup</code>.
+              </li>
+              <li>
+                Open a pull request that adds the bundle written to
+                <code>results/{domainId}/&lt;machine-id&gt;/&lt;run-id&gt;.json</code>.
+              </li>
+            </ol>
+            <a class="path-link" href={guide('submitting-results.md')}>
+              Read the full guide <Icon name="arrowUpRight" size={14} />
+            </a>
+          </div>
+          <pre class="path-code"><code>{submitCode}</code></pre>
+        </div>
+
+        <div class="grid grid-3 submit-facts">
+          <div class="card card-pad">
+            <h3><Icon name="pullRequest" class="inline-icon" /> What the pull request contains</h3>
+            <p>
+              Only the bundle file: no changes to code, manifests, <code>results/reference-runs.toml</code> or the generated
+              website data. The bundle records the commit that was measured and contains no hostnames, user names or IP
+              addresses. Quick smoke-test runs are never published.
+            </p>
+          </div>
+          <div class="card card-pad">
+            <h3><Icon name="checkCircle" class="inline-icon" /> How it is reviewed</h3>
+            <p>
+              CI re-verifies that the summary matches the per-pass data and that every scenario and metric is known.
+              Maintainers then look for implausible values compared with similar hardware, many quality flags and options
+              that differ from a full run.
+            </p>
+          </div>
+          <div class="card card-pad">
+            <h3><Icon name="shield" class="inline-icon" /> Reference and community</h3>
+            <p>
+              Merged runs are labelled <strong>community</strong>. <strong>Reference</strong> runs are the ones maintainers
+              measured themselves and listed in
+              <a href={repoUrl(project, 'results/reference-runs.toml', 'blob')}>results/reference-runs.toml</a>. Both are
+              shown with their machine.
+            </p>
+            <p class="status">
+              {plural(community.reference, 'reference run')} published. {communityRunsNote(community)}
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section class="add" aria-labelledby="add-title">
+        <h2 id="add-title">Add to the suite</h2>
+        <div class="paths">
+          {
+            paths.map((p) => (
+              <article class="card path anchor" id={p.id}>
+                <div class="path-text">
+                  <h3>
+                    <Icon name={p.icon} size={18} /> {p.title}
+                  </h3>
+                  <p>{p.text}</p>
+                  <a class="path-link" href={p.guide}>
+                    Read the guide <Icon name="arrowUpRight" size={14} />
+                  </a>
+                </div>
+                <pre class="path-code"><code>{p.code}</code></pre>
+              </article>
+            ))
+          }
+        </div>
+      </section>
 
       <section class="rules" aria-labelledby="rules-title">
         <h2 id="rules-title">Rules for implementations</h2>
@@ -107,8 +180,15 @@ const paths = [
           <li>
             <Icon name="alert" />
             <div>
-              <strong>Report unfairness or a measurement error.</strong> Open a <em>methodology</em> issue with evidence.
-              <a href={issues}>Issues</a>
+              <strong>Report unfairness or a measurement error.</strong> Open a <em>methodology</em> issue with evidence;
+              methodology problems are discussed in public. <a href={issues}>Issues</a>
+            </div>
+          </li>
+          <li>
+            <Icon name="users" />
+            <div>
+              <strong>Share an idea or ask a question.</strong> Use <a href={discussions}>Discussions</a>; issues are for bugs
+              and concrete proposals.
             </div>
           </li>
           <li>
@@ -121,7 +201,8 @@ const paths = [
           <li>
             <Icon name="layers" />
             <div>
-              <strong>Improve the engine or this website.</strong> Open an issue first for larger changes. The website lives in
+              <strong>Improve the engine or this website.</strong> Open an issue first for larger changes. Changes to the
+              engine, the harnesses and the list of reference runs are reviewed by the maintainers. The website lives in
               <a href={repoUrl(project, 'site', 'tree')}><code>site/</code></a> and is generated from the published dataset.
             </div>
           </li>
@@ -129,7 +210,7 @@ const paths = [
             <Icon name="book" />
             <div>
               <strong>Understand the design.</strong> Read the <a href={repoUrl(project, 'docs/architecture.md', 'blob')}>architecture</a>
-              and the <a href={repoUrl(project, 'docs/methodology.md', 'blob')}>methodology</a> documents.
+              and the <a href={href(routes.methodology())}>methodology</a>.
             </div>
           </li>
         </ul>
@@ -150,6 +231,9 @@ const paths = [
     gap: 64px;
     padding-bottom: clamp(48px, 6vw, 88px);
   }
+  .anchor {
+    scroll-margin-top: calc(var(--header-h) + 16px);
+  }
   .paths {
     display: grid;
     gap: 14px;
@@ -166,22 +250,36 @@ const paths = [
       align-items: center;
     }
   }
-  .step {
-    display: block;
-    font-family: var(--font-mono);
-    font-size: 0.75rem;
-    color: var(--muted);
-    margin-bottom: 8px;
+  .path-text {
+    min-width: 0;
   }
-  .path h2 {
+  .path h3 {
     display: flex;
     align-items: center;
     gap: 10px;
     font-size: 1.25rem;
   }
-  .path-text p {
+  .path-text > p {
     margin-top: 8px;
     color: var(--text-2);
+  }
+  .submit {
+    border-color: var(--border-strong);
+    box-shadow: var(--shadow);
+  }
+  .submit h2 {
+    font-size: 1.5rem;
+  }
+  .steps {
+    display: grid;
+    gap: 8px;
+    margin: 14px 0 0;
+    padding-left: 1.25em;
+    color: var(--text-2);
+  }
+  .steps li::marker {
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
   }
   .path-link {
     display: inline-flex;
@@ -195,6 +293,31 @@ const paths = [
     font-size: 0.8125rem;
     white-space: pre;
   }
+  .submit-facts {
+    margin-top: 14px;
+  }
+  .submit-facts h3 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 1rem;
+  }
+  .submit-facts p {
+    margin-top: 8px;
+    color: var(--text-2);
+    font-size: 0.9375rem;
+  }
+  .submit-facts strong {
+    color: var(--text);
+    font-weight: 600;
+  }
+  .submit-facts .status {
+    padding-top: 10px;
+    border-top: 1px solid var(--border);
+    font-size: 0.875rem;
+    color: var(--text);
+  }
+  .add h2,
   .rules h2,
   .more h2 {
     margin-bottom: 18px;

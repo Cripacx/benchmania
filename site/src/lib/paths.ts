@@ -53,7 +53,8 @@ export const routes = {
   methodology: () => '/methodology/',
   machines: () => '/machines/',
   machine: (id: string) => `/machines/#machine-${enc(id)}`,
-  contribute: () => '/contribute/',
+  /** The contribute page, optionally at one of its sections (`submit`, `implementation`, `domain`, …). */
+  contribute: (section?: string) => (section ? `/contribute/#${enc(section)}` : '/contribute/'),
   data: () => '/data/',
   dataFile: (file: string) => `/data/${enc(file)}`,
 };
