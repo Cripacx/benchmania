@@ -41,7 +41,9 @@ a while), then build the website dataset and look at it:
 cd site && npm ci && npm run dev
 ```
 
-The only run published so far is a preliminary one from the pre-release suite (methodology 0, 3 passes).
+Two runs are published so far, both measured by the maintainers on the same 6-core machine: a reference run
+with the current methodology (5 passes) and a preliminary one from the pre-release suite (methodology 0,
+3 passes), which is kept for transparency and labelled as preliminary.
 
 ## How it works
 

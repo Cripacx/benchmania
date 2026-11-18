@@ -16,7 +16,8 @@
 ./machbench run backend --label "My workstation"
 ```
 
-A full run takes several hours (roughly 4 minutes per implementation and pass, plus the builds). You can
+A full run takes several hours: the first reference run (15 implementations, 5 passes) took 5 hours and
+7 minutes on a 6-core machine, about 4 minutes per implementation and pass plus 10 minutes of builds. You can
 restrict it with `--impl` and `--scenario`, but submitted runs should include all implementations so they
 can be compared within the run. The result is written to `results/backend/<machine-id>/<run-id>.json`.
 
