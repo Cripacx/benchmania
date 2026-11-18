@@ -29,12 +29,29 @@ below; none of them can be made from a pull request.
   workflows: require approval for **all** outside contributors. The end-to-end workflow builds contributed
   Dockerfiles and runs the privileged runner on the GitHub runner; a maintainer should read a pull request
   before approving its workflow runs.
-- [ ] **Branch protection for the default branch.** Require a pull request, review from code owners and the
-  CI checks *Engine, manifests and results* and *Website* (workflow `CI`, runs on every pull request). Do not
-  make the end-to-end jobs required: that workflow only runs when `core/`, `domains/` or the CLI change, so a
-  required check would block every other pull request.
-- [ ] **Public contact address.** Add one to the organisation profile. The code of conduct points people
-  there for private conduct reports.
+- [ ] **Ruleset for the default branch.** Settings → Rules → Rulesets: block deletion and force pushes,
+  require a linear history, a pull request with one approval and review from code owners, and the CI checks
+  *Engine, manifests and results* and *Website* (workflow `CI`, runs on every pull request). Do not make the
+  end-to-end jobs required: that workflow only runs when `core/`, `domains/` or the CLI change, so a required
+  check would block every other pull request. Let organisation owners bypass the ruleset **for pull requests
+  only**: a single maintainer can then merge their own change once CI passed, and nobody pushes to the
+  default branch directly.
+- [ ] **Merging.** Settings → General → Pull Requests: allow squash and rebase merging only (the ruleset
+  requires a linear history) and delete head branches after merging.
+- [ ] **Actions policy.** Organisation settings → Actions → General: allow only actions created by GitHub
+  (the workflows use nothing else) and keep the default workflow permissions read-only.
+- [ ] **Security features.** Settings → Security: Dependabot alerts and security updates and secret scanning
+  with push protection. Leave the CodeQL *default setup* off: the workflow `.github/workflows/codeql.yml`
+  scans the engine, the workflows and the website and skips the benchmark implementations, which default
+  setup cannot do.
+- [ ] **Discussions and labels.** Enable Discussions; the issue template chooser sends questions and ideas
+  there. Create the labels the issue templates set (`bug`, `proposal`, `methodology`); `results`,
+  `implementation`, `domain`, `engine` and `website` help sorting pull requests.
+- [ ] **Organisation profile.** The repository `.github` in the organisation holds `profile/README.md`,
+  which GitHub shows on the organisation's page. Add a public contact address to the profile as well: the
+  code of conduct points people there for private conduct reports.
+- [ ] **Members.** Organisation settings: require two-factor authentication and let only owners create
+  repositories. Code from this repository runs as root on the machines of people who measure.
 - [ ] **Custom domain (optional).** Set it in the site repository: Settings → Pages → Custom domain. GitHub
   stores it there as the file `CNAME`, which the workflow keeps. Then update `site_url` in the project
   config file: canonical URLs, the sitemap and the published dataset use it.
