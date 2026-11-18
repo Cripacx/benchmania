@@ -178,6 +178,44 @@ def test_scenario_without_information_is_left_out_for_everybody(domains):
     assert out["a"]["throughput_index"] == 100 and out["b"]["throughput_index"] == 25
 
 
+def test_index_reference_per_scenario_is_published(domains):
+    d = domains["backend"]
+    summary = {
+        "a": {s: {"rps": {"median": 100.0}, "cpu_us_per_req": {"median": 10.0}} for s in SCENARIOS},
+        "b": {s: {"rps": {"median": 50.0}, "cpu_us_per_req": {"median": 40.0}} for s in SCENARIOS},
+        "fast-but-failing": {s: {"rps": {"median": 900.0}, "error_rate": {"median": 0.5}} for s in SCENARIOS},
+    }
+    summary["b"]["db"]["rps"]["median"] = 300.0
+    best = {}
+    publish.derive(d, summary, {}, best)
+    assert set(best) == {"throughput_index", "efficiency_index"}  # `max` metrics have no reference
+    assert best["throughput_index"]["json"] == {"value": 100.0, "by": ["a"]}
+    assert best["throughput_index"]["db"] == {"value": 300.0, "by": ["b"]}
+    assert set(best["throughput_index"]) == set(SCENARIOS)
+    assert best["efficiency_index"]["orders"] == {"value": 10.0, "by": ["a"]}  # lower is better
+
+
+def test_index_reference_lists_every_tie(domains):
+    d = domains["backend"]
+    summary = {i: {s: {"rps": {"median": v}} for s in SCENARIOS} for i, v in (("x", 80.0), ("y", 80.0), ("z", 40.0))}
+    best = {}
+    publish.derive(d, summary, {}, best)
+    assert best["throughput_index"]["queries"] == {"value": 80.0, "by": ["x", "y"]}
+
+
+def test_scenario_without_information_has_no_reference():
+    # Lower is better over a single scenario with valid medians 0 and 5: the scenario carries no information,
+    # so there is no index and nobody is crowned for it.
+    from types import SimpleNamespace
+    d = SimpleNamespace(
+        id="t", data={"derived": [{"id": "cost_index", "kind": "geomean_relative", "metric": "cost", "scenarios": ["s"]}]},
+        metrics={"cost": SimpleNamespace(better="lower", label="Cost")})
+    summary = {"zero": {"s": {"cost": {"median": 0.0}}}, "five": {"s": {"cost": {"median": 5.0}}}}
+    best = {}
+    out = publish.derive(d, summary, {}, best)
+    assert out == {} and best == {}
+
+
 def test_publish_builds_dataset(proj, tmp_path):
     files = publish.build(proj, tmp_path)
     index = json.loads((tmp_path / "index.json").read_text())

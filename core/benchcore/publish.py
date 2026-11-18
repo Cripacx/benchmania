@@ -22,7 +22,7 @@ def _compact(s):
             "n": s["n"], "cv": round(s["cv"], 4)}
 
 
-def derive(domain, summary, withheld=None):
+def derive(domain, summary, withheld=None, best=None):
     """Domain-declared derived metrics, computed from summary medians of one run.
 
     `geomean_relative` is an index: the geometric mean over the listed scenarios of each implementation's
@@ -30,9 +30,13 @@ def derive(domain, summary, withheld=None):
     a usable result in every scenario: a missing scenario, a throughput of zero or a failed `valid_when`
     condition (e.g. more than 1 % errors) withholds the index instead of flattering it. The reason is
     written to `withheld[implementation][derived id]` so that the website can say why a value is missing.
+    The reference of each index is written to `best[derived id][scenario] = {"value", "by"}`: the value that
+    counts as 100 in that scenario and the eligible implementations that measured exactly it, in
+    implementation order. A scenario left out of the index has no entry, so nobody is crowned for it.
     """
     out = {}
     withheld = {} if withheld is None else withheld
+    best_out = {} if best is None else best
     impls = list(summary)
     for d in domain.data.get("derived", []):
         did, kind, metric = d["id"], d["kind"], d["metric"]
@@ -72,6 +76,9 @@ def derive(domain, summary, withheld=None):
                 ratios = [have[iid][s] / best[s] if pick is max else best[s] / have[iid][s] for s in best]
                 if ratios:
                     out.setdefault(iid, {})[did] = round(100 * stats.geomean(ratios), 2)
+            if best:
+                best_out[did] = {s: {"value": v, "by": [i for i in eligible if have[i][s] == v]}
+                                 for s, v in best.items()}
             label = domain.metrics[metric].label
             cond = d.get("valid_when")
             for iid in impls if sids else []:
@@ -116,8 +123,8 @@ def _run_entry(domain, b, approved):
     summary = bundle.summarize(b["passes"])  # recomputed: the stored summary is never trusted
     results = {iid: {sid: {mid: _compact(s) for mid, s in metrics.items()} for sid, metrics in scen.items()}
                for iid, scen in summary.items()}
-    withheld = {}
-    derived = derive(domain, summary, withheld)
+    withheld, best = {}, {}
+    derived = derive(domain, summary, withheld, best)
     return {
         "id": b["id"], "created": b["created"], "finished": b.get("finished"), "status": b.get("status"),
         "methodology": b.get("methodology"), "machine": b["machine"]["id"],
@@ -130,6 +137,7 @@ def _run_entry(domain, b, approved):
         "results": results,
         "derived": derived,
         "withheld": withheld,  # implementation -> derived metric -> why it has no value
+        "best": best,  # derived metric -> scenario -> the value that counts as 100 and who measured it
         # recomputed like the summary, so every published run follows the current rules for flags
         "flags": bundle.quality_flags({**b, "summary": summary}),
     }
