@@ -32,9 +32,11 @@ def git_state(root):
     """Commit of the measured code; None when git or the repository metadata is unavailable."""
     def g(*args):
         try:
-            # safe.directory: inside the runner the repository is owned by another user
-            p = subprocess.run(["git", "-c", "safe.directory=*", "-C", str(root), *args], capture_output=True, text=True)
-        except FileNotFoundError:
+            # safe.directory: inside the runner the repository is owned by another user.
+            # --no-optional-locks: `git status` must not rewrite .git/index as root.
+            p = subprocess.run(["git", "--no-optional-locks", "-c", "safe.directory=*", "-C", str(root), *args],
+                               capture_output=True, text=True, timeout=60)
+        except (FileNotFoundError, subprocess.TimeoutExpired):
             return None
         return p.stdout.strip() if p.returncode == 0 else None
     commit = g("rev-parse", "HEAD")
