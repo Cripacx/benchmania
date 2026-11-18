@@ -21,7 +21,8 @@ import {
   runImplementationIds,
   implementation,
   suggestedComparisons,
-  valueFlagTexts,
+  hasAlertFlags,
+  valueFlagNote,
 } from './model';
 import { joinBase, routes } from './paths';
 import type { DomainData, Flag, HeadlineEntry, Run } from './types';
@@ -82,9 +83,9 @@ export function leaderboardProps(domain: DomainData, run: Run, base: string) {
     impl: implLite(impl),
     href: joinBase(base, routes.implementation(domain.domain.id, impl.id)),
     values: headline.map((h) => headlineValue(run, h, impl.id)),
-    flags: headline.map((h) => valueFlagTexts(domain, run.flags, impl.id, h.scenario ?? null, h.metric)),
+    flags: headline.map((h) => valueFlagNote(domain, run.flags, impl.id, h.scenario ?? null, h.metric)),
     missing: headline.map((h) => missingValue(run, impl.id, h.scenario ?? null, h.metric)),
-    flagged: flagsForImplementation(run, impl.id).length > 0,
+    flagged: hasAlertFlags(flagsForImplementation(run, impl.id)),
   }));
   return {
     columns,

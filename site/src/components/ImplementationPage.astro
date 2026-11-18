@@ -36,7 +36,7 @@ import {
   scenarioKindLabel,
   scenarioParams,
   suggestedComparisons,
-  valueFlagTexts,
+  valueFlagNote,
 } from '../lib/model';
 import { href, routes } from '../lib/paths';
 import type { DomainData, Implementation, Run } from '../lib/types';
@@ -82,7 +82,7 @@ const tiles =
           h,
           metric,
           value,
-          flags: valueFlagTexts(domain, run.flags, implId, h.scenario ?? null, h.metric),
+          flags: valueFlagNote(domain, run.flags, implId, h.scenario ?? null, h.metric),
           missing: missingValue(run, implId, h.scenario ?? null, h.metric),
           rank: ranks.get(implId) ?? null,
           of,
@@ -200,10 +200,10 @@ const comparePeers = related[0]?.ids ?? [implId];
                           )}
                           {formatInterval(t.value, t.metric) && <span> · CI {formatInterval(t.value, t.metric)}</span>}
                         </span>
-                        {t.flags.length > 0 && (
-                          <span class="tile-flags" title={t.flags.join('\n')}>
-                            <Icon name="alert" class="inline-icon" />
-                            <span>{t.flags.length === 1 ? t.flags[0] : `${t.flags.length} quality flags: ${t.flags.join('; ')}`}</span>
+                        {t.flags && (
+                          <span class={`tile-flags is-${t.flags.marker}`} title={t.flags.texts.join('\n')}>
+                            <Icon name={t.flags.marker} class="inline-icon" />
+                            <span>{t.flags.texts.length === 1 ? t.flags.texts[0] : `${t.flags.texts.length} quality flags: ${t.flags.texts.join('; ')}`}</span>
                           </span>
                         )}
                         <span class="tile-best">
@@ -546,6 +546,10 @@ const comparePeers = related[0]?.ids ?? [implId];
     flex: none;
     margin-top: 2px;
     color: var(--warn-icon);
+  }
+  .tile-flags.is-info,
+  .tile-flags.is-info :global(svg) {
+    color: var(--muted);
   }
   .impl-absent {
     margin-top: 20px;

@@ -58,6 +58,11 @@ Schema `benchcore.dataset/v1`, written by `core/benchcore/publish.py`. Types: `s
   label is preferred as the machine name).
 - `runs[]`: `id`, `created`, `methodology` (`"0"` preliminary, `"1"` current), `provenance` (`reference` |
   `community`), `machine`, `passes`, `options`, `layout`, `flags[]`, `results`, `derived`.
+- A flag is `{level, scope, message, pass?, metric?}`; `scope` is `run`, `<impl>` or `<impl>/<scenario>`. A flag
+  with `metric` is about that metric only: it attaches to a scenario value of that metric and to a derived value
+  computed from it (`derived[].metric`), never to other metrics. Markers follow the most severe flag on a value:
+  warnings and errors get the amber alert, info notes alone a quiet muted marker; the leaderboard tags a row
+  "flagged" only for an implementation with a warning or error.
 - A value is `{m, lo, hi, min, max, n, cv}`: median over `n` passes, 95 % bootstrap interval of the median (`lo`/`hi`,
   null below five passes), min/max, coefficient of variation.
 

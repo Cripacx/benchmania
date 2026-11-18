@@ -477,15 +477,49 @@ function derivedSources(ctx: ValueContext, metric: string): Set<string> | '*' {
 /**
  * The quality flags behind one value: flags scoped to the whole implementation, plus those of the scenario
  * (scenario value) or of every scenario the derived metric is computed from (`scenario` null).
+ * A flag with `metric` is about that metric only: it reaches a scenario value of that metric, or a derived value
+ * computed from it (`derived[].metric`); never another metric. Flags without `metric` cover every value in scope.
  * Leaderboard, explorer, implementation page and compare all use this, so they cannot disagree.
  */
 export function valueFlags(ctx: ValueContext, flags: Flag[] | undefined, impl: string, scenario: string | null, metric: string): Flag[] {
   const sources = scenario ? new Set([scenario]) : derivedSources(ctx, metric);
+  const basis = scenario ? metric : (ctx.derived ?? []).find((d) => d.id === metric)?.metric;
   return (flags ?? []).filter((f) => {
     if (flagImplementation(f) !== impl) return false;
+    if (f.metric && f.metric !== basis) return false;
     const s = flagScenario(f);
     return s === null || sources === '*' || sources.has(s);
   });
+}
+
+const FLAG_RANK: Record<string, number> = { info: 1, warning: 2, error: 3 };
+
+/** The most severe level in a flag list (an unknown level counts as a warning); null for no flags. */
+export function highestFlagLevel(flags: Flag[]): 'info' | 'warning' | 'error' | null {
+  let best = 0;
+  for (const f of flags) best = Math.max(best, FLAG_RANK[f.level] ?? FLAG_RANK.warning!);
+  return best === 3 ? 'error' : best === 2 ? 'warning' : best === 1 ? 'info' : null;
+}
+
+/**
+ * The flags behind one value, ready to render: `alert` (the amber marker) when any is a warning or error,
+ * `info` (a quiet, muted marker) when all are info notes. Every flag marker on the site is drawn from this.
+ */
+export interface FlagNote {
+  marker: 'alert' | 'info';
+  texts: string[];
+}
+
+export function flagNote(ctx: ValueContext, flags: Flag[]): FlagNote | null {
+  const level = highestFlagLevel(flags);
+  if (!level) return null;
+  return { marker: level === 'info' ? 'info' : 'alert', texts: flags.map((f) => flagText(ctx, f)) };
+}
+
+/** True when an implementation has at least one warning or error in the run (the leaderboard's "flagged" tag). */
+export function hasAlertFlags(flags: Flag[]): boolean {
+  const level = highestFlagLevel(flags);
+  return level === 'warning' || level === 'error';
 }
 
 /** "Orders: throughput varies 17 % between passes (pass 2)"; implementation-wide flags say so. */
@@ -495,8 +529,9 @@ export function flagText(ctx: ValueContext, flag: Flag): string {
   return `${where}: ${flag.message}${flag.pass ? ` (pass ${flag.pass})` : ''}`;
 }
 
-export function valueFlagTexts(ctx: ValueContext, flags: Flag[] | undefined, impl: string, scenario: string | null, metric: string): string[] {
-  return valueFlags(ctx, flags, impl, scenario, metric).map((f) => flagText(ctx, f));
+/** The flag marker of one value (valueFlags + flagNote); null when nothing is flagged. */
+export function valueFlagNote(ctx: ValueContext, flags: Flag[] | undefined, impl: string, scenario: string | null, metric: string): FlagNote | null {
+  return flagNote(ctx, valueFlags(ctx, flags, impl, scenario, metric));
 }
 
 /**

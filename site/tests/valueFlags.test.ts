@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { assessDiff, derivedScale, missingValue, relativeDiff, runScope, valueFlags, valueFlagTexts, type ValueContext } from '../src/lib/model';
+import { assessDiff, derivedScale, missingValue, relativeDiff, runScope, flagNote, hasAlertFlags, highestFlagLevel, valueFlagNote, valueFlags, type ValueContext } from '../src/lib/model';
 import type { DomainData, Flag, Run } from '../src/lib/types';
 
 const ctx: ValueContext = {
@@ -25,7 +25,7 @@ const flags: Flag[] = [
 describe('valueFlags', () => {
   it('attaches the flags of the scenarios a derived metric is computed from', () => {
     expect(valueFlags(ctx, flags, 'rust', null, 'throughput_index').map((f) => f.scope)).toEqual(['rust/orders']);
-    expect(valueFlagTexts(ctx, flags, 'rust', null, 'throughput_index')).toEqual(['Orders: throughput varies 17 % between passes']);
+    expect(valueFlagNote(ctx, flags, 'rust', null, 'throughput_index')?.texts).toEqual(['Orders: throughput varies 17 % between passes']);
   });
 
   it('takes every scenario for "*" and for an unknown derived metric', () => {
@@ -36,7 +36,7 @@ describe('valueFlags', () => {
   it('includes flags scoped to the whole implementation, for derived and scenario values', () => {
     expect(valueFlags(ctx, flags, 'go', null, 'throughput_index').map((f) => f.scope)).toEqual(['go', 'go/json']);
     expect(valueFlags(ctx, flags, 'go', 'orders', 'rps').map((f) => f.scope)).toEqual(['go']);
-    expect(valueFlagTexts(ctx, flags, 'go', 'orders', 'rps')).toEqual(['Whole measurement: measurement failed (pass 2)']);
+    expect(valueFlagNote(ctx, flags, 'go', 'orders', 'rps')?.texts).toEqual(['Whole measurement: measurement failed (pass 2)']);
   });
 
   it('keeps scenario values to their own scenario and never attaches run-level flags', () => {
@@ -44,6 +44,60 @@ describe('valueFlags', () => {
     expect(valueFlags(ctx, flags, 'rust', 'cold', 'rps').map((f) => f.scope)).toEqual(['rust/cold']);
     expect(valueFlags(ctx, flags, 'nobody', null, 'throughput_index')).toEqual([]);
     expect(valueFlags(ctx, undefined, 'rust', null, 'throughput_index')).toEqual([]);
+  });
+});
+
+describe('metric flags', () => {
+  const note: Flag = { level: 'info', scope: 'rust/orders', metric: 'rps', message: 'throughput varies 16 % between passes' };
+  const all = [...flags, note];
+  const scopes = (scenario: string | null, metric: string) =>
+    valueFlags(ctx, all, 'rust', scenario, metric).filter((f) => f.metric).map((f) => f.metric);
+
+  it('reaches the scenario value of its own metric and the derived index computed from it', () => {
+    expect(scopes('orders', 'rps')).toEqual(['rps']);
+    expect(scopes(null, 'throughput_index')).toEqual(['rps']);
+  });
+
+  it('reaches nothing else', () => {
+    expect(scopes('orders', 'mem')).toEqual([]);
+    expect(scopes('orders', 'p99_ms')).toEqual([]);
+    expect(scopes('json', 'rps')).toEqual([]);
+    // Peak memory is computed from "mem" in every scenario, orders included.
+    expect(scopes(null, 'peak_memory_mib')).toEqual([]);
+    expect(scopes(null, 'unknown_index')).toEqual([]);
+  });
+
+  it('leaves flags without a metric attached to every value in scope', () => {
+    expect(valueFlags(ctx, all, 'rust', 'orders', 'mem').map((f) => f.scope)).toEqual(['rust/orders']);
+    expect(valueFlags(ctx, all, 'rust', null, 'peak_memory_mib').map((f) => f.scope)).toEqual(['rust/orders', 'rust/cold']);
+  });
+});
+
+describe('flag severity', () => {
+  const info: Flag = { level: 'info', scope: 'rust/orders', message: 'note' };
+  const warning: Flag = { level: 'warning', scope: 'rust/orders', message: 'steal' };
+  const error: Flag = { level: 'error', scope: 'rust', message: 'failed' };
+
+  it('takes the most severe level of a list', () => {
+    expect(highestFlagLevel([])).toBeNull();
+    expect(highestFlagLevel([info, info])).toBe('info');
+    expect(highestFlagLevel([info, warning])).toBe('warning');
+    expect(highestFlagLevel([warning, error, info])).toBe('error');
+    expect(highestFlagLevel([{ ...info, level: 'odd' }])).toBe('warning');
+  });
+
+  it('draws a quiet marker for info notes only and the alert for anything worse', () => {
+    expect(flagNote(ctx, [])).toBeNull();
+    expect(flagNote(ctx, [info])?.marker).toBe('info');
+    expect(flagNote(ctx, [info, warning])).toEqual({ marker: 'alert', texts: ['Orders: note', 'Orders: steal'] });
+    expect(flagNote(ctx, [error])?.marker).toBe('alert');
+  });
+
+  it('tags an implementation only for warnings and errors', () => {
+    expect(hasAlertFlags([info, info])).toBe(false);
+    expect(hasAlertFlags([info, warning])).toBe(true);
+    expect(hasAlertFlags([error])).toBe(true);
+    expect(hasAlertFlags([])).toBe(false);
   });
 });
 

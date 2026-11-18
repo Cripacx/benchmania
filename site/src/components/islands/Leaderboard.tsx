@@ -5,7 +5,7 @@
  */
 import { useMemo, useState } from 'preact/hooks';
 import { formatInterval, formatNumber, formatValue, isNum, plural } from '../../lib/format';
-import { categoryLabel, compareBest, rankMap } from '../../lib/model';
+import { categoryLabel, compareBest, rankMap, type FlagNote } from '../../lib/model';
 import type { Better, Metric, Value } from '../../lib/types';
 import type { ImplLite } from '../../lib/view';
 import { Icon } from './Icon';
@@ -26,8 +26,8 @@ export interface LeaderboardRow {
   impl: ImplLite;
   href: string;
   values: Array<Value | null>;
-  /** Quality flags behind each value (valueFlags), per column. */
-  flags: string[][];
+  /** Quality flags behind each value (valueFlagNote), per column; null when none. */
+  flags: Array<FlagNote | null>;
   /** How each missing value reads ("not measured", "no index") and why, per column. */
   missing: Array<{ label: string; reason: string }>;
   flagged: boolean;
@@ -227,10 +227,10 @@ export function Leaderboard({ columns, rows, languages, categories, caption }: P
                     const width = v && max > 0 ? Math.max(1.5, (v.m / max) * 100) : 0;
                     const ci = formatInterval(v, c.metric);
                     const label = v ? formatValue(v.m, c.metric) : 'not measured in this run';
-                    const flags = r.flags[i] ?? [];
+                    const note = r.flags[i] ?? null;
                     const missing = r.missing[i] ?? { label: 'not measured', reason: 'Not measured in this run.' };
-                    const flagNote = flags.length ? `
-Flags: ${flags.join('; ')}` : '';
+                    const flagNote = note ? `
+Flags: ${note.texts.join('; ')}` : '';
                     return (
                       <td
                         key={c.key}
@@ -240,9 +240,9 @@ Flags: ${flags.join('; ')}` : '';
                         {v ? (
                           <>
                             <span class="lb-val">
-                              {flags.length > 0 && (
-                                <span class="lb-cell-flag" aria-label={`Flagged: ${flags.join('; ')}`}>
-                                  <Icon name="alert" size={12} />
+                              {note && (
+                                <span class={`lb-cell-flag is-${note.marker}`} aria-label={`Flagged: ${note.texts.join('; ')}`}>
+                                  <Icon name={note.marker} size={12} />
                                 </span>
                               )}
                               {formatNumber(v.m, c.metric.decimals ?? 0)}

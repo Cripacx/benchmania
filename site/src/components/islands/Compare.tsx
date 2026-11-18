@@ -18,7 +18,7 @@ import {
   metricValue,
   missingValue,
   relativeDiff,
-  valueFlagTexts,
+  valueFlagNote,
   type RelativeDiff,
 } from '../../lib/model';
 import { joinBase, routes } from '../../lib/paths';
@@ -78,7 +78,7 @@ export function Compare(props: Props) {
   const { base, domainId, metrics, scenarios, impls, run, headline, flags, derived, scope, notInRun, suggestions, maxCompare } = props;
   const max = Math.min(maxCompare, SLOT_COLORS.length);
   const ctx = useMemo(() => ({ derived, scenarios }), [derived, scenarios]);
-  const flagsOf = (id: string, scenario: string | null, metric: string) => valueFlagTexts(ctx, flags, id, scenario, metric);
+  const flagsOf = (id: string, scenario: string | null, metric: string) => valueFlagNote(ctx, flags, id, scenario, metric);
   const [entries, setEntries] = useState<Entry[]>([]);
   const [baseline, setBaseline] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
@@ -203,9 +203,9 @@ export function Compare(props: Props) {
       <>
         <span class="cmp-val" title={ci ? `95 % CI ${ci}` : (missing?.reason ?? undefined)}>
           {v ? formatValue(v.m, metric) : <span class="muted">{missing?.label}</span>}
-          {f.length > 0 && (
-            <span class="chart-flag" title={f.join('\n')} aria-label={`Flagged: ${f.join('; ')}`}>
-              <Icon name="alert" size={12} />
+          {f && (
+            <span class={`chart-flag is-${f.marker}`} title={f.texts.join('\n')} aria-label={`Flagged: ${f.texts.join('; ')}`}>
+              <Icon name={f.marker} size={12} />
             </span>
           )}
         </span>
@@ -361,9 +361,9 @@ export function Compare(props: Props) {
                           {nameOf(d.id)}
                           {d.id === baseId && <span class="muted"> · baseline</span>}
                         </span>
-                        {d.flags.length > 0 && (
-                          <span class="chart-flag" title={d.flags.join('\n')} aria-label={`Flagged: ${d.flags.join('; ')}`}>
-                            <Icon name="alert" size={12} />
+                        {d.flags && (
+                          <span class={`chart-flag is-${d.flags.marker}`} title={d.flags.texts.join('\n')} aria-label={`Flagged: ${d.flags.texts.join('; ')}`}>
+                            <Icon name={d.flags.marker} size={12} />
                           </span>
                         )}
                         <span class="delta muted" title={d.missing.reason}>

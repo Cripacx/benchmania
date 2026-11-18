@@ -19,6 +19,7 @@ import {
   niceTicks,
   unitSuffix,
 } from '../../lib/format';
+import type { FlagNote } from '../../lib/model';
 import type { Metric, Value } from '../../lib/types';
 import { Icon } from './Icon';
 
@@ -30,7 +31,8 @@ export interface BarDatum {
   value: Value | null;
   /** CSS color for identity encoding (compare view). Defaults to the single-series color. */
   color?: string;
-  flags?: string[];
+  /** Quality flags behind the value (valueFlagNote); null when none. */
+  flags?: FlagNote | null;
   rank?: number | null;
   /** How a missing value reads ("not measured", "no index") and why. */
   missing?: { label: string; reason: string };
@@ -56,7 +58,7 @@ function describe(d: BarDatum, metric: Metric): string {
     has ? formatValue(v.m, metric) : (d.missing?.reason ?? 'not measured in this run'),
     ci ? `, 95 % interval ${ci}` : '',
     has && v.n ? `, ${v.n} ${v.n === 1 ? 'pass' : 'passes'}` : '',
-    d.flags?.length ? `. Flags: ${d.flags.join('; ')}` : '',
+    d.flags ? `. Flags: ${d.flags.texts.join('; ')}` : '',
   ];
   return parts.join('');
 }
@@ -143,9 +145,9 @@ export function BarChart({ data, metric, label, dense = false }: Props) {
                 )}
               </div>
               <div class="chart-value" aria-hidden="true">
-                {d.flags && d.flags.length > 0 && (
-                  <span class="chart-flag" title={d.flags.join('\n')}>
-                    <Icon name="alert" size={13} />
+                {d.flags && (
+                  <span class={`chart-flag is-${d.flags.marker}`} title={d.flags.texts.join('\n')}>
+                    <Icon name={d.flags.marker} size={13} />
                   </span>
                 )}
                 {has ? formatNumber(v.m, metric.decimals ?? 0) : <span class="muted">{d.missing?.label ?? 'n/a'}</span>}
@@ -229,9 +231,9 @@ function Tooltip({ datum, metric, x, y, below }: { datum: BarDatum; metric: Metr
           </>
         )}
       </dl>
-      {datum.flags && datum.flags.length > 0 && (
+      {datum.flags && (
         <ul class="tip-flags">
-          {datum.flags.map((f) => (
+          {datum.flags.texts.map((f) => (
             <li key={f}>{f}</li>
           ))}
         </ul>

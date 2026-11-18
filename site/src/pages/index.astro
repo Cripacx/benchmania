@@ -11,6 +11,7 @@ import { methodologyInfo } from '../lib/methodology';
 import { leaderboardProps } from '../lib/islandProps';
 import {
   defaultRun,
+  flagNote,
   headlineValue,
   implementation,
   machineName,
@@ -20,7 +21,8 @@ import {
   rankMap,
   repoUrl,
   runImplementationIds,
-  valueFlagTexts,
+  valueFlagNote,
+  valueFlags,
 } from '../lib/model';
 import { basePath, href, routes } from '../lib/paths';
 import { encodeIslandProps } from '../lib/view';
@@ -53,7 +55,7 @@ const highlights =
           best,
           measured: values.filter((v) => v.value !== null).length,
           winners: winners.map((id) => implementation(featured, id, run)),
-          winnerFlags: winners.flatMap((id) => valueFlagTexts(featured, run.flags, id, h.scenario ?? null, h.metric)),
+          winnerFlags: flagNote(featured, winners.flatMap((id) => valueFlags(featured, run.flags, id, h.scenario ?? null, h.metric))),
           href: href(`${routes.domain(featured.domain.id)}?scenario=${h.scenario ?? 'overall'}&metric=${h.metric}`),
         };
       })
@@ -77,7 +79,7 @@ const snapshot =
           .map((r) => ({
             ...r,
             impl: implementation(featured, r.id, run),
-            flags: valueFlagTexts(featured, run.flags, r.id, snapEntry.scenario ?? null, snapEntry.metric),
+            flags: valueFlagNote(featured, run.flags, r.id, snapEntry.scenario ?? null, snapEntry.metric),
           }));
         const max = Math.max(...rows.map((r) => r.value?.m ?? 0), 0);
         return { rows, max, total: ids.length };
@@ -131,10 +133,10 @@ const machine = featured && run ? featured.machines[run.machine] : undefined;
                   <span class="snap-name">
                     {r.impl.name}
                     {r.impl.variant && <span class="muted"> · {r.impl.variant}</span>}
-                    {r.flags.length > 0 && (
-                      <span class="snap-flag" title={r.flags.join('\n')}>
-                        <Icon name="alert" size={12} />
-                        <span class="visually-hidden">Flagged: {r.flags.join('; ')}</span>
+                    {r.flags && (
+                      <span class={`snap-flag is-${r.flags.marker}`} title={r.flags.texts.join('\n')}>
+                        <Icon name={r.flags.marker} size={12} />
+                        <span class="visually-hidden">Flagged: {r.flags.texts.join('; ')}</span>
                       </span>
                     )}
                   </span>
@@ -207,11 +209,11 @@ const machine = featured && run ? featured.machines[run.machine] : undefined;
                             {w.variant && <span class="muted"> · {w.variant}</span>}
                           </>
                         ))}
-                        {h.winnerFlags.length > 0 && (
-                          <span class="snap-flag" title={h.winnerFlags.join('\n')}>
+                        {h.winnerFlags && (
+                          <span class={`snap-flag is-${h.winnerFlags.marker}`} title={h.winnerFlags.texts.join('\n')}>
                             {' '}
-                            <Icon name="alert" size={12} />
-                            <span class="visually-hidden">Flagged: {h.winnerFlags.join('; ')}</span>
+                            <Icon name={h.winnerFlags.marker} size={12} />
+                            <span class="visually-hidden">Flagged: {h.winnerFlags.texts.join('; ')}</span>
                           </span>
                         )}
                       </span>
@@ -471,6 +473,9 @@ const machine = featured && run ? featured.machines[run.machine] : undefined;
     margin-left: 4px;
     vertical-align: -1px;
     color: var(--warn-icon);
+  }
+  .snap-flag.is-info {
+    color: var(--muted);
   }
   .snap-rows {
     display: grid;

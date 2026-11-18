@@ -161,6 +161,11 @@
   position: relative;
   z-index: 3;
 }
+/* Only info notes behind the value (flagNote marker "info"): a quiet marker, not an alert. */
+.chart-flag.is-info,
+.lb-cell-flag.is-info {
+  color: var(--muted);
+}
 .chart-axis {
   display: grid;
   grid-template-columns: var(--cols);

@@ -18,7 +18,7 @@ import {
   scenarioKindLabel,
   scenarioParams,
   sortIdsBy,
-  valueFlagTexts,
+  valueFlagNote,
 } from '../../lib/model';
 import { joinBase, routes } from '../../lib/paths';
 import type { DerivedDefinition, Flag, HeadlineEntry, Metric, Scenario } from '../../lib/types';
@@ -144,7 +144,7 @@ export function Explorer(props: Props) {
       sublabel: impl.variant,
       href: joinBase(base, routes.implementation(domainId, id, scope)),
       value: value(id),
-      flags: valueFlagTexts(ctx, flags, id, scenarioKey, metric),
+      flags: valueFlagNote(ctx, flags, id, scenarioKey, metric),
       missing: missingValue(run, id, scenarioKey, metric),
       rank: ranks.get(id) ?? null,
     };
@@ -465,7 +465,7 @@ function ResultTable({ data, metric }: { data: BarDatum[]; metric: Metric }) {
                 <td class="r nowrap muted">{v ? (formatRange(v, metric) ?? '—') : '—'}</td>
                 <td class="r muted">{v && !v.derived && isNum(v.n) ? v.n : '—'}</td>
                 <td class="r muted">{v && isNum(v.cv) && (v.n ?? 0) >= 2 ? `${formatNumber(v.cv * 100, 1)} %` : '—'}</td>
-                <td class="ex-flags">{d.flags?.length ? d.flags.join('; ') : <span class="muted">none</span>}</td>
+                <td class="ex-flags">{d.flags ? d.flags.texts.join('; ') : <span class="muted">none</span>}</td>
               </tr>
             );
           })}

@@ -150,6 +150,8 @@ export interface Flag {
   scope: string;
   message: string;
   pass?: number;
+  /** Set when the flag is about this one metric only; without it the flag covers everything measured in its scope. */
+  metric?: string;
 }
 
 export interface RunImplementation {
