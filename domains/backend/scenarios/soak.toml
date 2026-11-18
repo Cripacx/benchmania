@@ -1,0 +1,12 @@
+id = "soak"
+title = "Soak (5 minutes)"
+kind = "soak"
+order = 200
+description = "GET /updates at a fixed 2,000 requests per second for 5 minutes in 30-second slices. Reports p99 drift and memory growth. Optional: runs only when selected with --scenario."
+optional = true
+path = "/updates"
+rate = 2000
+connections = 64
+slices = 10
+slice_duration = "30s"
+work = { select = 5, update = 5 }

@@ -1,0 +1,19 @@
+# Spring Boot on the JVM. Build arg AOTCACHE=1 adds a Project Leyden AOT cache (JEP 514/515) from a training run.
+FROM eclipse-temurin:27.0.1.0-jdk AS build
+WORKDIR /src
+COPY .mvn .mvn
+COPY mvnw pom.xml ./
+RUN chmod +x mvnw && ./mvnw -q -B dependency:go-offline
+COPY src src
+RUN ./mvnw -q -B -DskipTests package && cp target/bench-*.jar /app.jar
+
+FROM eclipse-temurin:27.0.1.0-jre
+ARG AOTCACHE=0
+ENV AOTCACHE=${AOTCACHE}
+WORKDIR /app
+COPY --from=build /app.jar /app/app.jar
+RUN java -Djarmode=tools -jar app.jar extract --destination /app/x \
+ && if [ "$AOTCACHE" = "1" ]; then java -XX:AOTCacheOutput=/app/app.aot -Dspring.context.exit=onRefresh -jar /app/x/app.jar; fi
+COPY run.sh /app/run.sh
+EXPOSE 8080
+ENTRYPOINT ["sh", "/app/run.sh"]

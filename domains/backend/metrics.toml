@@ -1,0 +1,324 @@
+# Metric registry of the backend domain. The website reads labels, units and direction from here.
+# visibility: primary (shown by default), secondary (one click away), diagnostic (data and detail pages).
+
+# --- throughput and errors ----------------------------------------------------------------------
+[rps]
+label = "Throughput"
+unit = "req/s"
+better = "higher"
+group = "throughput"
+visibility = "primary"
+description = "Successful (2xx/3xx) responses per second in the measured window. Failed requests are counted as errors, not as throughput."
+
+[errors]
+label = "Errors"
+unit = "requests"
+better = "lower"
+group = "throughput"
+visibility = "secondary"
+description = "Socket errors, timeouts and non-2xx/3xx responses. Any error is flagged next to the result."
+
+[error_rate]
+label = "Error rate"
+unit = "ratio"
+better = "lower"
+group = "throughput"
+decimals = 4
+visibility = "diagnostic"
+
+[bytes_per_resp]
+label = "Bytes per response"
+unit = "B"
+better = "neutral"
+group = "network"
+visibility = "diagnostic"
+description = "Average response size including headers, as seen by the load generator."
+
+# --- latency ------------------------------------------------------------------------------------
+[latency_p50_ms]
+label = "Latency p50"
+unit = "ms"
+better = "lower"
+group = "latency"
+decimals = 2
+visibility = "secondary"
+
+[latency_p75_ms]
+label = "Latency p75"
+unit = "ms"
+better = "lower"
+group = "latency"
+decimals = 2
+visibility = "diagnostic"
+
+[latency_p90_ms]
+label = "Latency p90"
+unit = "ms"
+better = "lower"
+group = "latency"
+decimals = 2
+visibility = "secondary"
+
+[latency_p99_ms]
+label = "Latency p99"
+unit = "ms"
+better = "lower"
+group = "latency"
+decimals = 2
+visibility = "primary"
+
+[latency_p99_9_ms]
+label = "Latency p99.9"
+unit = "ms"
+better = "lower"
+group = "latency"
+decimals = 2
+visibility = "secondary"
+
+[latency_p99_99_ms]
+label = "Latency p99.99"
+unit = "ms"
+better = "lower"
+group = "latency"
+decimals = 2
+visibility = "diagnostic"
+
+[latency_mean_ms]
+label = "Latency mean"
+unit = "ms"
+better = "lower"
+group = "latency"
+decimals = 2
+visibility = "diagnostic"
+
+[latency_stdev_ms]
+label = "Latency std. dev."
+unit = "ms"
+better = "lower"
+group = "latency"
+decimals = 2
+visibility = "diagnostic"
+
+[latency_max_ms]
+label = "Latency max"
+unit = "ms"
+better = "lower"
+group = "latency"
+decimals = 2
+visibility = "diagnostic"
+
+# --- CPU ----------------------------------------------------------------------------------------
+[cpu_us_per_req]
+label = "CPU per request"
+unit = "µs"
+better = "lower"
+group = "cpu"
+decimals = 1
+visibility = "primary"
+description = "Service CPU time per request, read exactly from the container's cgroup. Less hardware-dependent than throughput."
+
+[cpu_cores]
+label = "CPU used"
+unit = "cores"
+better = "neutral"
+group = "cpu"
+decimals = 2
+visibility = "secondary"
+description = "Average number of cores the service kept busy (limit: 2)."
+
+[cpu_user_share]
+label = "User-space CPU share"
+unit = "ratio"
+better = "neutral"
+group = "cpu"
+decimals = 3
+visibility = "diagnostic"
+description = "Share of service CPU time spent in user space; the rest is kernel time (network, syscalls)."
+
+[throttled_ms]
+label = "CPU throttling"
+unit = "ms"
+better = "lower"
+group = "cpu"
+decimals = 1
+visibility = "diagnostic"
+description = "Time the service was throttled by its CPU quota during the window."
+
+# --- memory -------------------------------------------------------------------------------------
+[mem_pss_peak_mib]
+label = "Memory under load (PSS)"
+unit = "MiB"
+better = "lower"
+group = "memory"
+decimals = 1
+visibility = "primary"
+description = "Highest proportional set size of all service processes, sampled every second."
+
+[mem_anon_peak_mib]
+label = "Anonymous memory peak"
+unit = "MiB"
+better = "lower"
+group = "memory"
+decimals = 1
+visibility = "diagnostic"
+description = "Heap, stacks and other anonymous memory of the container cgroup (no file cache)."
+
+# --- database work ------------------------------------------------------------------------------
+[db_select_per_req]
+label = "SELECTs per request"
+unit = "queries"
+better = "neutral"
+group = "database"
+decimals = 2
+visibility = "diagnostic"
+description = "Measured with pg_stat_statements. Must match the scenario's specification, otherwise the result is flagged."
+
+[db_update_per_req]
+label = "UPDATEs per request"
+unit = "queries"
+better = "neutral"
+group = "database"
+decimals = 2
+visibility = "diagnostic"
+
+[db_cpu_us_per_req]
+label = "Database CPU per request"
+unit = "µs"
+better = "lower"
+group = "database"
+decimals = 1
+visibility = "secondary"
+description = "PostgreSQL CPU time per request. Shows how efficiently an implementation talks to the database."
+
+# --- I/O and energy -----------------------------------------------------------------------------
+[io_write_kib]
+label = "Disk writes"
+unit = "KiB"
+better = "lower"
+group = "io"
+decimals = 0
+visibility = "diagnostic"
+
+[energy_mj_per_req]
+label = "Package energy per request"
+unit = "mJ"
+better = "lower"
+group = "energy"
+decimals = 3
+visibility = "diagnostic"
+description = "CPU package energy (RAPL) divided by requests. Includes the database and load generator, so compare only within one run."
+
+# --- load generator (measurement quality) ------------------------------------------------------
+[loadgen_cpu_util]
+label = "Load generator CPU"
+unit = "ratio"
+better = "lower"
+group = "quality"
+decimals = 2
+visibility = "diagnostic"
+description = "Busy share of the load generator's CPUs. Above 0.9 the throughput is a lower bound."
+
+# --- start-up -----------------------------------------------------------------------------------
+[startup_ms]
+label = "Cold start"
+unit = "ms"
+better = "lower"
+group = "startup"
+visibility = "primary"
+description = "Median time from container start to the first successful HTTP response."
+
+[startup_min_ms]
+label = "Cold start (fastest)"
+unit = "ms"
+better = "lower"
+group = "startup"
+visibility = "diagnostic"
+
+[startup_max_ms]
+label = "Cold start (slowest)"
+unit = "ms"
+better = "lower"
+group = "startup"
+visibility = "diagnostic"
+
+[idle_pss_mib]
+label = "Memory at idle"
+unit = "MiB"
+better = "lower"
+group = "memory"
+decimals = 1
+visibility = "secondary"
+description = "PSS five seconds after start, before any load."
+
+[idle_anon_mib]
+label = "Anonymous memory at idle"
+unit = "MiB"
+better = "lower"
+group = "memory"
+decimals = 1
+visibility = "diagnostic"
+
+[image_mb]
+label = "Image size"
+unit = "MB"
+better = "lower"
+group = "footprint"
+visibility = "secondary"
+description = "Uncompressed size of the container image. Depends a lot on the chosen base image."
+
+# --- warm-up ------------------------------------------------------------------------------------
+[warm_ratio]
+label = "Cold vs. warm throughput"
+unit = "ratio"
+better = "higher"
+group = "startup"
+decimals = 2
+visibility = "secondary"
+description = "Throughput in the first seconds after start divided by warm throughput on the same endpoint. 1.0 = no warm-up penalty."
+
+# --- stability (soak scenario) ------------------------------------------------------------------
+[p99_drift_pct]
+label = "p99 drift"
+unit = "%"
+better = "lower"
+group = "stability"
+decimals = 1
+visibility = "secondary"
+description = "Change of p99 latency between the first and last minutes of a long run at fixed load."
+
+[mem_growth_mib_per_min]
+label = "Memory growth"
+unit = "MiB/min"
+better = "lower"
+group = "stability"
+decimals = 2
+visibility = "secondary"
+description = "Slope of PSS over a long run at fixed load. Persistent growth hints at a leak."
+
+# --- derived (computed per run when publishing) ------------------------------------------------
+[throughput_index]
+label = "Throughput index"
+unit = "index"
+better = "higher"
+group = "summary"
+decimals = 1
+visibility = "primary"
+description = "Geometric mean of throughput over the six workload scenarios, each relative to the fastest implementation in that scenario of the same run. 100 means fastest in all six; the leader of a run scores below 100 when it does not lead every workload."
+
+[efficiency_index]
+label = "CPU efficiency index"
+unit = "index"
+better = "higher"
+group = "summary"
+decimals = 1
+visibility = "primary"
+description = "Geometric mean of CPU time per request over the six workload scenarios, each relative to the most efficient implementation in that scenario of the same run. 100 means most efficient in all six."
+
+[peak_memory_mib]
+label = "Peak memory"
+unit = "MiB"
+better = "lower"
+group = "summary"
+decimals = 1
+visibility = "primary"
+description = "Highest PSS in any scenario of the run."

@@ -1,0 +1,10 @@
+id = "cold"
+title = "Cold load"
+kind = "cold"
+order = 20
+description = "GET /db at full load for 10 seconds right after start, without any warm-up. Shows how much a runtime needs to warm up (JIT, caches, pools) after scaling out."
+path = "/db"
+connections = 128
+duration = "10s"
+compare_to = "db"
+work = { select = 1 }

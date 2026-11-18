@@ -1,0 +1,77 @@
+id = "backend"
+title = "Backend services"
+summary = "HTTP services backed by PostgreSQL, each running in the same small, resource-limited container."
+description = """
+Every implementation serves the same API (JSON, single and multiple queries, updates, a list endpoint and \
+a JSON POST) against the same PostgreSQL 18 database. The service gets 2 CPU cores and 1 GiB of memory, like \
+a small production pod; the database and the load generator run on separate cores. Results cover throughput, \
+latency at fixed load, CPU per request, memory, cold start and warm-up."""
+status = "stable"
+harness = "harness:BackendHarness"
+methodology_version = "1"
+
+# Limits for every implementation container.
+[service]
+cpus = 2
+memory = "1g"
+port = 8080
+
+[defaults]
+warmup = "5s"          # per scenario, right before the measured run
+duration = "15s"       # measured
+connections = 128
+global_warmup = "4s"   # per endpoint, once per implementation and pass, before the first scenario
+ready_timeout = "120s"
+startup_runs = 5
+
+[quick]                # `--quick`: smoke tests only, results are marked and never published
+warmup = "1s"
+duration = "2s"
+global_warmup = "1s"
+startup_runs = 2
+
+# Metrics computed from the summary of each run (see core/benchcore/publish.py).
+# An index needs a usable result in every listed scenario; a scenario with more than 1 % failed requests
+# does not count as one, so an implementation that answers errors quickly gets no index instead of a good one.
+[[derived]]
+id = "throughput_index"
+kind = "geomean_relative"
+metric = "rps"
+scenarios = ["json", "db", "queries", "updates", "list", "orders"]
+valid_when = { metric = "error_rate", max = 0.01 }
+
+[[derived]]
+id = "efficiency_index"
+kind = "geomean_relative"
+metric = "cpu_us_per_req"
+scenarios = ["json", "db", "queries", "updates", "list", "orders"]
+valid_when = { metric = "error_rate", max = 0.01 }
+
+[[derived]]
+id = "peak_memory_mib"
+kind = "max"
+metric = "mem_pss_peak_mib"
+scenarios = "*"
+
+# What the website shows first. Everything else is one click away.
+[[headline]]
+metric = "throughput_index"
+label = "Throughput index"
+hint = "Geometric mean over six workloads, each relative to the fastest in that workload. 100 means fastest in all six."
+
+[[headline]]
+scenario = "rate"
+metric = "latency_p99_ms"
+label = "Latency under load"
+hint = "p99 at a fixed 5,000 requests per second."
+
+[[headline]]
+metric = "peak_memory_mib"
+label = "Memory"
+hint = "Highest proportional set size (PSS) seen in any scenario."
+
+[[headline]]
+scenario = "startup"
+metric = "startup_ms"
+label = "Cold start"
+hint = "Container start until the first successful response."

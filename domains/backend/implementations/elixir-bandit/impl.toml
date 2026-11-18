@@ -1,0 +1,18 @@
+id = "elixir-bandit"
+name = "Elixir · Plug + Bandit"
+language = "Elixir"
+runtime = "BEAM (Erlang/OTP 29)"
+framework = "Plug on Bandit"
+category = "micro"
+description = "Plug router on the Bandit HTTP server (the server Phoenix uses), Postgrex with prepared statements reused like Ecto does."
+maintainers = []
+notes = ["Released with mix release; BEAM schedulers follow the container CPU limit.", "Scheduler busy waiting disabled (+sbwt none +sbwtdcpu none +sbwtdio none in rel/vm.args.eex), the usual setting for CPU-limited containers, so idle schedulers do not spend the CPU quota while waiting for the database.", "Postgrex pool of 16 connections with queue_target 5 s and queue_interval 10 s, so requests wait for a free connection like in the other stacks instead of being dropped by the DBConnection defaults (50 ms / 1 s)."]
+
+[versions]
+language = "1.20.5"
+runtime = "OTP 29"
+framework = "Bandit 1.15.0, Plug 1.20.4"
+postgrex = "0.22.4"
+
+[build]
+dockerfile = "Dockerfile"

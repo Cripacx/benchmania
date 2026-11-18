@@ -1,0 +1,17 @@
+id = "bun-serve"
+name = "TypeScript · Bun"
+language = "TypeScript"
+runtime = "Bun"
+framework = "Bun.serve"
+category = "bare"
+description = "Bun's built-in HTTP server and built-in PostgreSQL client (Bun.SQL), no dependencies."
+maintainers = []
+notes = ["Two processes sharing the port via SO_REUSEPORT, each with an 8-connection pool.", "/db and /list send their query through the shared Bun.sql pool. Bun's documentation suggests that it may pipeline queries of concurrent requests on one connection when prepared statements are enabled; this is the runtime's default behaviour and has not been verified by a packet capture."]
+
+[versions]
+language = "TypeScript"
+runtime = "1.4.4"
+framework = "built-in"
+
+[build]
+dockerfile = "Dockerfile"

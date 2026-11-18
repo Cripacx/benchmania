@@ -1,0 +1,19 @@
+id = "rust-axum"
+name = "Rust · axum"
+language = "Rust"
+runtime = "Tokio"
+framework = "axum"
+category = "micro"
+description = "axum on the multi-threaded Tokio runtime with tokio-postgres and a deadpool connection pool (16 connections, cached prepared statements)."
+maintainers = []
+notes = ["Release build with thin LTO and one codegen unit."]
+
+[versions]
+language = "1.100.0"
+framework = "0.8.9"
+tokio = "1.54.1"
+tokio-postgres = "0.7.18"
+base_image = "gcr.io/distroless/cc-debian13"
+
+[build]
+dockerfile = "Dockerfile"

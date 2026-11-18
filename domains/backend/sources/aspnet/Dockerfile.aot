@@ -1,0 +1,16 @@
+# ASP.NET Core minimal API, Native AOT. Versions come from the implementation's build args.
+ARG SDK=11.0.100
+ARG RUNTIME=11.0.0
+ARG TFM=net11.0
+FROM mcr.microsoft.com/dotnet/sdk:${SDK} AS build
+ARG TFM
+RUN apt-get update && apt-get install -y --no-install-recommends clang zlib1g-dev && rm -rf /var/lib/apt/lists/*
+WORKDIR /src
+COPY bench.csproj Program.cs ./
+RUN dotnet publish -c Release -p:TFM=${TFM} -p:AOT=true -o /out
+
+FROM mcr.microsoft.com/dotnet/runtime-deps:${RUNTIME}
+COPY --from=build /out/bench /app/bench
+ENV DB_URL="Host=127.0.0.1;Username=bench;Password=bench;Database=bench;Maximum Pool Size=16;No Reset On Close=true;Max Auto Prepare=10;Auto Prepare Min Usages=1"
+EXPOSE 8080
+ENTRYPOINT ["/app/bench"]

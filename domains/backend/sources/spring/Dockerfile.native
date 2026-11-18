@@ -1,0 +1,14 @@
+# Spring Boot as a GraalVM native image (GraalVM Community Edition: Serial GC, no profile-guided optimization).
+FROM ghcr.io/graalvm/native-image-community:25.0.2 AS build
+WORKDIR /src
+RUN microdnf install -y findutils >/dev/null 2>&1 || true
+COPY .mvn .mvn
+COPY mvnw pom.xml ./
+RUN chmod +x mvnw && ./mvnw -q -B dependency:go-offline
+COPY src src
+RUN ./mvnw -q -B -DskipTests -Pnative native:compile && cp target/bench /bench-bin
+
+FROM debian:trixie-20261104-slim
+COPY --from=build /bench-bin /app/bench
+EXPOSE 8080
+ENTRYPOINT ["/app/bench"]

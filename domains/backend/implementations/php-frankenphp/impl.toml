@@ -1,0 +1,17 @@
+id = "php-frankenphp"
+name = "PHP · FrankenPHP"
+language = "PHP"
+runtime = "FrankenPHP (worker mode)"
+framework = "none"
+category = "bare"
+description = "Plain PHP with PDO in FrankenPHP worker mode: no framework. Laravel or Symfony would add considerable overhead."
+maintainers = []
+notes = ["16 worker threads, each with one persistent PDO connection and prepared statements.", "Category 'bare': compare with other bare or micro implementations."]
+
+[versions]
+language = "8.5.12"
+runtime = "FrankenPHP 1.13.5"
+framework = "none"
+
+[build]
+dockerfile = "Dockerfile"

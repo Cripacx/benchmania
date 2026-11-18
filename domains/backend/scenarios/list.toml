@@ -1,0 +1,7 @@
+id = "list"
+title = "List"
+kind = "http"
+order = 70
+description = "GET /list reads a range of 100 rows, adds a computed field to each and serializes the list, like a typical paginated REST endpoint."
+path = "/list"
+work = { select = 1 }

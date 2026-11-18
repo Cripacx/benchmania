@@ -1,0 +1,18 @@
+id = "go-nethttp"
+name = "Go · net/http"
+language = "Go"
+runtime = "Go"
+framework = "net/http"
+category = "bare"
+description = "Go standard library HTTP server (method routing since Go 1.22) with the pgx connection pool."
+maintainers = []
+notes = ["GOMAXPROCS follows the container CPU limit automatically (Go 1.25+).", "Each statement checks a connection out of the pgxpool (pool.QueryRow, pool.Exec), so /queries and /updates take one checkout per statement rather than one per request (idiomatic pgxpool usage without a transaction)."]
+
+[versions]
+language = "1.27.4"
+framework = "stdlib"
+pgx = "5.13.0"
+base_image = "gcr.io/distroless/static-debian13"
+
+[build]
+dockerfile = "Dockerfile"

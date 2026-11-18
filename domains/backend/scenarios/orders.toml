@@ -1,0 +1,9 @@
+id = "orders"
+title = "JSON POST"
+kind = "http"
+order = 80
+description = "POST /orders sends a 2.5 KB order with 50 line items. The service parses, validates and totals it and returns a summary. No database."
+method = "POST"
+path = "/orders"
+body = "orders.json"
+headers = { "Content-Type" = "application/json" }

@@ -1,0 +1,9 @@
+{
+  "name": "bench-node-fastify",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "fastify": "5.12.8",
+    "pg": "8.23.1"
+  }
+}

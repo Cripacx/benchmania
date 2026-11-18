@@ -1,0 +1,19 @@
+id = "python-fastapi"
+name = "Python · FastAPI"
+language = "Python"
+runtime = "CPython"
+framework = "FastAPI"
+category = "framework"
+description = "FastAPI with Pydantic validation on uvicorn (uvloop, httptools) and asyncpg."
+maintainers = []
+notes = ["Two uvicorn worker processes, one per CPU, each with an 8-connection pool.", "Standard (GIL) CPython build."]
+
+[versions]
+language = "3.15.2"
+runtime = "CPython 3.15.2"
+framework = "0.163.2"
+uvicorn = "0.54.0"
+asyncpg = "0.32.0"
+
+[build]
+dockerfile = "Dockerfile"

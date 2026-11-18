@@ -1,0 +1,16 @@
+# ASP.NET Core minimal API, JIT (framework-dependent). Versions come from the implementation's build args.
+ARG SDK=11.0.100
+ARG RUNTIME=11.0.0
+ARG TFM=net11.0
+FROM mcr.microsoft.com/dotnet/sdk:${SDK} AS build
+ARG TFM
+WORKDIR /src
+COPY bench.csproj Program.cs ./
+RUN dotnet publish -c Release -p:TFM=${TFM} -o /out
+
+FROM mcr.microsoft.com/dotnet/aspnet:${RUNTIME}
+COPY --from=build /out /app
+WORKDIR /app
+ENV DB_URL="Host=127.0.0.1;Username=bench;Password=bench;Database=bench;Maximum Pool Size=16;No Reset On Close=true;Max Auto Prepare=10;Auto Prepare Min Usages=1"
+EXPOSE 8080
+ENTRYPOINT ["dotnet", "bench.dll"]

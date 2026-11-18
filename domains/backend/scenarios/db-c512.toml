@@ -1,0 +1,8 @@
+id = "db-c512"
+title = "Single query, 512 connections"
+kind = "http"
+order = 100
+description = "GET /db with 512 concurrent connections: many idle keep-alive connections and deep queues on 2 cores."
+path = "/db"
+connections = 512
+work = { select = 1 }

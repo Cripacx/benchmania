@@ -1,0 +1,20 @@
+id = "java-spring-native"
+name = "Java · Spring Boot"
+language = "Java"
+runtime = "GraalVM Native Image"
+framework = "Spring Boot (Spring MVC)"
+variant = "Native image"
+category = "fullstack"
+description = "The same Spring Boot service compiled to a native executable with GraalVM Community Edition."
+maintainers = []
+notes = ["Community Edition uses the Serial GC and no profile-guided optimization; Oracle GraalVM would be faster.", "JdbcClient without a transaction checks a HikariCP connection out per statement, so /queries and /updates take one checkout per statement rather than one per request (idiomatic without a transaction)."]
+source = "../../sources/spring"
+
+[versions]
+language = "Java 25"
+runtime = "GraalVM CE 25.0.2"
+framework = "Spring Boot 4.1.2"
+
+[build]
+dockerfile = "../../sources/spring/Dockerfile.native"
+context = "../../sources/spring"

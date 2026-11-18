@@ -1,0 +1,7 @@
+id = "db"
+title = "Single query"
+kind = "http"
+order = 40
+description = "GET /db reads one random row by primary key and returns it as JSON."
+path = "/db"
+work = { select = 1 }

@@ -1,0 +1,22 @@
+id = "dotnet11-aot"
+name = "C# · ASP.NET Core 11"
+language = "C#"
+runtime = ".NET 11"
+framework = "ASP.NET Core minimal API"
+variant = "Native AOT"
+category = "micro"
+description = "The same ASP.NET Core minimal API on .NET 11, compiled ahead of time to a native executable."
+maintainers = []
+notes = ["Same source as dotnet11-jit; only the publish mode differs.", "Npgsql automatic preparation enabled (Max Auto Prepare=10, Auto Prepare Min Usages=1): Npgsql prepares nothing by default, and every other stack uses prepared statements."]
+source = "../../sources/aspnet"
+
+[versions]
+language = "C# 15"
+runtime = "11.0.0"
+sdk = "11.0.100"
+npgsql = "10.0.3"
+
+[build]
+dockerfile = "../../sources/aspnet/Dockerfile.aot"
+context = "../../sources/aspnet"
+args = { SDK = "11.0.100", RUNTIME = "11.0.0", TFM = "net11.0" }

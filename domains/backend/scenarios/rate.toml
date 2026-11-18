@@ -1,0 +1,10 @@
+id = "rate"
+title = "Fixed load (5,000 req/s)"
+kind = "rate"
+order = 110
+description = "GET /db at a fixed 5,000 requests per second for every implementation (open loop, latency corrected for coordinated omission). Shows latency at normal production load instead of at saturation."
+path = "/db"
+rate = 5000
+connections = 64
+duration = "20s"
+work = { select = 1 }

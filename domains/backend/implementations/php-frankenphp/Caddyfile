@@ -1,0 +1,20 @@
+{
+	auto_https off
+	admin off
+	log {
+		level ERROR
+	}
+	frankenphp {
+		num_threads 16
+		worker {
+			file /app/public/index.php
+			num 16
+		}
+	}
+}
+
+:8080 {
+	root * /app/public
+	rewrite * /index.php
+	php
+}

@@ -1,0 +1,21 @@
+id = "java-spring-jvm"
+name = "Java · Spring Boot"
+language = "Java"
+runtime = "JVM (HotSpot)"
+framework = "Spring Boot (Spring MVC)"
+variant = "JVM"
+category = "fullstack"
+description = "Spring Boot with Spring MVC on virtual threads, JdbcClient and HikariCP (16 connections), running on the Java 27 JVM."
+maintainers = []
+notes = ["Virtual threads enabled (spring.threads.virtual.enabled).", "Heap limited to 50 % of the container memory limit (-XX:MaxRAMPercentage=50, 512 MiB of 1 GiB) instead of the JDK default of 25 %, as production images usually do; default GC. Reported memory is bounded by this heap setting.", "JdbcClient without a transaction checks a HikariCP connection out per statement, so /queries and /updates take one checkout per statement rather than one per request (idiomatic without a transaction)."]
+source = "../../sources/spring"
+
+[versions]
+language = "Java 25 (bytecode), Java 27 runtime"
+runtime = "27.0.1"
+framework = "Spring Boot 4.1.2"
+
+[build]
+dockerfile = "../../sources/spring/Dockerfile.jvm"
+context = "../../sources/spring"
+args = { AOTCACHE = "0" }

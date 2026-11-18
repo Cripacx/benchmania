@@ -1,0 +1,7 @@
+id = "json"
+title = "JSON"
+kind = "http"
+order = 30
+description = "GET /json returns a small JSON object. Pure framework and serialization overhead, no I/O."
+path = "/json"
+expect = { json = { message = "Hello, World!" } }

@@ -1,0 +1,8 @@
+id = "db-c16"
+title = "Single query, 16 connections"
+kind = "http"
+order = 90
+description = "GET /db with only 16 concurrent connections: behaviour at moderate concurrency, where latency rather than queueing dominates."
+path = "/db"
+connections = 16
+work = { select = 1 }

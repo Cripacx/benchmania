@@ -1,0 +1,18 @@
+id = "node-express"
+name = "TypeScript · Express"
+language = "TypeScript"
+runtime = "Node.js"
+framework = "Express"
+category = "micro"
+description = "Express 5 on Node.js 26 LTS, TypeScript executed directly via type stripping, node-postgres with named prepared statements."
+maintainers = []
+notes = ["Two worker processes (node:cluster), one per CPU, each with an 8-connection pool."]
+
+[versions]
+language = "TypeScript (type stripping)"
+runtime = "26.13.1"
+framework = "5.3.0"
+pg = "8.23.1"
+
+[build]
+dockerfile = "Dockerfile"

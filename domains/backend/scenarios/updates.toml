@@ -1,0 +1,7 @@
+id = "updates"
+title = "Updates"
+kind = "http"
+order = 60
+description = "GET /updates reads 5 random rows, changes each value and writes it back with 5 UPDATE statements."
+path = "/updates"
+work = { select = 5, update = 5 }

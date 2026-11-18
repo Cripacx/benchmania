@@ -1,0 +1,22 @@
+id = "dotnet10-aot"
+name = "C# · ASP.NET Core 10 LTS"
+language = "C#"
+runtime = ".NET 10"
+framework = "ASP.NET Core minimal API"
+variant = "Native AOT"
+category = "micro"
+description = "ASP.NET Core minimal API on .NET 10 LTS, compiled ahead of time to a native executable."
+maintainers = []
+notes = ["Same source as the .NET 11 variants.", "Npgsql automatic preparation enabled (Max Auto Prepare=10, Auto Prepare Min Usages=1): Npgsql prepares nothing by default, and every other stack uses prepared statements."]
+source = "../../sources/aspnet"
+
+[versions]
+language = "C# 14"
+runtime = "10.0.15"
+sdk = "10.0.404"
+npgsql = "10.0.3"
+
+[build]
+dockerfile = "../../sources/aspnet/Dockerfile.aot"
+context = "../../sources/aspnet"
+args = { SDK = "10.0.404", RUNTIME = "10.0.15", TFM = "net10.0" }

@@ -1,0 +1,22 @@
+id = "dotnet11-jit"
+name = "C# · ASP.NET Core 11"
+language = "C#"
+runtime = ".NET 11"
+framework = "ASP.NET Core minimal API"
+variant = "JIT"
+category = "micro"
+description = "ASP.NET Core minimal API on .NET 11 (STS) with the JIT, Npgsql and System.Text.Json source generation."
+maintainers = []
+notes = ["Server GC and tiered PGO at their defaults.", "Npgsql automatic preparation enabled (Max Auto Prepare=10, Auto Prepare Min Usages=1): Npgsql prepares nothing by default, and every other stack uses prepared statements."]
+source = "../../sources/aspnet"
+
+[versions]
+language = "C# 15"
+runtime = "11.0.0"
+sdk = "11.0.100"
+npgsql = "10.0.3"
+
+[build]
+dockerfile = "../../sources/aspnet/Dockerfile.jit"
+context = "../../sources/aspnet"
+args = { SDK = "11.0.100", RUNTIME = "11.0.0", TFM = "net11.0" }

@@ -1,0 +1,22 @@
+id = "dotnet10-jit"
+name = "C# · ASP.NET Core 10 LTS"
+language = "C#"
+runtime = ".NET 10"
+framework = "ASP.NET Core minimal API"
+variant = "JIT"
+category = "micro"
+description = "ASP.NET Core minimal API on .NET 10 (LTS until November 2028) with the JIT."
+maintainers = []
+notes = ["Same source as the .NET 11 variants.", "Npgsql automatic preparation enabled (Max Auto Prepare=10, Auto Prepare Min Usages=1): Npgsql prepares nothing by default, and every other stack uses prepared statements."]
+source = "../../sources/aspnet"
+
+[versions]
+language = "C# 14"
+runtime = "10.0.15"
+sdk = "10.0.404"
+npgsql = "10.0.3"
+
+[build]
+dockerfile = "../../sources/aspnet/Dockerfile.jit"
+context = "../../sources/aspnet"
+args = { SDK = "10.0.404", RUNTIME = "10.0.15", TFM = "net10.0" }

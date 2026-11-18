@@ -1,0 +1,6 @@
+## Flags for the release's VM: https://www.erlang.org/doc/apps/erts/erl_cmd.html
+## No scheduler busy waiting: idle schedulers would otherwise spend the container's CPU quota
+## while requests wait for the database.
++sbwt none
++sbwtdcpu none
++sbwtdio none

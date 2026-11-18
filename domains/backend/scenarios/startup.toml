@@ -1,0 +1,6 @@
+id = "startup"
+title = "Cold start"
+kind = "startup"
+order = 10
+description = "Starts a fresh container several times and measures the time until GET /json first succeeds. Also records memory at idle and the image size."
+path = "/json"

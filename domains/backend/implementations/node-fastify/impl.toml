@@ -1,0 +1,18 @@
+id = "node-fastify"
+name = "TypeScript · Fastify"
+language = "TypeScript"
+runtime = "Node.js"
+framework = "Fastify"
+category = "micro"
+description = "Fastify on Node.js 26 LTS, TypeScript executed directly via type stripping, node-postgres with named prepared statements."
+maintainers = []
+notes = ["Two worker processes (node:cluster), one per CPU, each with an 8-connection pool."]
+
+[versions]
+language = "TypeScript (type stripping)"
+runtime = "26.13.1"
+framework = "5.12.8"
+pg = "8.23.1"
+
+[build]
+dockerfile = "Dockerfile"

@@ -1,0 +1,7 @@
+id = "queries"
+title = "20 queries"
+kind = "http"
+order = 50
+description = "GET /queries runs 20 sequential primary-key reads on one connection and returns them as a JSON array. Measures driver and async efficiency."
+path = "/queries"
+work = { select = 20 }
