@@ -1,0 +1,37 @@
+# Metrics every domain can report. Domains add their own in domains/<id>/metrics.toml.
+# better: higher | lower | neutral. visibility: primary | secondary | diagnostic.
+
+[steal_pct]
+label = "Hypervisor steal"
+unit = "%"
+better = "lower"
+group = "quality"
+decimals = 1
+visibility = "diagnostic"
+description = "CPU time taken by the hypervisor from this machine during the measurement. Above 2 % the measurement is repeated."
+
+[host_load]
+label = "Host load"
+unit = "runnable tasks"
+better = "lower"
+group = "quality"
+decimals = 2
+visibility = "diagnostic"
+description = "1-minute load average of the machine right before the measurement."
+
+[cpu_mhz]
+label = "CPU clock"
+unit = "MHz"
+better = "neutral"
+group = "quality"
+visibility = "diagnostic"
+description = "Average current frequency of the CPUs used by the service during the measurement."
+
+[package_energy_j]
+label = "CPU package energy"
+unit = "J"
+better = "lower"
+group = "energy"
+decimals = 1
+visibility = "diagnostic"
+description = "Energy of the whole CPU package (RAPL) during the measurement. Includes every process on the machine, so it is only comparable within one run."

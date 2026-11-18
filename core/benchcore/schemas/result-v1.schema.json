@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "benchcore.result/v1",
+  "title": "Result bundle",
+  "description": "One benchmark run of one domain on one machine. The summary is derived from the passes; `./machbench validate` recomputes it.",
+  "type": "object",
+  "required": ["schema", "id", "domain", "created", "status", "methodology", "machine", "implementations", "scenarios", "passes", "summary"],
+  "properties": {
+    "schema": {"const": "benchcore.result/v1"},
+    "id": {"type": "string", "description": "<UTC timestamp>-<machine id prefix>-<random>"},
+    "domain": {"type": "string"},
+    "created": {"type": "string", "format": "date-time"},
+    "finished": {"type": ["string", "null"]},
+    "status": {"enum": ["running", "complete", "partial"]},
+    "methodology": {"type": "string"},
+    "tool": {"type": "object", "description": "engine version and git state of the measured code"},
+    "options": {"type": "object", "description": "passes, quick mode, selected implementations and scenarios"},
+    "machine": {
+      "type": "object",
+      "required": ["id", "label", "cpu"],
+      "properties": {
+        "id": {"type": "string", "description": "hash of stable hardware facts; no hostnames"},
+        "label": {"type": "string"},
+        "cpu": {"type": "object"},
+        "memory_gib": {"type": ["number", "null"]},
+        "kernel": {"type": "string"},
+        "os": {"type": "object"},
+        "virtualization": {"type": "string"},
+        "docker": {"type": "object"}
+      }
+    },
+    "layout": {"type": "object", "description": "CPU sets of service, environment, load generator and idle siblings"},
+    "implementations": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "manifest": {"type": "object"},
+          "image": {"type": "object"},
+          "check": {"oneOf": [{"const": "ok"}, {"type": "array", "items": {"type": "string"}}]}
+        }
+      }
+    },
+    "scenarios": {"type": "object"},
+    "passes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["index", "results"],
+        "properties": {
+          "index": {"type": "integer", "minimum": 1},
+          "order": {"type": "array", "items": {"type": "string"}},
+          "results": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "scenarios": {"type": "object", "additionalProperties": {"type": "object", "additionalProperties": {"type": "number"}}},
+                "quality": {"type": "object"},
+                "notes": {"type": "array"},
+                "error": {"type": "string"}
+              }
+            }
+          }
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "description": "implementation -> scenario -> metric -> statistics over passes",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "required": ["median", "min", "max", "n", "iqr", "ci95", "cv", "outliers"]
+          }
+        }
+      }
+    },
+    "quality": {"type": "object", "properties": {"flags": {"type": "array"}}}
+  }
+}

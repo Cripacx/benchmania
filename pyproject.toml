@@ -1,0 +1,29 @@
+[project]
+name = "benchcore"
+description = "Engine of the benchmark platform: manifests, runner, collectors, statistics, result bundles"
+requires-python = ">=3.11"
+dynamic = ["version"]
+dependencies = []
+
+[project.optional-dependencies]
+test = ["pytest>=8"]
+
+[project.scripts]
+machbench = "benchcore.cli:main"
+
+[build-system]
+requires = ["setuptools>=70"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["core"]
+
+[tool.setuptools.package-data]
+benchcore = ["metrics.toml", "schemas/*.json"]
+
+[tool.setuptools.dynamic]
+version = { attr = "benchcore.__version__" }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["core", "tests"]

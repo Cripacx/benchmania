@@ -1,0 +1,17 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.e2e-results/
+*.tmp
+node_modules/
+site/dist/
+site/src/data/*.json
+site/.astro/
+site/src/.astro/
+site/test-results/
+site/playwright-report/
+domains/**/target/
+domains/**/_build/
+domains/**/deps/
+domains/**/node_modules/
+.DS_Store
