@@ -1,0 +1,10 @@
+# Maintainers review changes to shared parts. Implementation maintainers are listed in each impl.toml.
+# Replace the team names after creating the organization's teams.
+/core/                          @machbench/maintainers
+/domains/*/domain.toml          @machbench/maintainers
+/domains/*/metrics.toml         @machbench/maintainers
+/domains/*/harness.py           @machbench/maintainers
+/domains/*/checks.py            @machbench/maintainers
+/results/reference-runs.toml    @machbench/maintainers
+/.github/                       @machbench/maintainers
+/tools/                         @machbench/maintainers

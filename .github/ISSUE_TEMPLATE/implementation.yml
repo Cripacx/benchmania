@@ -1,0 +1,21 @@
+name: New implementation or domain
+description: Propose a language, framework, variant or a new benchmark domain
+labels: [proposal]
+body:
+  - type: input
+    id: subject
+    attributes:
+      label: What should be added?
+      placeholder: "e.g. Kotlin · Ktor, or a 'databases' domain"
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why is it relevant?
+  - type: checkboxes
+    id: help
+    attributes:
+      label: Contribution
+      options:
+        - label: I would like to implement it myself

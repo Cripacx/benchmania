@@ -1,0 +1,130 @@
+name: End-to-end
+
+# Builds real implementations and runs short benchmarks on the GitHub runner. The numbers are only used to
+# prove the pipeline works (shared CI machines are far too noisy to publish).
+on:
+  pull_request:
+    paths: ["core/**", "domains/**", "machbench", "machbench.toml", ".github/workflows/e2e.yml"]
+  workflow_dispatch:
+    inputs:
+      implementations:
+        description: "Backend implementations (space separated, empty = a small default set)"
+        required: false
+  schedule:
+    - cron: "17 3 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  example-domain:
+    name: Example domain (extensibility)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - run: ./machbench doctor
+      - run: ./machbench run example --quick --passes 2 --results .e2e-results
+      - name: Bundle exists and verifies
+        run: |
+          ls .e2e-results/example/*/*.json
+          python3 - <<'PY'
+          import glob, json, sys
+          sys.path.insert(0, "core")
+          from benchcore import bundle, manifest
+          d = manifest.load_all(".")["example"]
+          for f in glob.glob(".e2e-results/example/*/*.json"):
+              b = json.load(open(f))
+              problems = bundle.verify(b, d, f)
+              assert not problems, problems
+              assert b["status"] == "complete" and len(b["passes"]) == 2
+              assert all(r["scenarios"]["hash"]["wall_ms"] > 0 for p in b["passes"] for r in p["results"].values())
+          print("ok")
+          PY
+
+  backend-changed:
+    name: Backend (changed or selected implementations)
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Select implementations
+        id: select
+        env:
+          REQUESTED: ${{ github.event.inputs.implementations }}
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          set -f  # names are never glob patterns
+          impl_dir=domains/backend/implementations
+          if [ -n "$REQUESTED" ]; then
+            # Explicitly requested names are passed on unfiltered, so a typo fails loudly in the CLI.
+            for name in $REQUESTED; do
+              if ! printf '%s\n' "$name" | grep -Eq '^[a-z0-9][a-z0-9-]*$'; then
+                echo "invalid implementation id: $name" >&2; exit 1
+              fi
+            done
+            echo "impls=$(echo $REQUESTED)" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          candidates=""
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            files=$(git diff --name-only "origin/$BASE_REF...HEAD")
+            candidates=$(printf '%s\n' "$files" | grep "^$impl_dir/[^/]*/" | cut -d/ -f4 | sort -u | tr '\n' ' ')
+            if printf '%s\n' "$files" | grep -q '^domains/backend/sources/aspnet/'; then
+              candidates="$candidates dotnet11-jit dotnet11-aot"
+            fi
+            if printf '%s\n' "$files" | grep -q '^domains/backend/sources/spring/'; then
+              candidates="$candidates java-spring-jvm java-spring-native"
+            fi
+          fi
+          # Deleted implementations and files directly below implementations/ are not runnable.
+          impls=""
+          for name in $candidates; do
+            [ -f "$impl_dir/$name/impl.toml" ] || continue
+            case " $impls " in *" $name "*) ;; *) impls="$impls $name" ;; esac
+          done
+          impls=$(echo $impls)
+          echo "impls=${impls:-go-nethttp python-fastapi}" >> "$GITHUB_OUTPUT"
+      - name: Build and check
+        env:
+          IMPLS: ${{ steps.select.outputs.impls }}
+        run: ./machbench check backend --impl $IMPLS
+      - name: Quick run
+        env:
+          IMPLS: ${{ steps.select.outputs.impls }}
+        run: ./machbench run backend --quick --passes 1 --impl $IMPLS --results .e2e-results
+      - name: Bundle exists and verifies
+        env:
+          IMPLS: ${{ steps.select.outputs.impls }}
+        run: |
+          ls .e2e-results/backend/*/*.json
+          python3 - <<'PY'
+          import glob, json, os, sys
+          sys.path.insert(0, "core")
+          from benchcore import bundle, manifest
+          d = manifest.load_all(".")["backend"]
+          wanted = set(os.environ["IMPLS"].split())
+          for f in glob.glob(".e2e-results/backend/*/*.json"):
+              b = json.load(open(f))
+              problems = bundle.verify(b, d, f)
+              assert not problems, problems
+              assert b["status"] == "complete" and len(b["passes"]) == 1
+              assert all(set(p["results"]) == wanted for p in b["passes"]), [sorted(p["results"]) for p in b["passes"]]
+              assert all(r["scenarios"]["json"]["rps"] > 0 for p in b["passes"] for r in p["results"].values())
+          print("ok")
+          PY
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: e2e-results
+          path: .e2e-results
+          include-hidden-files: true
+          if-no-files-found: ignore

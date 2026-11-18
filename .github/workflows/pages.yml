@@ -1,0 +1,62 @@
+name: Deploy website
+
+on:
+  push:
+    branches: [main]
+    paths: ["site/**", "results/**", "domains/**", "core/**", "machbench.toml", ".github/workflows/pages.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: read  # configure-pages reads the Pages settings (base path, origin)
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+      - id: pages
+        uses: actions/configure-pages@v6
+      - name: Dataset from result bundles
+        run: ./machbench validate && ./machbench publish
+      - name: Build
+        working-directory: site
+        run: npm ci && npm run build && npm run verify
+        env:
+          # base_path is "/<repo>" for project pages and "" for a custom domain or <owner>.github.io
+          BASE_PATH: ${{ steps.pages.outputs.base_path }}/
+          SITE_URL: ${{ steps.pages.outputs.origin }}
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: site/dist
+
+  deploy:
+    needs: build
+    # Builds from other branches (manual runs) are checked but never deployed.
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5

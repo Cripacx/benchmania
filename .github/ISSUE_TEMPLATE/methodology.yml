@@ -1,0 +1,22 @@
+name: Methodology or fairness concern
+description: A measurement is wrong, unfair or misleading
+labels: [methodology]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What is wrong?
+      description: Which domain, scenario, implementation or metric, and why you think the result is wrong or unfair.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: Measurements, profiles, links to documentation or code. Reproducible evidence gets fixed fastest.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Suggested fix
