@@ -9,5 +9,11 @@ updates:
     schedule:
       interval: monthly
     groups:
+      # Major versions come as separate pull requests, so one incompatible release cannot block the rest.
       site:
         patterns: ["*"]
+        update-types: ["minor", "patch"]
+    ignore:
+      # Follows the Node.js version the workflows build with (node-version in ci.yml and pages.yml).
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
