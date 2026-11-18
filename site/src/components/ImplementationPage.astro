@@ -19,6 +19,8 @@ import {
   categoryLabel,
   flagScenario,
   flagsForImplementation,
+  groupLabel,
+  groupMetricIds,
   headlineValue,
   implementation,
   implementationLinks,
@@ -108,7 +110,8 @@ const sections = run && inRun
       const metricIds = measuredMetricIds(domain.metrics, { results: { [implId]: run.results[implId] ?? {} }, derived: { [implId]: run.derived?.[implId] ?? {} } }, sec.key);
       const vis = byVisibility(domain.metrics, metricIds);
       const scenarioFlags = flags.filter((f) => flagScenario(f) === sec.key);
-      return { ...sec, primary: vis.primary, extra: [...vis.secondary, ...vis.diagnostic], flags: scenarioFlags };
+      const extraGroups = groupMetricIds(domain.metrics, [...vis.secondary, ...vis.diagnostic]);
+      return { ...sec, primary: vis.primary, extra: extraGroups.flatMap((g) => g.ids), extraGroups, flags: scenarioFlags };
     })
   : [];
 
@@ -294,9 +297,14 @@ const comparePeers = related[0]?.ids ?? [implId];
                                 <th scope="col" class="r">Rank</th>
                               </tr>
                             </thead>
-                            <tbody>
-                              <MetricRows domain={domain} run={run} impl={implId} scenario={sec.key} metrics={sec.extra} />
-                            </tbody>
+                            {sec.extraGroups.map((g) => (
+                              <tbody>
+                                <tr class="scen-group">
+                                  <th scope="colgroup" colspan="5">{groupLabel(g.group)}</th>
+                                </tr>
+                                <MetricRows domain={domain} run={run} impl={implId} scenario={sec.key} metrics={g.ids} />
+                              </tbody>
+                            ))}
                           </table>
                         </div>
                       </details>
@@ -625,9 +633,40 @@ const comparePeers = related[0]?.ids ?? [implId];
     .scen-table th[scope='row'] {
       width: auto;
     }
+    /* Long units ("runnable tasks") in the median cell may wrap here, so the rank column stays inside the card. */
+    .scen-table :global(td:first-of-type) {
+      white-space: normal;
+    }
   }
   .scen-more > summary {
     font-size: 0.8125rem;
+  }
+  /* Same column widths in every scenario table, so medians line up from card to card. */
+  @media (min-width: 560px) {
+    .scen-table table {
+      table-layout: fixed;
+    }
+    .scen-table thead th:nth-child(2) {
+      width: 24%;
+    }
+    .scen-table thead th:nth-child(3) {
+      width: 20%;
+    }
+    .scen-table thead th:nth-child(4) {
+      width: 4.5em;
+    }
+    .scen-table thead th:nth-child(5) {
+      width: 6.5em;
+    }
+  }
+  .scen-group th {
+    padding-top: 14px;
+    padding-bottom: 6px;
+    background: var(--surface-2);
+    color: var(--muted);
+    font-size: 0.75rem;
+    font-weight: 500;
+    border-top: 1px solid var(--border-strong);
   }
   .scen-more .table-wrap {
     margin-top: 10px;

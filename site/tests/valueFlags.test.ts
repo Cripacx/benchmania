@@ -82,7 +82,7 @@ describe('difference labels', () => {
   it('marks differences without an interval as observed', () => {
     const few = assessDiff(relativeDiff(80, 100, 'higher')!, { m: 80, lo: null, hi: null, n: 2 }, { m: 100, lo: null, hi: null, n: 2 });
     expect(few).toMatchObject({ tone: 'worse', word: 'worse (observed)', observed: true });
-    expect(few.title).toContain('No 95 % interval (fewer than three passes)');
+    expect(few.title).toContain('No 95 % interval (fewer than five passes)');
     const derived = assessDiff(relativeDiff(90, 50, 'higher')!, { m: 90, derived: true }, { m: 50, derived: true });
     expect(derived).toMatchObject({ word: 'better (observed)', observed: true });
     expect(derived.title).toContain('Derived values carry no interval');

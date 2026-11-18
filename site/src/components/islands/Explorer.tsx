@@ -8,8 +8,8 @@ import { betterText, formatInterval, formatNumber, formatRange, hasInterval, isN
 import {
   byVisibility,
   categoryLabel,
-  GROUP_ORDER,
   groupLabel,
+  groupMetricIds,
   measuredMetricIds,
   metricOrFallback,
   metricValue,
@@ -160,15 +160,7 @@ export function Explorer(props: Props) {
   const compareHref = joinBase(base, routes.compare(domainId, compareIds ?? [], scope));
 
   const extraCount = groups.secondary.length + groups.diagnostic.length;
-  const extraGroups = useMemo(() => {
-    const map = new Map<string, string[]>();
-    for (const id of [...groups.secondary, ...groups.diagnostic]) {
-      const g = metrics[id]?.group ?? 'other';
-      map.set(g, [...(map.get(g) ?? []), id]);
-    }
-    const rank = (g: string) => (GROUP_ORDER.indexOf(g) === -1 ? GROUP_ORDER.length : GROUP_ORDER.indexOf(g));
-    return [...map.entries()].sort((a, b) => rank(a[0]) - rank(b[0]));
-  }, [groups, metrics]);
+  const extraGroups = useMemo(() => groupMetricIds(metrics, [...groups.secondary, ...groups.diagnostic]), [groups, metrics]);
 
   return (
     <div class="explorer">
@@ -262,7 +254,7 @@ export function Explorer(props: Props) {
           </div>
           {showAll && extraCount > 0 && (
             <div class="ex-all" id="ex-all-metrics">
-              {extraGroups.map(([g, ids]) => (
+              {extraGroups.map(({ group: g, ids }) => (
                 <div class="ex-group" key={g}>
                   <span class="ex-group-label">{groupLabel(g)}</span>
                   <div class="chips">
@@ -354,7 +346,7 @@ export function Explorer(props: Props) {
                 ? 'Derived values are computed from scenario medians and carry no interval.'
                 : anyInterval
                   ? 'Whiskers show the 95 % bootstrap confidence interval of the median.'
-                  : `Median of ${plural(maxN || run.passes, 'pass', 'passes')}. ${maxN < MIN_CI_PASSES ? 'Fewer than three passes, so no confidence interval is shown.' : ''}`}{' '}
+                  : `Median of ${plural(maxN || run.passes, 'pass', 'passes')}. ${maxN < MIN_CI_PASSES ? `Fewer than ${MIN_CI_PASSES} passes, so no confidence interval is shown.` : ''}`}{' '}
               Ranks count all {impls.length} implementations.
             </p>
             <div class="ex-compare">

@@ -54,11 +54,14 @@ const rows = metrics.map((id) => {
   ))
 }
 
-<style>
+<!-- Global (mr-* classes are unique to this component): scoped styles would stamp an attribute on every cell of
+     every row, about a third of an implementation page's HTML. -->
+<style is:global>
   /* On narrow screens the interval moves under the median and the n column is hidden (see the impl page). */
   .mr-ci-inline {
     display: none;
     font-size: 0.75rem;
+    white-space: nowrap;
   }
   @media (max-width: 559px) {
     .mr-ci-inline {

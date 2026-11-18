@@ -78,6 +78,8 @@ export function scenarioLite(s: Scenario): Scenario {
  * Compact transport format for run results: id tables plus numeric rows, so the serialized island
  * props stay small even for runs with many passes and metrics.
  *   stats:   [impl, scenario, metric, m, lo, hi, min, max, n, cv]   (indices into the id tables)
+ *            [impl, scenario, metric, m, lo, hi, n, cv]             when min === lo and max === hi
+ *            (the interval often spans exactly the observed range, so this halves the payload losslessly)
  *   derived: [impl, metric, value]
  */
 export interface PackedRun {
@@ -105,7 +107,9 @@ export function packRun(run: RunSlice): PackedRun {
     for (const [sid, values] of Object.entries(scen ?? {}))
       for (const [mid, s] of Object.entries(values ?? {})) {
         if (!s || typeof s.m !== 'number' || !Number.isFinite(s.m)) continue;
-        stats.push([idx(impls, impl), idx(scenarios, sid), idx(metrics, mid), s.m, s.lo, s.hi, s.min, s.max, s.n, s.cv]);
+        const head = [idx(impls, impl), idx(scenarios, sid), idx(metrics, mid), s.m, s.lo, s.hi];
+        const sameRange = s.lo !== null && s.lo === s.min && s.hi === s.max;
+        stats.push(sameRange ? [...head, s.n, s.cv] : [...head, s.min, s.max, s.n, s.cv]);
       }
   const derived: number[][] = [];
   for (const [impl, values] of Object.entries(run.derived ?? {}))
@@ -117,7 +121,8 @@ export function packRun(run: RunSlice): PackedRun {
 export function unpackRun(p: PackedRun): RunSlice {
   const results: RunSlice['results'] = {};
   for (const row of p.stats) {
-    const [i, s, k, m, lo, hi, min, max, n, cv] = row as [number, number, number, number, number | null, number | null, number, number, number, number];
+    const full = row.length === 8 ? [...row.slice(0, 6), row[4], row[5], ...row.slice(6)] : row;
+    const [i, s, k, m, lo, hi, min, max, n, cv] = full as [number, number, number, number, number | null, number | null, number, number, number, number];
     const impl = p.impls[i] as string;
     const scen = p.scenarios[s] as string;
     const metric = p.metrics[k] as string;

@@ -29,7 +29,7 @@ const show = !!main && main.id !== run.id;
       <span>
         <strong>Not the default run.</strong> These numbers are from the run of {formatDate(run.created)} on{' '}
         {machineName(domain.machines[run.machine], run.machine)}. The rest of the site shows the default run of{' '}
-        {formatDate(main.created)} on {machineName(domain.machines[main.machine], main.machine)}.{' '}
+        {formatDate(main.created)}{main.machine === run.machine ? ' on the same machine' : ` on ${machineName(domain.machines[main.machine], main.machine)}`}.{' '}
         <a href={href(defaultPath)} data-run-exit>
           Open this page for the default run
         </a>

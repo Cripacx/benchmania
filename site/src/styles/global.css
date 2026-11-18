@@ -739,6 +739,8 @@ a.card-link:hover .arrow {
 
 /* Data tables */
 .table-wrap {
+  /* Containing block for absolutely positioned content (e.g. .visually-hidden), so it scrolls with the table. */
+  position: relative;
   width: 100%;
   overflow-x: auto;
   border: 1px solid var(--border);

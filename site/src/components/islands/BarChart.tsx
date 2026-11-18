@@ -211,7 +211,7 @@ function Tooltip({ datum, metric, x, y, below }: { datum: BarDatum; metric: Metr
         ) : (
           <>
             <dt>95 % CI</dt>
-            <dd>{ci ?? ((v.n ?? 0) < MIN_CI_PASSES ? `none (${v.n === 1 ? 'single pass' : 'fewer than 3 passes'})` : 'none')}</dd>
+            <dd>{ci ?? ((v.n ?? 0) < MIN_CI_PASSES ? `none (${v.n === 1 ? 'single pass' : `fewer than ${MIN_CI_PASSES} passes`})` : 'none')}</dd>
             {range && (
               <>
                 <dt>Range</dt>

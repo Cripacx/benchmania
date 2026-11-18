@@ -11,6 +11,7 @@ import { formatInterval, formatValue, MIN_CI_PASSES, plural } from '../../lib/fo
 import {
   assessDiff,
   byVisibility,
+  displayOrder,
   groupLabel,
   measuredMetricIds,
   metricOrFallback,
@@ -447,7 +448,7 @@ export function Compare(props: Props) {
               const lead = leadMetric(sec.key, ids);
               if (!lead) return null;
               const vis = byVisibility(metrics, ids);
-              const rest = (showAll ? ids : vis.primary).filter((mid) => mid !== lead);
+              const rest = (showAll ? displayOrder(metrics, ids) : vis.primary).filter((mid) => mid !== lead);
               const sid = sectionId(sec.key);
               const isOpen = !!open[sid];
               const leadLabel = metricOrFallback(metrics, lead).label;

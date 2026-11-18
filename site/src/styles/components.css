@@ -610,7 +610,7 @@ td.c-rank.top {
 }
 .ex-run-field {
   flex: 1 1 320px;
-  max-width: 520px;
+  max-width: 640px;
   min-width: 0;
 }
 .ex-run-field .select,

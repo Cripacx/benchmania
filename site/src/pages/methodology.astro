@@ -279,7 +279,8 @@ const serviceText = (service: Record<string, unknown> | undefined) => {
               <h3>95 % bootstrap interval</h3>
               <p>
                 The uncertainty of the median is a percentile bootstrap interval with 2,000 resamples and a fixed seed, so
-                summaries are reproducible. With fewer than three passes there is no interval, and the site says so.
+                summaries are reproducible. With five passes it is the range from the lowest to the highest pass, which covers the
+                true median with 93.75 % probability. With fewer than five passes there is no interval, and the site says so.
               </p>
             </div>
             <div class="card card-pad">

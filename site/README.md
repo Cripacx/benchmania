@@ -59,12 +59,12 @@ Schema `benchcore.dataset/v1`, written by `core/benchcore/publish.py`. Types: `s
 - `runs[]`: `id`, `created`, `methodology` (`"0"` preliminary, `"1"` current), `provenance` (`reference` |
   `community`), `machine`, `passes`, `options`, `layout`, `flags[]`, `results`, `derived`.
 - A value is `{m, lo, hi, min, max, n, cv}`: median over `n` passes, 95 % bootstrap interval of the median (`lo`/`hi`,
-  null below three passes), min/max, coefficient of variation.
+  null below five passes), min/max, coefficient of variation.
 
 Rules the site follows:
 
 - A metric or scenario without a value reads "not measured in this run", never 0.
-- An interval is shown only with at least three passes (`MIN_CI_PASSES` in `src/lib/format.ts`). Older datasets store
+- An interval is shown only with at least five passes (`MIN_CI_PASSES` in `src/lib/format.ts`). Older datasets store
   min..max in `lo`/`hi` for fewer passes; that is shown as a range, never as a confidence interval.
 - Non-finite numbers never reach a page. `verify` fails on "NaN", "undefined" or "Infinity".
 

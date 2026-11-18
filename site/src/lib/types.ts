@@ -133,7 +133,7 @@ export interface Machine {
 export interface Stat {
   /** median */
   m: number;
-  /** 95 % bootstrap confidence interval of the median; null below three passes (older datasets: min..max) */
+  /** 95 % bootstrap confidence interval of the median; null below five passes (older datasets: min..max) */
   lo: number | null;
   hi: number | null;
   min: number;

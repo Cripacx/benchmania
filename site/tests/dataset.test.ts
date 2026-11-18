@@ -7,6 +7,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { allDomains, getIndex, getProject, listDomains, rawDataFiles, validateDomain } from '../src/lib/dataset';
+import { MIN_CI_PASSES } from '../src/lib/format';
 import { compareProps, explorerProps, leaderboardProps } from '../src/lib/islandProps';
 import { methodologyInfo } from '../src/lib/methodology';
 import { defaultRun, headlineValue, machineName, runImplementationIds } from '../src/lib/model';
@@ -52,8 +53,12 @@ describe.each(domains.map((d) => [d.domain.id, d] as const))('domain %s', (_id, 
       for (const [impl, scen] of Object.entries(run.results))
         for (const [sid, metrics] of Object.entries(scen))
           for (const [mid, s] of Object.entries(metrics))
-            for (const key of ['m', 'lo', 'hi', 'min', 'max', 'n', 'cv'] as const)
-              expect(Number.isFinite(s[key]), `${run.id} ${impl}/${sid}/${mid}.${key}`).toBe(true);
+            for (const key of ['m', 'lo', 'hi', 'min', 'max', 'n', 'cv'] as const) {
+              // The publisher reports no interval below MIN_CI_PASSES passes: lo and hi are then null, never a number.
+              const noInterval = (key === 'lo' || key === 'hi') && s.n < MIN_CI_PASSES;
+              const ok = noInterval ? s[key] === null : Number.isFinite(s[key]);
+              expect(ok, `${run.id} ${impl}/${sid}/${mid}.${key} = ${s[key]} (n = ${s.n})`).toBe(true);
+            }
       for (const values of Object.values(run.derived)) for (const v of Object.values(values)) expect(Number.isFinite(v)).toBe(true);
     }
   });
@@ -113,6 +118,26 @@ describe.each(domains.map((d) => [d.domain.id, d] as const))('domain %s', (_id, 
       withheld: { a: { x_index: 'Throughput not measured in: s2' } },
     };
     expect(unpackRun(packRun(slice))).toEqual(slice);
+  });
+
+  it('drops min/max from a packed row only when they equal the interval', () => {
+    const slice = {
+      id: 'fixture',
+      passes: 5,
+      results: {
+        a: {
+          s: {
+            same: { m: 1, lo: 0.9, hi: 1.1, min: 0.9, max: 1.1, n: 5, cv: 0.1 },
+            wider: { m: 1, lo: 0.95, hi: 1.05, min: 0.9, max: 1.1, n: 5, cv: 0.1 },
+          },
+        },
+      },
+      derived: {},
+      withheld: {},
+    };
+    const packed = packRun(slice);
+    expect(packed.stats.map((r) => r.length)).toEqual([8, 10]);
+    expect(unpackRun(packed)).toEqual(slice);
   });
 
   it('encodes props without a run unchanged', () => {

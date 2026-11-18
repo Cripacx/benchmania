@@ -13,7 +13,9 @@ import {
   defaultRun,
   headlineValue,
   implementation,
+  machineName,
   measuredScenarios,
+  metricIdsInRun,
   metricOrFallback,
   rankMap,
   repoUrl,
@@ -144,6 +146,7 @@ const machine = featured && run ? featured.machines[run.machine] : undefined;
               ))}
             </ol>
             <div class="snap-foot">
+              <span class="snap-machine">{machineName(featured.machines[run.machine], run.machine)}</span>
               <span>
                 Top {snapshot.rows.length} of {snapshot.total} · {formatDate(run.created)} · {methodologyInfo(run.methodology).short}
               </span>
@@ -311,19 +314,25 @@ const machine = featured && run ? featured.machines[run.machine] : undefined;
       </div>
       <div class="grid grid-4">
         {
-          domains.map((d) => (
+          domains.map((d) => {
+            // Counts of what the explorer shows: the default run, not everything the registry defines.
+            const r = defaultRun(d);
+            const scenarios = r ? measuredScenarios(d, r).length : d.scenarios.length;
+            const metrics = r ? metricIdsInRun(r).size : Object.keys(d.metrics).length;
+            return (
             <a class="card card-pad card-link entry" href={href(routes.domain(d.domain.id))}>
               <Icon name="barsH" size={18} />
               <h3>{d.domain.title}</h3>
               <p>
-                {plural(d.implementations.length, 'implementation')}, {plural(d.scenarios.length, 'scenario')} and{' '}
-                {plural(Object.keys(d.metrics).length, 'metric')} with confidence intervals.
+                {plural(d.implementations.length, 'implementation')}, {plural(scenarios, 'scenario')} and{' '}
+                {plural(metrics, 'metric')} with confidence intervals.
               </p>
               <span class="entry-cta">
                 Open explorer <Icon name="arrowRight" class="arrow" />
               </span>
             </a>
-          ))
+            );
+          })
         }
         {
           featured && (
@@ -521,6 +530,9 @@ const machine = featured && run ? featured.machines[run.machine] : undefined;
     border-top: 1px solid var(--border);
     font-size: 0.75rem;
     color: var(--muted);
+  }
+  .snap-machine {
+    flex-basis: 100%;
   }
   .snap-more {
     display: inline-flex;

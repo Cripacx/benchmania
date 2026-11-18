@@ -34,8 +34,8 @@ const missingText = missing.map((m) => m.label).join(', ');
       <div>
         {method.preliminary ? (
           <p>
-            <strong>Preliminary numbers.</strong> Measured with the {method.label.toLowerCase()}
-            {fewPasses ? ` in ${passText}, so there are no confidence intervals` : ''}.
+            <strong>Preliminary numbers.</strong> Measured with the{' '}
+            {`${method.label.toLowerCase()}${fewPasses ? ` in ${passText}, so there are no confidence intervals` : ''}.`}
             {missing.length > 0 && ` Not measured in this run: ${missingText}.`}{' '}
             <a href={href(`${routes.methodology()}#versions`)}>Methodology versions</a>
           </p>

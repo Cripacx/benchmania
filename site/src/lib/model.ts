@@ -270,6 +270,24 @@ export function metricGroups(domain: Pick<DomainData, 'metrics'>): Array<{ group
     .map(({ group, metrics }) => ({ group, metrics }));
 }
 
+/** Metric ids grouped for display: groups in GROUP_ORDER (unknown groups after), ids in the given order. */
+export function groupMetricIds(metrics: MetricRegistry, ids: string[]): Array<{ group: string; ids: string[] }> {
+  const groups = new Map<string, string[]>();
+  for (const id of ids) {
+    const g = metrics[id]?.group ?? 'other';
+    groups.set(g, [...(groups.get(g) ?? []), id]);
+  }
+  const rank = (g: string) => (GROUP_ORDER.includes(g) ? GROUP_ORDER.indexOf(g) : GROUP_ORDER.length);
+  // Array.prototype.sort is stable, so groups outside GROUP_ORDER keep their first-seen order.
+  return [...groups.entries()].sort((a, b) => rank(a[0]) - rank(b[0])).map(([group, ids]) => ({ group, ids }));
+}
+
+/** Primary metrics first (given order), then the rest grouped as in groupMetricIds. */
+export function displayOrder(metrics: MetricRegistry, ids: string[]): string[] {
+  const { primary, secondary, diagnostic } = byVisibility(metrics, ids);
+  return [...primary, ...groupMetricIds(metrics, [...secondary, ...diagnostic]).flatMap((g) => g.ids)];
+}
+
 const GROUP_LABELS: Record<string, string> = {
   summary: 'Summary',
   throughput: 'Throughput',
@@ -541,7 +559,7 @@ export function intervalsOverlap(a: Value | null, b: Value | null): boolean | nu
 
 /**
  * How a difference to the baseline may be described. Overlapping 95 % intervals are reported as such (not
- * as "no difference"); without an interval on both sides (fewer than three passes, or a derived metric)
+ * as "no difference"); without an interval on both sides (fewer than five passes, or a derived metric)
  * the direction is only an observed difference of the medians, with no claim about uncertainty.
  */
 export interface DiffAssessment {
@@ -572,7 +590,7 @@ export function assessDiff(diff: RelativeDiff, a: Value | null, b: Value | null)
       title: `${diff.text} ${diff.tone}; the 95 % intervals of the two medians do not overlap.`,
       observed: false,
     };
-  const why = a?.derived || b?.derived ? 'derived values carry no interval' : 'no 95 % interval (fewer than three passes)';
+  const why = a?.derived || b?.derived ? 'derived values carry no interval' : 'no 95 % interval (fewer than five passes)';
   return {
     tone: diff.tone,
     word: `${diff.tone} (observed)`,

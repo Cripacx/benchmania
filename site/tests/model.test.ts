@@ -5,9 +5,11 @@ import {
   compareBest,
   defaultRun,
   derivedExplanation,
+  displayOrder,
   flagScenario,
   flagsFor,
   flagsForImplementation,
+  groupMetricIds,
   implementationLinks,
   intervalsOverlap,
   licenseUrl,
@@ -147,6 +149,25 @@ describe('values and metrics', () => {
 
   it('orders metric groups by importance', () => {
     expect(metricGroups(d).map((g) => g.group)).toEqual(['summary', 'throughput', 'latency', 'cpu', 'quality']);
+  });
+
+  it('groups extra metrics by group importance and puts primary metrics first', () => {
+    const reg: Record<string, Metric> = {
+      steal: metric('steal', { group: 'quality', visibility: 'diagnostic' }),
+      p50: metric('p50', { group: 'latency', visibility: 'secondary' }),
+      p99: metric('p99', { group: 'latency' }),
+      odd: metric('odd', { group: 'custom', visibility: 'secondary' }),
+      errors: metric('errors', { group: 'throughput', visibility: 'secondary' }),
+      rps: metric('rps', { group: 'throughput' }),
+    };
+    const ids = Object.keys(reg);
+    expect(groupMetricIds(reg, ['steal', 'p50', 'odd', 'errors'])).toEqual([
+      { group: 'throughput', ids: ['errors'] },
+      { group: 'latency', ids: ['p50'] },
+      { group: 'quality', ids: ['steal'] },
+      { group: 'custom', ids: ['odd'] },
+    ]);
+    expect(displayOrder(reg, ids)).toEqual(['p99', 'rps', 'errors', 'p50', 'steal', 'odd']);
   });
 
   it('explains derived metrics from the data', () => {

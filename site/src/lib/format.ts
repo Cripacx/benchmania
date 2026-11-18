@@ -81,7 +81,7 @@ export function formatValue(
  * Passes needed for a bootstrap interval. With fewer passes the engine stores min..max in lo/hi,
  * which is a range, not a confidence interval, so the site never labels it as one.
  */
-export const MIN_CI_PASSES = 3;
+export const MIN_CI_PASSES = 5;
 
 /** True when the value carries a real interval (at least MIN_CI_PASSES passes and lo < hi). */
 export function hasInterval(v: Value | null | undefined): v is Value & { lo: number; hi: number } {
