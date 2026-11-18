@@ -152,6 +152,9 @@ the worst cases.
   builds, transitive NuGet packages (no lock file), and patch releases behind a few upstream image tags
   (for example the OTP patch level of the Elixir image). Every bundle records the image id that was measured.
 - The GraalVM native image is built with JDK 25, the JVM variants run on JDK 27.
+- Image size is what the local Docker image store reports. Docker versions differ in whether that is the
+  unpacked or the compressed size (the same image showed 284 MB on one machine and 84 MB on another), so it
+  is comparable within a run but not across machines.
 
 ## Methodology versions
 

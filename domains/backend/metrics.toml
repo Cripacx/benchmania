@@ -264,7 +264,7 @@ unit = "MB"
 better = "lower"
 group = "footprint"
 visibility = "secondary"
-description = "Uncompressed size of the container image. Depends a lot on the chosen base image."
+description = "Size of the container image as the local Docker image store reports it. Depending on the Docker version this is the unpacked or the compressed size, so compare it within one run only. It depends a lot on the chosen base image."
 
 # --- warm-up ------------------------------------------------------------------------------------
 [warm_ratio]
