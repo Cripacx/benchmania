@@ -47,7 +47,9 @@ def launch(project, argv):
            "-v", "/sys/fs/cgroup:/sys/fs/cgroup:ro",
            "-v", f"{project.root}:/work", "-w", "/work",
            "-e", f"{INSIDE_ENV}=1", "-e", "BENCHCORE_ROOT=/work", "-e", "PYTHONPATH=/work/core",
-           "-e", "PYTHONUNBUFFERED=1"]
+           "-e", "PYTHONUNBUFFERED=1",
+           # the runner is root: it must leave nothing but result bundles in the checkout
+           "-e", "PYTHONDONTWRITEBYTECODE=1"]
     if Path("/etc/os-release").is_file():
         cmd += ["-v", "/etc/os-release:/host/os-release:ro"]
     if sys.stdin.isatty():
