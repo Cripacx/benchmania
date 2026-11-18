@@ -92,10 +92,15 @@ class BackendHarness(Harness):
         d.run(self.db, tag, network=self.ctx.network, cpuset=cpuset(lay["environment"]), env=DB_ENV, command=DB_ARGS)
         deadline = time.monotonic() + 120
         while time.monotonic() < deadline:
-            p = d.exec(self.db, "psql", "-U", "bench", "-d", "bench", "-Atc", "SELECT count(*) FROM world", check=False)
-            if p.returncode == 0 and p.stdout.strip() == "10000":
-                break
-            time.sleep(1)
+            # The image's entrypoint runs init.sql on a temporary server that only has a unix socket, then
+            # restarts. Only the final server listens on TCP, so that is what "ready" has to mean.
+            up = d.exec(self.db, "pg_isready", "-q", "-h", "127.0.0.1", "-U", "bench", "-d", "bench", check=False)
+            if up.returncode == 0:
+                p = d.exec(self.db, "psql", "-U", "bench", "-d", "bench", "-Atc", "SELECT count(*) FROM world",
+                           check=False)
+                if p.returncode == 0 and p.stdout.strip() == "10000":
+                    break
+            time.sleep(0.5)
         else:
             raise RuntimeError("PostgreSQL did not become ready:\n" + d.logs(self.db, 30))
         self.db_cg = collectors.cgroup_of(d.container_id(self.db))
