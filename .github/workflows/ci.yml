@@ -30,6 +30,41 @@ jobs:
         run: ./benchmania validate
       - name: Build the website dataset
         run: ./benchmania publish --out /tmp/site-data
+      - name: Lint the installer
+        run: shellcheck install.sh tests/install_test.sh
+      - name: Installer tests
+        run: sh tests/install_test.sh
+
+  installer-windows:
+    name: Windows installer
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      # CI is set on GitHub runners, so the tests also change the (ephemeral) runner's user Path for real.
+      - name: Installer tests (Windows PowerShell 5.1)
+        shell: powershell
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File tests/install_test.ps1
+      - name: Installer tests (PowerShell 7)
+        shell: pwsh
+        run: pwsh -NoProfile -File tests/install_test.ps1
+
+  installer-macos:
+    name: Installer on macOS
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Installer tests
+        run: sh tests/install_test.sh
 
   site:
     name: Website

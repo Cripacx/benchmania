@@ -21,15 +21,28 @@ contributions that find problems are as valuable as new implementations.
 
 ## Submitting results
 
-Results from more machines make every comparison more useful. On Linux
-with rootful Docker and cgroup v2 (at least 4 physical cores), from a clean checkout:
+Results from more machines make every comparison more useful. On Linux with rootful Docker and cgroup v2
+(at least 4 physical cores), install the command (it needs git and Python 3.11 or newer, no root) and run
+the suite:
 
 ```sh
-./benchmania doctor
-./benchmania check backend
-./benchmania run backend --label "My workstation"   # several hours
-./benchmania validate
+curl -fsSL https://benchmania.cleson.dev/install.sh | sh
+benchmania doctor
+benchmania check backend
+benchmania run backend --label "My workstation"   # several hours
+benchmania validate
 ```
+
+The installer clones the repository into `~/.local/share/benchmania`, a normal git checkout. The run writes
+the bundle below `results/` in that checkout and prints its path. From there, fork the repository, commit the
+one bundle file on a new branch, push it to your fork and open a pull request; the
+[guide](docs/guides/submitting-results.md#submit) has the commands, with and without the `gh` CLI. If you
+work in a clone of the repository instead, use `./benchmania` from its root: the commands are the same.
+
+The command also installs on Windows (`irm https://benchmania.cleson.dev/install.ps1 | iex`), where `list`,
+`validate`, `scaffold` and `publish` work; measuring needs Linux. You can also let an AI coding agent install it:
+the prompt on the website points it at [docs/install.md](docs/install.md). The README lists
+[all three ways](README.md#install-the-command).
 
 A results pull request adds only the bundle file (`results/<domain>/<machine-id>/<run-id>.json`): no changes
 to code, manifests, `results/reference-runs.toml` or the generated website data. Quick runs (`--quick`) are

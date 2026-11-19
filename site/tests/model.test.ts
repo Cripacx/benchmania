@@ -22,6 +22,8 @@ import {
   provenanceInfo,
   rankMap,
   relativeDiff,
+  installCommand,
+  installPrompt,
   repoPage,
   runImplementationIds,
   runLevelFlags,
@@ -284,6 +286,22 @@ describe('identity, machines and links', () => {
     expect(licenseUrl(undefined)).toBeNull();
     expect(repoPage(project, 'discussions')).toBe('https://example.org/owner/repo/discussions');
     expect(repoPage({ repository: 'https://example.org/owner/repo/' }, 'issues')).toBe('https://example.org/owner/repo/issues');
+  });
+
+  it('builds the one-line installer from the site URL', () => {
+    expect(installCommand({ site_url: 'https://bench.example.org/' })).toBe('curl -fsSL https://bench.example.org/install.sh | sh');
+    expect(installCommand({ site_url: '' })).toBeNull();
+    expect(installCommand({})).toBeNull();
+    expect(installCommand({ site_url: 'https://bench.example.org/' }, 'windows')).toBe('irm https://bench.example.org/install.ps1 | iex');
+    expect(installCommand({ site_url: '' }, 'windows')).toBeNull();
+  });
+
+  it('builds the agent prompt from the name, slug and site URL', () => {
+    expect(installPrompt({ name: 'Benchy', slug: 'benchy', site_url: 'https://bench.example.org//' })).toBe(
+      'Install the Benchy CLI on this machine by following https://bench.example.org/install.md.\n' +
+        'Then run `benchy doctor` and tell me whether this machine can run the benchmarks.',
+    );
+    expect(installPrompt({ name: 'Benchy', slug: 'benchy' })).toBeNull();
   });
 
   it('suggests comparisons of variants that share a source or runtime', () => {

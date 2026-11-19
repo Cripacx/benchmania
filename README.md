@@ -26,10 +26,11 @@ are no community runs yet, so a measurement from other hardware is the most usef
 To add a measurement from your machine (Linux with rootful Docker and cgroup v2, see the requirements below):
 
 ```sh
-./benchmania doctor                                # is this machine suitable?
-./benchmania check backend                         # every implementation must pass
-./benchmania run backend --label "My workstation"  # several hours; writes results/backend/<machine>/<run>.json
-./benchmania validate
+curl -fsSL https://benchmania.cleson.dev/install.sh | sh   # installs the benchmania command, no root needed
+benchmania doctor                                # is this machine suitable?
+benchmania check backend                         # every implementation must pass
+benchmania run backend --label "My workstation"  # several hours; prints where it wrote the result bundle
+benchmania validate
 ```
 
 Then open a pull request that adds only that bundle file. [CONTRIBUTING.md](CONTRIBUTING.md) explains the
@@ -44,15 +45,60 @@ engine uses only the Python standard library; the load generators and measuremen
 container that `./benchmania check` and `./benchmania run` build from `core/runner/`, and every implementation
 is built as its own Docker image.
 
+### Install the command
+
+There are three ways, all of which install the same `benchmania` command from a git checkout:
+
+| Where | How |
+| --- | --- |
+| Linux, macOS, WSL | `curl -fsSL https://benchmania.cleson.dev/install.sh \| sh` |
+| Windows (PowerShell 5.1 or 7) | `irm https://benchmania.cleson.dev/install.ps1 \| iex` |
+| Through an AI coding agent | Paste the prompt below into the agent |
+
+```text
+Install the Benchmania CLI on this machine by following https://benchmania.cleson.dev/install.md.
+Then run `benchmania doctor` and tell me whether this machine can run the benchmarks.
+```
+
+The prompt points the agent at [docs/install.md](docs/install.md), a short document you can read first: it
+picks the right installer, checks the result with `benchmania doctor` and reports back, without `sudo`,
+without editing shell start-up files and without starting a benchmark unasked.
+
+On Windows the command can list, validate, scaffold and publish. Measuring needs Linux with Docker; inside
+WSL2 use the Linux one-liner (measuring in WSL2 is untested). The Windows installer clones into
+`%LOCALAPPDATA%\benchmania`, writes `%USERPROFILE%\.local\bin\benchmania.cmd` and adds that directory to your
+user `Path` (set `BENCHMANIA_NO_MODIFY_PATH=1` to prevent that); no administrator rights.
+
+### To measure
+
+```sh
+curl -fsSL https://benchmania.cleson.dev/install.sh | sh
+benchmania doctor                                              # checks Docker, cgroup v2 and the CPU layout
+benchmania list                                                # domains, scenarios, implementations
+benchmania check backend --impl go-nethttp rust-axum           # build two implementations, run the functional checks
+benchmania run backend --impl go-nethttp rust-axum --quick --passes 1
+```
+
+The installer needs git and Python 3.11 or newer and never uses root. It clones this repository into
+`~/.local/share/benchmania` (a normal git checkout: bundles record its commit, and you open your pull request
+from it) and writes the launcher `~/.local/bin/benchmania`; it prints the `PATH` line to add if that directory
+is not on your `PATH` yet. Run it again to update (fast-forward only; your results are kept). Uninstall by
+removing those two paths. [SECURITY.md](SECURITY.md#the-installers) explains how to read the installers first
+and how to pin a version.
+
+### To develop: clone the repository
+
+To add implementations, scenarios or domains, or to change the engine, work in a clone (of your fork) and use
+the wrapper script at its root; it behaves exactly like the installed command:
+
 ```sh
 git clone https://github.com/Cripacx/benchmania && cd benchmania
-./benchmania doctor                                            # checks Docker, cgroup v2 and the CPU layout
-./benchmania list                                              # domains, scenarios, implementations
-./benchmania check backend --impl go-nethttp rust-axum         # build two implementations, run the functional checks
+./benchmania doctor
+./benchmania list
 ./benchmania run backend --impl go-nethttp rust-axum --quick --passes 1
 ```
 
-The quick run writes a result bundle to `results/backend/`. Quick runs are smoke tests: they are marked as
+The quick run writes a result bundle to `results/backend/` in the checkout and prints its path. Quick runs are smoke tests: they are marked as
 such and never published (`publish` skips them), so do not commit that file. For real numbers, run the whole suite
 (all 15 implementations, 5 passes; several hours, and the first build of the GraalVM native image alone takes
 a while), then build the website dataset and look at it:
