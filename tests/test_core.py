@@ -1,6 +1,7 @@
 """Unit tests for the engine: units, statistics, CPU layout, load-generator parsing, run rotation."""
 
 import json
+from pathlib import Path
 
 import pytest
 
@@ -166,3 +167,43 @@ def test_rotation_varies_position_and_predecessor(n):
         # an odd number of implementations cannot avoid one repeated neighbour in the base order
         assert len(set(before)) >= len(before) - 1, f"{item} keeps running after the same implementation"
     assert runner.rotation([], 0, 5) == []
+
+
+@pytest.mark.parametrize("system, security, suitable", [
+    ("Linux", [], True),
+    ("Linux", ["name=rootless"], False),
+    # Docker Desktop reports a Linux engine with cgroup v2 on Windows and macOS
+    ("Windows", [], False),
+    ("Darwin", [], False),
+])
+def test_doctor_accepts_only_linux_with_rootful_docker(monkeypatch, capsys, system, security, suitable):
+    from types import SimpleNamespace
+    from benchcore import cli, docker
+
+    class FakeDocker:
+        def __init__(self, label):
+            pass
+
+        def available(self):
+            return "27.0.0"
+
+        def info(self):
+            return {"CgroupVersion": "2", "CgroupDriver": "cgroupfs", "SecurityOptions": security, "NCPU": 8, "MemTotal": 2**34}
+
+    monkeypatch.setattr(docker, "Docker", FakeDocker)
+    monkeypatch.setattr(cli.platform, "system", lambda: system)
+    monkeypatch.setattr(layout, "read_topology", lambda: None)
+    assert cli.cmd_doctor(SimpleNamespace(label="test"), None) == (0 if suitable else 1)
+    assert ("measuring needs Linux" in capsys.readouterr().out) is (system != "Linux")
+
+
+def test_shown_path_is_relative_below_the_working_directory_and_absolute_otherwise(tmp_path):
+    from types import SimpleNamespace
+    inside = tmp_path / "work"  # where the runner sees the checkout
+    host = tmp_path / "home" / "checkout"  # where the user's checkout really is
+    proj = SimpleNamespace(root=inside, repository="https://example.org/org/repo/")
+    bundle_file = inside / "results" / "backend" / "m1" / "r1.json"
+    assert runner.shown_path(bundle_file, proj, host, host) == str(Path("results/backend/m1/r1.json"))
+    assert runner.shown_path(bundle_file, proj, host, host / "results") == str(Path("backend/m1/r1.json"))
+    assert runner.shown_path(bundle_file, proj, host, tmp_path / "elsewhere") == str(host / "results/backend/m1/r1.json")
+    assert runner.submit_hint(proj).endswith("https://example.org/org/repo/blob/main/docs/guides/submitting-results.md")

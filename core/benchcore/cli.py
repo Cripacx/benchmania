@@ -2,6 +2,7 @@
 
 import argparse
 import os
+import platform
 import shutil
 import sys
 from pathlib import Path
@@ -68,6 +69,11 @@ def cmd_publish(project, args):
 def cmd_doctor(project, args):
     from .docker import Docker
     ok = True
+    system = platform.system()
+    if system != "Linux":
+        # Docker Desktop reports a Linux engine with cgroup v2 on Windows and macOS; that is its VM, not this machine.
+        print(f"system:      {system}  <- measuring needs Linux")
+        ok = False
     d = Docker(project.label)
     v = d.available()
     print(f"docker:      {'ok ' + v if v else 'NOT reachable'}")
@@ -79,6 +85,7 @@ def cmd_doctor(project, args):
         ok &= cg == "2"
         rootless = any("rootless" in str(o) for o in info.get("SecurityOptions", []))
         print(f"rootless:    {'yes  <- CPU pinning and PSS need rootful Docker' if rootless else 'no'}")
+        ok &= not rootless
         print(f"cpus:        {info.get('NCPU')}  memory: {info.get('MemTotal', 0) / 1024**3:.1f} GiB")
     topo = layout.read_topology()
     if topo:

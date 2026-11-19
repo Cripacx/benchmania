@@ -21,6 +21,9 @@ from .docker import Docker
 from .harness import Context
 
 INSIDE_ENV = "BENCHCORE_INSIDE"
+# Inside the runner the checkout is mounted at /work; these tell it where the user actually is.
+HOST_ROOT_ENV = "BENCHCORE_HOST_ROOT"
+HOST_CWD_ENV = "BENCHCORE_HOST_CWD"
 STOP_GRACE_S = 90  # time the runner gets to write a partial bundle and remove its containers
 
 
@@ -47,6 +50,7 @@ def launch(project, argv):
            "-v", "/sys/fs/cgroup:/sys/fs/cgroup:ro",
            "-v", f"{project.root}:/work", "-w", "/work",
            "-e", f"{INSIDE_ENV}=1", "-e", "BENCHCORE_ROOT=/work", "-e", "PYTHONPATH=/work/core",
+           "-e", f"{HOST_ROOT_ENV}={project.root}", "-e", f"{HOST_CWD_ENV}={os.getcwd()}",
            "-e", "PYTHONUNBUFFERED=1",
            # the runner is root: it must leave nothing but result bundles in the checkout
            "-e", "PYTHONDONTWRITEBYTECODE=1"]
@@ -82,6 +86,30 @@ def interrupt_once():
         raise KeyboardInterrupt
     signal.signal(signal.SIGINT, handler)
     signal.signal(signal.SIGTERM, handler)
+
+
+def shown_path(path, project, host_root=None, host_cwd=None):
+    """A written file as the user can use it where they stand: relative to their working directory when the
+    file is below it, absolute otherwise. Paths inside the runner are translated to the host checkout."""
+    path = Path(path)
+    host_root = Path(host_root or os.environ.get(HOST_ROOT_ENV) or project.root)
+    host_cwd = Path(host_cwd or os.environ.get(HOST_CWD_ENV) or os.getcwd())
+    try:
+        path = host_root / path.relative_to(project.root)
+    except ValueError:
+        pass
+    try:
+        return str(path.relative_to(host_cwd))
+    except ValueError:
+        return str(path)
+
+
+def submit_hint(project):
+    """The line printed after a publishable run: where to read how to submit it."""
+    guide = "docs/guides/submitting-results.md"
+    if project.repository:
+        guide = f"{project.repository.rstrip('/')}/blob/main/{guide}"
+    return f"to publish it, open a pull request that adds this file: {guide}"
 
 
 def _select(items, wanted, kind):
@@ -211,7 +239,9 @@ def execute(project, args, check_only=False):
             shutil.rmtree(ctx.workdir, ignore_errors=True)
     if b["passes"]:
         path = bundle.write(b, results_dir)
-        log(f"result bundle: {path.relative_to(project.root)}")
+        log(f"result bundle: {shown_path(path, project)}")
+        if b["status"] == "complete" and not args.quick:
+            log(submit_hint(project))
     if interrupted:
         return 130
     return 0 if not failed else 3
