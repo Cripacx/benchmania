@@ -92,6 +92,8 @@ machines, implementation ids that collide with routes) and fails the build with 
 | `/<domain>/runs/<run>/compare/` and `/<domain>/runs/<run>/<impl>/` | `pages/[domain]/runs/[run]/` | The compare and implementation pages for one specific run (shared bodies in `components/ComparePage.astro` and `ImplementationPage.astro`). Every link on them stays inside the run; a run that is not the default says so and links to the default run (`data-run-exit`, checked by `verify`) |
 | `/methodology/`, `/machines/`, `/contribute/`, `/data/`, `/404.html` | `pages/*.astro` | Static pages filled from the data |
 | `/data/<file>.json` | `pages/data/[file].ts` | The dataset files, byte for byte, as downloads |
+| `/install.sh`, `/install.ps1` | `pages/install.sh.ts`, `pages/install.ps1.ts` | The repository's root installers, read at build time (no copies in `site/`). `verify` checks that `dist/install.sh` and `dist/install.ps1` are byte-identical to them |
+| `/install.md` | `pages/install.md.ts` | `docs/install.md`, the install guide for AI coding agents, served verbatim (checked by `verify` like the installers; `verify` also fails if any of the three files mentions a website origin other than `project.site_url`). The home and contribute pages show the three ways to install in `components/InstallChooser.astro`, built from `project.site_url` by `installCommand()` and `installPrompt()` in `src/lib/model.ts`
 
 Layers:
 

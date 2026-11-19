@@ -1,0 +1,203 @@
+---
+/**
+ * The three ways to install the command: the POSIX one-liner, the PowerShell one-liner and a prompt for an AI
+ * coding agent (which points the agent at /install.md). Without JavaScript all three are shown one below the
+ * other. The inline script below turns them into tabs before the first paint (ARIA tabs with arrow keys, Home
+ * and End) and preselects "Windows" for Windows visitors. Beside the text (from 900 px) all panels share one grid
+ * cell, so the box is as tall as the tallest choice and switching moves nothing; in one column the box is as tall
+ * as the selected choice. Renders nothing without a site URL.
+ */
+import CodeBlock from './CodeBlock.astro';
+import { installCommand, installPrompt } from '../lib/model';
+import { href } from '../lib/paths';
+import type { Project } from '../lib/types';
+
+interface Props {
+  project: Pick<Project, 'name' | 'slug' | 'site_url'>;
+  /** Prefix for the element ids; unique on the page. */
+  id: string;
+  class?: string;
+}
+const { project, id, class: className } = Astro.props;
+const unix = installCommand(project);
+const windows = installCommand(project, 'windows');
+const prompt = installPrompt(project);
+const doc = href('install.md');
+
+const choices =
+  unix && windows && prompt
+    ? [
+        { key: 'unix', tab: 'macOS / Linux', label: 'Terminal', copy: 'Copy the command', code: unix },
+        { key: 'windows', tab: 'Windows', label: 'PowerShell', copy: 'Copy the command', code: windows },
+        { key: 'agent', tab: 'AI agent', label: 'Prompt for your coding agent', copy: 'Copy the prompt', code: prompt },
+      ]
+    : [];
+---
+
+{
+  choices.length > 0 && (
+    <div class:list={['install-choice', className]} id={id} data-install-choice>
+      <div class="segmented install-tabs" data-tablist>
+        {choices.map((c, i) => (
+          <button
+            type="button"
+            id={`${id}-tab-${c.key}`}
+            aria-controls={`${id}-panel-${c.key}`}
+            aria-selected={i === 0 ? 'true' : 'false'}
+            tabindex={i === 0 ? 0 : -1}
+            data-key={c.key}
+          >
+            {c.tab}
+          </button>
+        ))}
+      </div>
+      <div class="install-panels">
+        {choices.map((c, i) => (
+          <div class:list={['install-panel', i === 0 && 'is-active']} id={`${id}-panel-${c.key}`} data-key={c.key}>
+            <p class="install-panel-title">{c.tab}</p>
+            <CodeBlock code={c.code} label={c.label} copyLabel={c.copy} class="install-code" />
+            <p class="install-note">
+              {c.key === 'unix' && (
+                <>Linux, macOS and WSL. Needs git and Python 3.11 or newer; no root. Run it again to update.</>
+              )}
+              {c.key === 'windows' && (
+                <>
+                  On Windows the command can list, validate, scaffold and publish. Measuring needs Linux with Docker.
+                </>
+              )}
+              {c.key === 'agent' && (
+                <>
+                  The prompt points your agent at <a href={doc}>a short install document</a> that you can read first.
+                </>
+              )}
+            </p>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+<script is:inline data-for={id}>
+      (function () {
+        var script = document.currentScript;
+        var root = script && document.getElementById(script.getAttribute('data-for'));
+        if (!root) return;
+        var tablist = root.querySelector('[data-tablist]');
+        var tabs = Array.prototype.slice.call(tablist.querySelectorAll('button'));
+        var panels = Array.prototype.slice.call(root.querySelectorAll('.install-panel'));
+        tablist.setAttribute('role', 'tablist');
+        tablist.setAttribute('aria-label', 'How to install');
+        tabs.forEach(function (t) { t.setAttribute('role', 'tab'); });
+        panels.forEach(function (p) {
+          p.setAttribute('role', 'tabpanel');
+          p.setAttribute('aria-labelledby', p.id.replace('-panel-', '-tab-'));
+        });
+        function select(i, focus) {
+          tabs.forEach(function (t, j) {
+            t.setAttribute('aria-selected', String(i === j));
+            t.tabIndex = i === j ? 0 : -1;
+          });
+          panels.forEach(function (p, j) {
+            p.classList.toggle('is-active', i === j);
+            if (i === j) p.removeAttribute('aria-hidden');
+            else p.setAttribute('aria-hidden', 'true');
+          });
+          if (focus) tabs[i].focus();
+        }
+        tabs.forEach(function (t, i) {
+          t.addEventListener('click', function () { select(i, false); });
+          t.addEventListener('keydown', function (e) {
+            var n = tabs.length;
+            var to = e.key === 'ArrowRight' ? (i + 1) % n : e.key === 'ArrowLeft' ? (i + n - 1) % n
+              : e.key === 'Home' ? 0 : e.key === 'End' ? n - 1 : -1;
+            if (to < 0) return;
+            e.preventDefault();
+            select(to, true);
+          });
+        });
+        var platform = (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || navigator.userAgent;
+        select(/^win/i.test(platform) || /Windows/.test(navigator.userAgent) ? 1 : 0, false);
+        root.classList.add('is-tabbed');
+      })();
+    </script>
+
+<style>
+  .install-choice {
+    min-width: 0;
+  }
+  .install-tabs {
+    display: none;
+    max-width: 100%;
+    margin-bottom: 12px;
+  }
+  .is-tabbed .install-tabs {
+    display: inline-flex;
+  }
+  @media (max-width: 559px) {
+    .is-tabbed .install-tabs {
+      display: flex;
+    }
+  }
+  .install-tabs button {
+    flex: 1 1 auto;
+  }
+  @media (max-width: 400px) {
+    .install-tabs button {
+      padding-inline: 9px;
+    }
+  }
+  .install-tabs button:focus-visible {
+    outline-offset: 0;
+  }
+  .install-panels {
+    display: grid;
+    gap: 18px;
+  }
+  .install-panel {
+    min-width: 0;
+  }
+  .install-panel-title {
+    margin-bottom: 6px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--text);
+  }
+  /* Tabbed: one shared cell, so the tallest choice sets the height; hidden choices keep their space. */
+  .is-tabbed .install-panels {
+    gap: 0;
+  }
+  .is-tabbed .install-panel {
+    grid-area: 1 / 1;
+  }
+  .is-tabbed .install-panel:not(.is-active) {
+    visibility: hidden;
+  }
+  /* In one column that reserved space would be an empty gap above the next block: there a hidden choice takes none. */
+  @media (max-width: 899px) {
+    .is-tabbed .install-panel:not(.is-active) {
+      display: none;
+    }
+  }
+  .is-tabbed .install-panel-title {
+    display: none;
+  }
+  .install-note {
+    margin-top: 8px;
+    color: var(--muted);
+    font-size: 0.8125rem;
+    line-height: 1.5;
+  }
+  /* One-liners and the prompt wrap instead of scrolling on narrow screens; Copy copies them unchanged. */
+  .install-choice :global(.install-code .code-body) {
+    font-size: 0.875rem;
+    white-space: pre-wrap;
+  }
+  .install-choice :global(.install-code .code-body code) {
+    overflow-wrap: anywhere;
+  }
+  @media (max-width: 559px) {
+    .install-choice :global(.install-code .code-body) {
+      font-size: 0.8125rem;
+    }
+  }
+</style>

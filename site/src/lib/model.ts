@@ -786,6 +786,33 @@ export function repoPage(project: Pick<Project, 'repository'>, page: 'issues' | 
   return `${project.repository.replace(/\/+$/, '')}/${page}`;
 }
 
+function siteOrigin(project: Pick<Project, 'site_url'>): string {
+  return (project.site_url ?? '').replace(/\/+$/, '');
+}
+
+/**
+ * The one-line installer, or null when the project has no site URL. The website serves the repository's
+ * install.sh (Linux, macOS, WSL) and install.ps1 (Windows PowerShell) at the root of the public site.
+ */
+export function installCommand(project: Pick<Project, 'site_url'>, system: 'unix' | 'windows' = 'unix'): string | null {
+  const site = siteOrigin(project);
+  if (!site) return null;
+  return system === 'windows' ? `irm ${site}/install.ps1 | iex` : `curl -fsSL ${site}/install.sh | sh`;
+}
+
+/**
+ * The prompt to paste into an AI coding agent: it points the agent at docs/install.md, which the website serves
+ * at /install.md. Null when the project has no site URL.
+ */
+export function installPrompt(project: Pick<Project, 'name' | 'slug' | 'site_url'>): string | null {
+  const site = siteOrigin(project);
+  if (!site) return null;
+  return [
+    `Install the ${project.name} CLI on this machine by following ${site}/install.md.`,
+    `Then run \`${project.slug} doctor\` and tell me whether this machine can run the benchmarks.`,
+  ].join('\n');
+}
+
 /** Links to an implementation's directory and, if it builds from shared sources, to those. */
 export function implementationLinks(
   project: Pick<Project, 'repository'>,

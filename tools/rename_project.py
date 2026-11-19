@@ -19,7 +19,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 SKIP_DIRS = {".git", "node_modules", "dist", ".astro", "results", "__pycache__", ".pytest_cache", "data"}
 TEXT_SUFFIXES = {".md", ".toml", ".py", ".yml", ".yaml", ".json", ".ts", ".tsx", ".astro", ".mjs", ".js", ".css",
-                 ".html", ".txt", ".sh", ""}
+                 ".html", ".txt", ".sh", ".ps1", ""}
 
 
 def current_config():

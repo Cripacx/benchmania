@@ -1,5 +1,6 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
+import InstallChooser from '../components/InstallChooser.astro';
 import Icon from '../components/Icon.astro';
 import RunContext from '../components/RunContext.astro';
 import RunNotice from '../components/RunNotice.astro';
@@ -17,6 +18,7 @@ import {
   flagNote,
   headlineValue,
   implementation,
+  installCommand,
   machineName,
   measuredScenarios,
   metricIdsInRun,
@@ -42,6 +44,7 @@ const community = communityStatus(domains);
 const totalImpls = community.implementations;
 const totalLanguages = new Set(domains.flatMap((d) => d.implementations.map((i) => i.language))).size;
 const totalRuns = community.runs;
+const install = installCommand(project);
 
 const ways = [
   {
@@ -383,6 +386,23 @@ const machine = featured && run ? featured.machines[run.machine] : undefined;
           <a class="btn btn-ghost" href={repoPage(project, 'discussions')}>Ideas and questions</a>
         </div>
       </div>
+      {
+        install && (
+          <div class="card install" data-reveal>
+            <div class="install-text">
+              <h3>
+                <Icon name="server" size={18} /> Measure on your own machine
+              </h3>
+              <p>
+                One line installs the <code>{project.slug}</code> command: a git checkout and a small launcher, no root or
+                administrator rights. Or let your coding agent do it. Measuring needs Linux with Docker;
+                <code>{`${project.slug} doctor`}</code> checks the machine.
+              </p>
+            </div>
+            <InstallChooser project={project} id="home-install" />
+          </div>
+        )
+      }
       <ul class="grid grid-3 ways" aria-label="Ways to take part" data-reveal="stagger">
         {
           ways.map((w) => (
@@ -1021,6 +1041,35 @@ const machine = featured && run ? featured.machines[run.machine] : undefined;
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
+  }
+  .install {
+    display: grid;
+    gap: 16px;
+    margin-bottom: 16px;
+    padding: clamp(18px, 2.4vw, 28px);
+    border-color: var(--border-strong);
+    box-shadow: var(--shadow);
+  }
+  @media (min-width: 900px) {
+    .install {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+      gap: 40px;
+      align-items: center;
+    }
+  }
+  .install-text {
+    min-width: 0;
+  }
+  .install h3 {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 1.25rem;
+  }
+  .install-text p {
+    margin-top: 8px;
+    color: var(--text-2);
+    font-size: 0.9375rem;
   }
   .ways {
     list-style: none;

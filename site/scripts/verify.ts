@@ -12,6 +12,11 @@
  *     (/<domain>/, /<domain>/compare/, /<domain>/<impl>/) unless it is marked `data-run-exit`, and every island on
  *     them is scoped to the run. Only pages of a non-default run say "Not the default run.". Links to methodology,
  *     machines, data, runs and home are fine.
+ *  7. The dataset downloads, the installers (dist/install.sh, dist/install.ps1) and the agent install guide
+ *     (dist/install.md) are byte-identical to their sources
+ *     (src/data/*.json, the repository's root install.sh and install.ps1, docs/install.md). The three install
+ *     files mention the site only as project.site_url and no origin besides it, the repository and known
+ *     third-party pages.
  *
  * Usage: BASE_PATH=/repo/ node scripts/verify.ts   (BASE_PATH defaults to the base found in dist/index.html)
  */
@@ -150,7 +155,7 @@ interface DomainJson {
 }
 
 const index = JSON.parse(readFileSync(join(dataDir, 'index.json'), 'utf8')) as {
-  project: { name: string };
+  project: { name: string; repository: string; site_url?: string };
   domains: Array<{ id: string; status: string }>;
 };
 const domains: DomainJson[] = index.domains
@@ -315,6 +320,34 @@ for (const name of ['index.json', ...domains.map((d) => `${d.domain.id}.json`)])
   if (!existsSync(served)) fail(`dataset download missing: ${base}data/${name}`);
   else if (readFileSync(served, 'utf8') !== readFileSync(join(dataDir, name), 'utf8'))
     fail(`dataset download ${base}data/${name} differs from src/data/${name}`);
+}
+
+// The installers and the install guide for agents are served from the repository, byte for byte. Each of them
+// names the website (the one-liners, the guide's address), so each must use project.site_url and no other
+// origin than the site, the repository's host and the few third-party pages they link to: after a domain change
+// a stale address fails here instead of sending people to the old one.
+const siteOrigin = index.project.site_url ? new URL(index.project.site_url).origin : '';
+const allowedOrigins = new Set(
+  [siteOrigin, new URL(index.project.repository).origin, 'https://git-scm.com', 'https://www.python.org', 'https://docs.docker.com'].filter(Boolean),
+);
+for (const [servedName, source] of [
+  ['install.sh', 'install.sh'],
+  ['install.ps1', 'install.ps1'],
+  ['install.md', 'docs/install.md'],
+] as const) {
+  const served = join(dist, servedName);
+  const sourceFile = join(root, '..', source);
+  if (!existsSync(served)) fail(`missing: ${base}${servedName}`);
+  else if (!readFileSync(served).equals(readFileSync(sourceFile)))
+    fail(`${base}${servedName} differs from the repository's ${source}`);
+  const text = readFileSync(sourceFile, 'utf8');
+  // The origin of each whole address as a URL parser reads it, not a prefix of its text.
+  const mentioned = [...text.matchAll(/https?:\/\/[^\s"'`<>()[\]]+/g)].map((m) => (URL.canParse(m[0]) ? new URL(m[0]).origin : m[0]));
+  for (const origin of new Set(mentioned)) {
+    if (!allowedOrigins.has(origin))
+      fail(`${source} mentions ${origin}: only the site (${siteOrigin || 'project.site_url is not set'}), the repository and known third-party pages are allowed`);
+  }
+  if (siteOrigin && !text.includes(siteOrigin)) fail(`${source} does not mention the site ${siteOrigin}`);
 }
 
 console.log(`verify: base path ${base}`);

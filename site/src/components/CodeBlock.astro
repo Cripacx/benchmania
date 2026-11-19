@@ -1,0 +1,121 @@
+---
+/**
+ * A terminal code block with a header and a copy button. The button is added by the script below (only where
+ * the Clipboard API exists), so without JavaScript the block is plain, selectable text.
+ */
+interface Props {
+  code: string;
+  /** Header label, e.g. "Terminal". */
+  label?: string;
+  /** Accessible name of the copy button. */
+  copyLabel?: string;
+  class?: string;
+}
+const { code, label = 'Terminal', copyLabel = 'Copy the commands', class: className } = Astro.props;
+---
+
+<div class:list={['code-block', className]} data-code-block data-copy-label={copyLabel}>
+  <div class="code-head"><span>{label}</span></div>
+  <pre class="code-body"><code>{code}</code></pre>
+</div>
+
+<script>
+  // One copy button per code block, with visible and announced feedback (one live region per page).
+  function statusRegion(): HTMLElement {
+    let el = document.getElementById('copy-status');
+    if (!el) {
+      el = document.createElement('p');
+      el.id = 'copy-status';
+      el.className = 'visually-hidden';
+      el.setAttribute('aria-live', 'polite');
+      document.body.append(el);
+    }
+    return el;
+  }
+
+  if (navigator.clipboard) {
+    for (const block of document.querySelectorAll<HTMLElement>('[data-code-block]')) {
+      const code = block.querySelector('code');
+      const head = block.querySelector('.code-head');
+      if (!code || !head || head.querySelector('.copy-btn')) continue;
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'copy-btn';
+      button.textContent = 'Copy';
+      button.setAttribute('aria-label', block.dataset.copyLabel ?? 'Copy the commands');
+      let timer = 0;
+      button.addEventListener('click', async () => {
+        const status = statusRegion();
+        try {
+          await navigator.clipboard.writeText(code.textContent ?? '');
+          button.textContent = 'Copied';
+          button.classList.add('is-done');
+          status.textContent = 'Copied to the clipboard.';
+        } catch {
+          button.textContent = 'Press Ctrl+C';
+          status.textContent = 'Copying failed. Select the text and copy it by hand.';
+        }
+        window.clearTimeout(timer);
+        timer = window.setTimeout(() => {
+          button.textContent = 'Copy';
+          button.classList.remove('is-done');
+        }, 1800);
+      });
+      head.append(button);
+    }
+  }
+</script>
+
+<style>
+  .code-block {
+    min-width: 0;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface-2);
+    overflow: hidden;
+  }
+  .code-body {
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    font-size: 0.8125rem;
+    white-space: pre;
+  }
+  .code-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 36px;
+    padding: 0 5px 0 14px;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--muted);
+  }
+  .code-head :global(.copy-btn) {
+    height: 26px;
+    padding-inline: 10px;
+    border: 1px solid var(--border-strong);
+    border-radius: 7px;
+    background: var(--surface);
+    color: var(--text-2);
+    font: inherit;
+    cursor: pointer;
+    transition:
+      background-color 140ms var(--ease),
+      color 140ms var(--ease),
+      transform 120ms var(--ease);
+  }
+  .code-head :global(.copy-btn:hover) {
+    color: var(--text);
+    background: var(--surface-3);
+  }
+  .code-head :global(.copy-btn:active) {
+    transform: scale(0.95);
+  }
+  .code-head :global(.copy-btn.is-done) {
+    border-color: transparent;
+    background: var(--brand-grad);
+    color: var(--on-brand);
+  }
+</style>

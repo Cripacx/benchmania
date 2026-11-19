@@ -1,13 +1,17 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import Breadcrumbs from '../components/Breadcrumbs.astro';
+import CodeBlock from '../components/CodeBlock.astro';
+import InstallChooser from '../components/InstallChooser.astro';
 import Icon from '../components/Icon.astro';
 import { allDomains, getProject } from '../lib/dataset';
-import { communityRunsNote, communityStatus, repoPage, repoUrl } from '../lib/model';
+import { communityRunsNote, communityStatus, installCommand, repoPage, repoUrl } from '../lib/model';
 import { plural } from '../lib/format';
 import { href, routes } from '../lib/paths';
 
 const project = getProject();
+// Measuring uses the installed command; adding to the suite edits a checkout and uses its wrapper script.
+const cmd = project.slug;
 const cli = `./${project.slug}`;
 const domains = allDomains();
 const community = communityStatus(domains);
@@ -18,12 +22,17 @@ const issues = repoPage(project, 'issues');
 const discussions = repoPage(project, 'discussions');
 const repoDir = project.repository.replace(/\/+$/, '').split('/').pop() || project.slug;
 
+const cloneLine = `git clone ${project.repository} && cd ${repoDir}`;
+const install = installCommand(project);
+const run = install ? cmd : cli;
+
+// With the installer, its line is in the install chooser next to these commands; without, they start with a clone.
 const submitCode = [
-  `git clone ${project.repository} && cd ${repoDir}`,
-  `${cli} doctor`,
-  `${cli} check ${domainId}`,
-  `${cli} run ${domainId} --label "My workstation"`,
-  `${cli} validate`,
+  ...(install ? [] : [cloneLine]),
+  `${run} doctor`,
+  `${run} check ${domainId}`,
+  `${run} run ${domainId} --label "My workstation"`,
+  `${run} validate`,
 ].join('\n');
 
 const paths = [
@@ -33,7 +42,7 @@ const paths = [
     title: 'Add an implementation',
     text: 'A new language, framework or variant. Implementations are a directory with an impl.toml, a Dockerfile and the source.',
     guide: guide('adding-an-implementation.md'),
-    code: `${cli} scaffold ${domainId} my-framework --from ${sampleImpl}\n${cli} validate\n${cli} check ${domainId} --impl my-framework`,
+    code: `${cloneLine}\n${cli} scaffold ${domainId} my-framework --from ${sampleImpl}\n${cli} validate\n${cli} check ${domainId} --impl my-framework`,
   },
   {
     id: 'scenario',
@@ -77,29 +86,44 @@ const paths = [
     <div class="contribute">
       <section id="submit" class="anchor" aria-labelledby="submit-title">
         <div class="card path submit">
-          <div class="path-text">
+          <div class="path-text submit-intro">
             <p class="eyebrow"><Icon name="server" /> Measure on your hardware</p>
             <h2 id="submit-title">Submit a measurement</h2>
-            <ol class="steps">
+            {
+              install && (
+                <ol class="steps">
+                  <li>
+                    Install the <code>{cmd}</code> command: pick your system. It needs git and Python 3.11 or newer, no root
+                    or administrator rights, clones the repository (a normal git checkout) and adds a launcher. Run it again
+                    to update.
+                  </li>
+                </ol>
+              )
+            }
+          </div>
+          {install && <InstallChooser project={project} id="submit-install" class="submit-install" />}
+          <div class="path-text submit-steps">
+            <ol class="steps" start={install ? 2 : 1}>
               <li>
-                Use Linux with rootful Docker and cgroup v2, at least 4 physical cores and Python 3.11 or newer. Close other
-                workloads; on a laptop use mains power.
+                To measure, use Linux with rootful Docker and cgroup v2 and at least 4 physical cores{install ? '' : ', git and Python 3.11 or newer'}.
+                Close other workloads; on a laptop use mains power.
               </li>
               <li>
                 <code>doctor</code> checks the machine and <code>check</code> builds every implementation and runs the
-                functional checks. Then run the whole suite from a clean checkout: it takes several hours, so start it in
-                <code>tmux</code> or with <code>nohup</code>.
+                functional checks. Then run the whole suite: it takes several hours, so start it in <code>tmux</code> or
+                with <code>nohup</code>.
               </li>
               <li>
-                Open a pull request that adds the bundle written to
-                <code>results/{domainId}/&lt;machine-id&gt;/&lt;run-id&gt;.json</code>.
+                The run prints where it wrote the bundle:
+                <code>results/{domainId}/&lt;machine-id&gt;/&lt;run-id&gt;.json</code> in the checkout. Open a pull request
+                from that checkout that adds only this file.
               </li>
             </ol>
             <a class="path-link" href={guide('submitting-results.md')}>
               Read the full guide <Icon name="arrowUpRight" size={14} />
             </a>
           </div>
-          <div class="code-block"><div class="code-head"><span>Terminal</span></div><pre class="path-code"><code>{submitCode}</code></pre></div>
+          <CodeBlock code={submitCode} class="submit-code" />
         </div>
 
         <div class="grid grid-3 submit-facts">
@@ -136,6 +160,9 @@ const paths = [
 
       <section class="add" aria-labelledby="add-title">
         <h2 id="add-title">Add to the suite</h2>
+        <p class="add-lead">
+          These change the repository: fork it, clone your fork and run <code>{cli}</code> from the checkout.
+        </p>
         <div class="paths">
           {
             paths.map((p) => (
@@ -149,7 +176,7 @@ const paths = [
                     Read the guide <Icon name="arrowUpRight" size={14} />
                   </a>
                 </div>
-                <div class="code-block"><div class="code-head"><span>Terminal</span></div><pre class="path-code"><code>{p.code}</code></pre></div>
+                <CodeBlock code={p.code} />
               </article>
             ))
           }
@@ -217,42 +244,8 @@ const paths = [
       </section>
     </div>
   </div>
-  <p class="visually-hidden" aria-live="polite" id="copy-status"></p>
 </BaseLayout>
 
-<script>
-  // One copy button per code block, with visible and announced feedback.
-  const status = document.getElementById('copy-status');
-  if (navigator.clipboard) {
-    for (const block of document.querySelectorAll<HTMLElement>('.code-block')) {
-      const code = block.querySelector('code');
-      if (!code) continue;
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.className = 'copy-btn';
-      button.textContent = 'Copy';
-      button.setAttribute('aria-label', 'Copy the commands');
-      let timer = 0;
-      button.addEventListener('click', async () => {
-        try {
-          await navigator.clipboard.writeText(code.textContent ?? '');
-          button.textContent = 'Copied';
-          button.classList.add('is-done');
-          if (status) status.textContent = 'Commands copied to the clipboard.';
-        } catch {
-          button.textContent = 'Press Ctrl+C';
-          if (status) status.textContent = 'Copying failed. Select the commands and copy them by hand.';
-        }
-        window.clearTimeout(timer);
-        timer = window.setTimeout(() => {
-          button.textContent = 'Copy';
-          button.classList.remove('is-done');
-        }, 1800);
-      });
-      block.querySelector('.code-head')?.append(button);
-    }
-  }
-</script>
 
 <style>
   .head-links {
@@ -324,58 +317,31 @@ const paths = [
     font-weight: 500;
     font-size: 0.9375rem;
   }
-  .path-code {
-    font-size: 0.8125rem;
-    white-space: pre;
+  /* Install first, also on narrow screens: intro and chooser, then the remaining steps and their commands. */
+  @media (min-width: 900px) {
+    .submit {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+      grid-template-areas:
+        'intro install'
+        'steps code';
+      row-gap: 28px;
+      align-items: start;
+    }
+    .submit-intro {
+      grid-area: intro;
+    }
+    .submit :global(.submit-install) {
+      grid-area: install;
+    }
+    .submit-steps {
+      grid-area: steps;
+    }
+    .submit :global(.submit-code) {
+      grid-area: code;
+    }
   }
-  .code-block {
-    min-width: 0;
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    background: var(--surface-2);
-    overflow: hidden;
-  }
-  .code-block pre {
-    border: 0;
-    border-radius: 0;
-    background: transparent;
-  }
-  .code-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    height: 36px;
-    padding: 0 5px 0 14px;
-    border-bottom: 1px solid var(--border);
-    font-size: 0.75rem;
-    font-weight: 500;
-    color: var(--muted);
-  }
-  .code-head :global(.copy-btn) {
-    height: 26px;
-    padding-inline: 10px;
-    border: 1px solid var(--border-strong);
-    border-radius: 7px;
-    background: var(--surface);
-    color: var(--text-2);
-    font: inherit;
-    cursor: pointer;
-    transition:
-      background-color 140ms var(--ease),
-      color 140ms var(--ease),
-      transform 120ms var(--ease);
-  }
-  .code-head :global(.copy-btn:hover) {
-    color: var(--text);
-    background: var(--surface-3);
-  }
-  .code-head :global(.copy-btn:active) {
-    transform: scale(0.95);
-  }
-  .code-head :global(.copy-btn.is-done) {
-    border-color: transparent;
-    background: var(--brand-grad);
-    color: var(--on-brand);
+  .submit-steps .steps {
+    margin-top: 0;
   }
   .submit-facts {
     margin-top: 14px;
@@ -405,6 +371,11 @@ const paths = [
   .rules h2,
   .more h2 {
     margin-bottom: 18px;
+  }
+  .add-lead {
+    max-width: 70ch;
+    margin: -8px 0 18px;
+    color: var(--text-2);
   }
   .rules p {
     margin-top: 6px;
