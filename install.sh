@@ -16,7 +16,8 @@
 #
 # Uninstall: remove BENCHMANIA_HOME and BENCHMANIA_BIN/benchmania.
 #
-# Everything happens inside benchmania_install, which is called on the last line: a truncated download runs nothing.
+# Everything happens inside benchmania_install, which the last line calls inside braces: a download that ends
+# early, even within that line, does not parse and installs nothing.
 
 set -eu
 
@@ -92,7 +93,7 @@ benchmania_install() {
                 where="a detached HEAD"
                 [ -z "$current" ] || where="branch '$current'"
                 die "$home is on $where, not on '$target', so it was not updated." \
-                    "Switch back with: git -C $(squote "$home") switch $target   (your own branches are kept), then run the installer again."
+                    "Switch back with: git -C $(squote "$home") switch $(squote "$target")   (your own branches are kept), then run the installer again."
             fi
         fi
         if [ "$old" != "$new" ] && ! g merge-base --is-ancestor "$old" "$new"; then
@@ -136,10 +137,13 @@ benchmania_install() {
     fi
 
     # --- Refuse to overwrite a file that is not ours, before doing any work ----------------------------------
-    if { [ -e "$launcher" ] || [ -L "$launcher" ]; } && ! grep -qF "$marker" "$launcher" 2>/dev/null; then
-        die "$launcher already exists and was not written by this installer." \
-            "Remove or rename it, or choose another directory with BENCHMANIA_BIN, then run the installer again."
-    fi
+    check_launcher() {
+        if { [ -e "$launcher" ] || [ -L "$launcher" ]; } && ! grep -qF "$marker" "$launcher" 2>/dev/null; then
+            die "$launcher already exists and was not written by this installer." \
+                "Remove or rename it, or choose another directory with BENCHMANIA_BIN, then run the installer again."
+        fi
+    }
+    check_launcher
 
     # --- Install or update the checkout ----------------------------------------------------------------------
     if [ -e "$home/.git" ]; then
@@ -165,6 +169,7 @@ benchmania_install() {
 
     # --- Launcher ----------------------------------------------------------------------------------------------
     mkdir -p "$bin"
+    check_launcher # again: the checkout has its own file named benchmania, which BENCHMANIA_BIN must not point at
     tmp=$(mktemp "$launcher.tmp.XXXXXX")
     # printf, not echo: some shells' echo would interpret a backslash in the path.
     printf '%s\n' '#!/bin/sh' "$marker Run the installer again to update." \
@@ -211,4 +216,4 @@ benchmania_install() {
     say "Uninstall: rm -rf $(squote "$home") $(squote "$launcher")   (copy your results/ first)"
 }
 
-benchmania_install "$@"
+{ benchmania_install "$@"; }

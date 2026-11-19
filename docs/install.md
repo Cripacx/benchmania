@@ -66,7 +66,9 @@ benchmania doctor
 
 How to read it:
 
-- Exit code 0 and `docker: ok ...`, `cgroup: v2 ...` and `rootless: no`: this machine can measure.
+- Exit code 0 and `docker: ok ...`, `cgroup: v2 ...` and `rootless: no`: this machine can measure, provided
+  Docker runs on this machine. `doctor` does not notice a remote engine (selected with `DOCKER_HOST` or a
+  Docker context); with one, measuring does not work.
 - `docker: NOT reachable`: Docker is missing, not running, or this user may not use it. Measuring is not
   possible until that is fixed; `list`, `validate`, `scaffold` and `publish` work without it.
 - `cgroup: v1 ... <- cgroup v2 required`: the Linux system uses cgroup v1; measuring needs cgroup v2.
