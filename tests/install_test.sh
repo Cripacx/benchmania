@@ -53,14 +53,19 @@ advance() {
     git -C "$work/dev" push --quiet origin HEAD:main
 }
 
-# run_installer NAME [VAR=value...]: runs install.sh with HOME=$work/NAME and only the given settings.
-run_installer() {
+# clean_env NAME [VAR=value...] command...: runs the command with HOME=$work/NAME and none of the installer's
+# settings except the given ones.
+clean_env() {
     name=$1
     shift
     mkdir -p "$work/$name"
-    status=0
     env -u BENCHMANIA_HOME -u BENCHMANIA_BIN -u BENCHMANIA_REF -u XDG_DATA_HOME -u BENCHCORE_ROOT \
-        HOME="$work/$name" BENCHMANIA_REPO="$repo_url" "$@" "$sh_bin" "$installer" >"$work/out" 2>&1 || status=$?
+        HOME="$work/$name" BENCHMANIA_REPO="$repo_url" "$@"
+}
+# run_installer NAME [VAR=value...]: runs install.sh that way; its output goes to $work/out, its exit code to $status.
+run_installer() {
+    status=0
+    clean_env "$@" "$sh_bin" "$installer" >"$work/out" 2>&1 || status=$?
     return 0
 }
 home_of() { printf '%s' "$work/$1/.local/share/benchmania"; }
@@ -209,16 +214,29 @@ check "dash repository: reported as a repository that could not be cloned" conta
 check "dash repository: git saw it as the repository, not as an option" contains "repository '--upload-pack=touch-dash-marker' does not exist"
 check "dash repository: no checkout or partial directory" [ -z "$(ls -A "$work/dash/.local/share" 2>/dev/null)" ]
 
+# --- The checkout directory as launcher directory: the checkout's own benchmania file is not replaced --------
+run_installer same BENCHMANIA_HOME="$work/same/dir" BENCHMANIA_BIN="$work/same/dir"
+check "launcher directory is the checkout: exits non-zero" [ "$status" -ne 0 ]
+check "launcher directory is the checkout: explains" contains "was not written by this installer"
+check "launcher directory is the checkout: checkout unchanged" [ -z "$(git -C "$work/same/dir" status --porcelain)" ]
+
 # --- Execution through a pipe -------------------------------------------------------------------------------
-mkdir -p "$work/piped"
 status=0
 # shellcheck disable=SC2002 # the point is a pipe, as in curl ... | sh
-cat "$installer" | env -u BENCHMANIA_HOME -u BENCHMANIA_BIN -u BENCHMANIA_REF -u XDG_DATA_HOME -u BENCHCORE_ROOT \
-    HOME="$work/piped" BENCHMANIA_REPO="$repo_url" "$sh_bin" >"$work/out" 2>&1 || status=$?
+cat "$installer" | clean_env piped "$sh_bin" >"$work/out" 2>&1 || status=$?
 check "piped install exits 0" [ "$status" -eq 0 ]
 check "piped install writes the launcher" [ -x "$(launcher_of piped)" ]
 (cd "$work/elsewhere" && "$(launcher_of piped)" --version) >"$work/out" 2>&1 || true
 check "piped install: launcher works" contains "Benchmania engine"
+
+# --- A download that ends inside the last line, after the function's name, runs nothing ----------------------
+status=0
+# shellcheck disable=SC2016 # the text of the script's last line, cut before its closing brace
+{ sed '$d' "$installer" && printf '%s' '{ benchmania_install "$@";'; } | clean_env truncated "$sh_bin" >"$work/out" 2>&1 || status=$?
+check "truncated download: exits non-zero" [ "$status" -ne 0 ]
+check "truncated download: nothing installed" [ ! -e "$work/truncated/.local" ]
+check "the cut is where the test assumes: the last line calls the function inside braces" \
+    [ "$(tail -n 1 "$installer")" = '{ benchmania_install "$@"; }' ]
 
 # --- A required tool is missing (simulated with PATH) -------------------------------------------------------
 mkdir -p "$work/oldpy/bin"

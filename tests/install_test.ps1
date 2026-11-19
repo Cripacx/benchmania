@@ -239,7 +239,7 @@ try {
     # --- cmd.exe syntax in a path setting is refused instead of creating a directory named %USERPROFILE% ------
     RunInstaller percent @{ BENCHMANIA_BIN = '%USERPROFILE%\tools' }
     Check 'percent sign in BENCHMANIA_BIN: exits non-zero' { $status -ne 0 }
-    Check 'percent sign in BENCHMANIA_BIN: explains' { Contains 'BENCHMANIA_BIN contains a % sign' }
+    Check 'percent sign in BENCHMANIA_BIN: explains' { Contains '%USERPROFILE%\tools contains a % sign or a semicolon' }
     Check 'percent sign in BENCHMANIA_BIN: nothing installed' { -not (Test-Path -LiteralPath (HomeOf percent)) }
 
     # --- Refusal when the launcher path holds a foreign file -----------------------------------------------------

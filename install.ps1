@@ -179,9 +179,18 @@
             $key.SetValue('Path', $value, $kind)
         } finally { $key.Close() }
         # Setting a user variable through .NET broadcasts WM_SETTINGCHANGE ("Environment"), so that Explorer and
-        # new terminals see the new Path. Removing a variable that does not exist changes nothing else.
-        [Environment]::SetEnvironmentVariable('BENCHMANIA_INSTALLER_NOTIFY', $null, 'User')
+        # new terminals see the new Path. Removing a variable that does not exist (the name is random) changes
+        # nothing else.
+        [Environment]::SetEnvironmentVariable('BENCHMANIA_NOTIFY_' + [guid]::NewGuid().ToString('N'), $null, 'User')
         $true
+    }
+
+    # Stops if the launcher path holds a file that this installer did not write.
+    function CheckLauncher {
+        if ((Test-Path -LiteralPath $launcher) -and -not (IsOurs $launcher)) {
+            Die "$launcher already exists and was not written by this installer." @(
+                'Remove or rename it, or choose another directory with BENCHMANIA_BIN, then run the installer again.')
+        }
     }
 
     function Install {
@@ -192,16 +201,16 @@
         $repo = $(if ($env:BENCHMANIA_REPO) { $env:BENCHMANIA_REPO } else { 'https://github.com/Cripacx/benchmania' })
         $ref = "$env:BENCHMANIA_REF"
         if (-not $env:LOCALAPPDATA -or -not $env:USERPROFILE) { Die 'LOCALAPPDATA and USERPROFILE must be set.' }
-        # %NAME% is cmd.exe syntax: PowerShell would create a directory with that literal name, and Windows
-        # would expand it again in the user Path.
-        foreach ($name in 'BENCHMANIA_HOME', 'BENCHMANIA_BIN') {
-            if ("$([Environment]::GetEnvironmentVariable($name))".Contains('%')) {
-                Die "$name contains a % sign; PowerShell does not expand %NAME%." @("Write `$env:NAME instead, for example: `$env:$name = `"`$env:USERPROFILE\tools`"")
-            }
-        }
         $checkout = FullPath $(if ($env:BENCHMANIA_HOME) { $env:BENCHMANIA_HOME } else { Join-Path $env:LOCALAPPDATA 'benchmania' })
         $bin = FullPath $(if ($env:BENCHMANIA_BIN) { $env:BENCHMANIA_BIN } else { Join-Path $env:USERPROFILE '.local\bin' })
         $launcher = Join-Path $bin 'benchmania.cmd'
+        # %NAME% is cmd.exe syntax: PowerShell would create a directory with that literal name, and in the user
+        # Path Windows would expand it again; a semicolon would split the Path entry in two.
+        foreach ($p in $checkout, $bin) {
+            if ($p -match '[%;]') {
+                Die "the path $p contains a % sign or a semicolon." @("PowerShell does not expand %NAME%. Write `$env:NAME instead, for example: `$env:BENCHMANIA_BIN = `"`$env:USERPROFILE\tools`"")
+            }
+        }
 
         # --- Requirements ---------------------------------------------------------------------------------
         $gitCmd = Get-Command git -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
@@ -218,10 +227,7 @@
         }
 
         # --- Refuse to overwrite a file that is not ours, before doing any work --------------------------
-        if ((Test-Path -LiteralPath $launcher) -and -not (IsOurs $launcher)) {
-            Die "$launcher already exists and was not written by this installer." @(
-                'Remove or rename it, or choose another directory with BENCHMANIA_BIN, then run the installer again.')
-        }
+        CheckLauncher
 
         # --- Install or update the checkout ----------------------------------------------------------------
         if (Test-Path -LiteralPath (Join-Path $checkout '.git')) {
@@ -257,6 +263,7 @@
             Die "the path $wrapper or $($py.Exe) cannot be written in a cmd.exe launcher (code page $($oem.CodePage))." @(
                 'Choose a checkout directory with plain ASCII characters with BENCHMANIA_HOME.')
         }
+        CheckLauncher # again: cloning or updating must not have put a file of the checkout at this path
         $tmp = "$launcher.tmp." + [guid]::NewGuid().ToString('N')
         [System.IO.File]::WriteAllBytes($tmp, $oem.GetBytes($text))
         Move-Item -LiteralPath $tmp -Destination $launcher -Force
