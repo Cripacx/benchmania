@@ -6,6 +6,7 @@
 import { formatNumber, hasInterval, isNum, MINUS, UNIT_SPACE } from './format';
 import type {
   Better,
+  DeclaredComparison,
   DerivedDefinition,
   DomainData,
   Flag,
@@ -91,9 +92,75 @@ export function measuredVersions(domain: DomainData, id: string, run?: Run): Rec
   return implementation(domain, id, run).versions ?? {};
 }
 
-/** "C# · ASP.NET Core 10 LTS (Native AOT)" */
-export function implLabel(impl: Pick<Implementation, 'name' | 'variant'>): string {
-  return impl.variant ? `${impl.name} (${impl.variant})` : impl.name;
+/** "Language · Framework · Variant": the one way a name and its variant read as text. */
+export function implLabel(impl: { name: string; variant?: string | null }): string {
+  return impl.variant ? `${impl.name} · ${impl.variant}` : impl.name;
+}
+
+/** Implementation fields every page already shows; anything else in a manifest is domain-specific. */
+const KNOWN_IMPL_KEYS = new Set([
+  'id', 'name', 'language', 'category', 'runtime', 'framework', 'variant', 'description', 'notes', 'maintainers',
+  'versions', 'versions_note', 'source',
+]);
+
+export interface DetailRow {
+  label: string;
+  /** `code` for commands and argument lists, `link` for URLs. */
+  kind: 'text' | 'code' | 'link';
+  value: string;
+  /** For a command mode: the scenarios that run it. */
+  scenarios?: string[];
+}
+
+export interface ManifestDetail {
+  key: string;
+  title: string;
+  rows: DetailRow[];
+}
+
+function isPlainObject(v: unknown): v is Record<string, unknown> {
+  return !!v && typeof v === 'object' && !Array.isArray(v);
+}
+
+function isStringList(v: unknown): v is string[] {
+  return Array.isArray(v) && v.every((x) => typeof x === 'string');
+}
+
+/**
+ * Domain-specific tables of an implementation manifest (e.g. how a compiler is invoked), as rows a page can show
+ * without knowing the domain. Taken from the manifest the run recorded when there is one (what was measured), else
+ * the current one. A table with a `command` list and `modes` of argument lists reads as one full command per mode,
+ * labelled with the scenarios whose `params.mode` names it; empty values are left out.
+ */
+export function manifestDetails(domain: Pick<DomainData, 'implementations' | 'scenarios'>, id: string, run?: Run): ManifestDetail[] {
+  const snap = run?.implementations?.[id]?.manifest;
+  const source: Record<string, unknown> = isPlainObject(snap) && Object.keys(snap).length ? snap : (domain.implementations.find((i) => i.id === id) ?? {});
+  const out: ManifestDetail[] = [];
+  for (const [key, table] of Object.entries(source)) {
+    if (KNOWN_IMPL_KEYS.has(key) || !isPlainObject(table)) continue;
+    const rows: DetailRow[] = [];
+    const command = isStringList(table.command) ? table.command : null;
+    const modes = command && isPlainObject(table.modes) ? table.modes : null;
+    const push = (label: string, v: unknown) => {
+      if (typeof v === 'string' && v) rows.push({ label, kind: /^https?:\/\//.test(v) ? 'link' : 'text', value: v });
+      else if (typeof v === 'number' || typeof v === 'boolean') rows.push({ label, kind: 'text', value: String(v) });
+      else if (isStringList(v) && v.length) rows.push({ label, kind: 'code', value: v.join(' ') });
+      else if (isPlainObject(v)) for (const [k, x] of Object.entries(v)) push(`${label} ${k.replace(/_/g, ' ')}`, x);
+    };
+    for (const [k, v] of Object.entries(table)) {
+      if (modes && (k === 'command' || k === 'modes')) continue;
+      push(k.replace(/_/g, ' '), v);
+    }
+    if (command && modes) {
+      for (const [mode, args] of Object.entries(modes)) {
+        if (!isStringList(args)) continue;
+        const scenarios = domain.scenarios.filter((s) => (s.params as Record<string, unknown> | undefined)?.mode === mode).map((s) => s.title);
+        rows.push({ label: mode.replace(/_/g, ' '), kind: 'code', value: [...command, ...args].join(' '), scenarios });
+      }
+    } else if (command) rows.push({ label: 'command', kind: 'code', value: command.join(' ') });
+    if (rows.length) out.push({ key, title: capitalize(key.replace(/_/g, ' ')), rows });
+  }
+  return out;
 }
 
 /* ----------------------------------------------------------------------------------------------
@@ -146,6 +213,31 @@ export function rankMap(entries: Array<{ id: string; value: number | null | unde
   return ranks;
 }
 
+export interface HeadlineLeader {
+  metric: Metric;
+  /** The value of the leaders (all share it), or null when nobody is ranked. */
+  best: Value | null;
+  /** Implementations ranked first (ties: several), in run order. */
+  winners: string[];
+  /** How many implementations of the run have a value for this entry. */
+  measured: number;
+}
+
+/** Who leads one headline entry in a run: the implementations ranked first and their value. */
+export function headlineLeader(domain: Pick<DomainData, 'metrics' | 'implementations'>, run: Run, entry: HeadlineEntry): HeadlineLeader {
+  const metric = metricOrFallback(domain.metrics, entry.metric);
+  const ids = runImplementationIds(domain, run);
+  const values = ids.map((id) => ({ id, value: headlineValue(run, entry, id)?.m ?? null }));
+  const ranks = rankMap(values, metric.better);
+  const winners = ids.filter((id) => ranks.get(id) === 1);
+  return {
+    metric,
+    best: winners[0] ? headlineValue(run, entry, winners[0]) : null,
+    winners,
+    measured: values.filter((v) => v.value !== null).length,
+  };
+}
+
 /** Ids sorted best-first by a value accessor; ties keep the input order. */
 export function sortIdsBy(ids: string[], value: (id: string) => number | null | undefined, better: Better): string[] {
   return ids
@@ -182,14 +274,20 @@ export function metricOrFallback(metrics: Record<string, Metric>, id: string): M
 }
 
 type MetricRegistry = Record<string, Metric>;
-type RunValues = Pick<Run, 'results' | 'derived'>;
+type RunValues = Pick<Run, 'results' | 'derived'> & Partial<Pick<Run, 'withheld'>>;
 
-/** Metric ids with at least one value in a scenario of a run (null scenario = derived), registry order. */
+/**
+ * Metric ids with at least one value in a scenario of a run (null scenario = derived), registry order. A derived
+ * metric that the publisher withheld counts as well (for everybody, in the worst case): it is shown with its
+ * reason, never dropped as if it had not been measured.
+ */
 export function measuredMetricIds(metrics: MetricRegistry, run: RunValues, scenario: string | null): string[] {
   const found = new Set<string>();
   if (!scenario) {
     for (const values of Object.values(run.derived ?? {}))
       for (const [k, v] of Object.entries(values ?? {})) if (isNum(v)) found.add(k);
+    for (const reasons of Object.values(run.withheld ?? {}))
+      for (const [k, why] of Object.entries(reasons ?? {})) if (typeof why === 'string' && why) found.add(k);
   } else {
     for (const scen of Object.values(run.results ?? {}))
       for (const [k, v] of Object.entries(scen?.[scenario] ?? {})) if (isStat(v)) found.add(k);
@@ -207,12 +305,11 @@ export function byVisibility(metrics: MetricRegistry, ids: string[]): Record<Vis
   return out;
 }
 
-/** Every metric id that has a value anywhere in the run (results or derived). */
+/** Every metric id that has a value anywhere in the run (results or derived), or a derived value withheld with a reason. */
 export function metricIdsInRun(run: RunValues): Set<string> {
-  const ids = new Set<string>();
+  const ids = new Set<string>(measuredMetricIds({}, run, null));
   for (const scen of Object.values(run.results ?? {}))
     for (const metrics of Object.values(scen ?? {})) for (const [k, v] of Object.entries(metrics ?? {})) if (isStat(v)) ids.add(k);
-  for (const values of Object.values(run.derived ?? {})) for (const [k, v] of Object.entries(values ?? {})) if (isNum(v)) ids.add(k);
   return ids;
 }
 
@@ -238,6 +335,7 @@ export function measuredScenarios(domain: DomainData, run: Run): Scenario[] {
 /** Display order of metric groups; unknown groups follow in first-seen order. */
 export const GROUP_ORDER = [
   'summary',
+  'time',
   'throughput',
   'latency',
   'cpu',
@@ -290,6 +388,7 @@ export function displayOrder(metrics: MetricRegistry, ids: string[]): string[] {
 
 const GROUP_LABELS: Record<string, string> = {
   summary: 'Summary',
+  time: 'Time',
   throughput: 'Throughput',
   latency: 'Latency',
   cpu: 'CPU',
@@ -321,17 +420,84 @@ export function derivedExplanation(domain: Pick<DomainData, 'derived' | 'metrics
     def.scenarios === '*'
       ? 'any scenario'
       : def.scenarios.map((s) => domain.scenarios.find((x) => x.id === s)?.title ?? s).join(', ');
-  if (def.kind === 'geomean_relative')
-    return `Geometric mean of “${source}” over ${titles}, each relative to the best implementation in that scenario (best = 100). Only an implementation that is best in every one of them reaches 100, and only implementations with a usable result in every one of them get an index.`;
+  if (def.kind === 'geomean_relative') {
+    // The direction of publish.derive: the best is the highest value of a higher-is-better metric, else the lowest,
+    // and the ratio is always arranged so that the best implementation scores 1.
+    const higher = domain.metrics[def.metric]?.better === 'higher';
+    const ratio = higher
+      ? `this implementation's “${source}” divided by the best (highest) one`
+      : `the best (lowest) “${source}” divided by this implementation's`;
+    const where = def.scenarios === '*' ? 'In every scenario' : `In each of the declared scenarios (${titles})`;
+    return `${where}: ${ratio}, the best being taken among the implementations that have an index. The index is the geometric mean of those ratios times 100, so 100 means best in every one of them. Only implementations with a usable result in every one of them get an index, and only they are compared with each other, so another set of implementations can change it. A scenario in which the best value is zero is left out for everybody; the scale above the values counts the scenarios this run's index was computed over.`;
+  }
   if (def.kind === 'max') return `Highest median “${source}” in ${titles}.`;
   return `${capitalize(def.kind.replace(/_/g, ' '))} of “${source}” over ${titles}.`;
 }
 
-/** Short scale of a relative index for column heads: "100 = best in all 6 scenarios". */
-export function derivedScale(domain: { derived?: DerivedDefinition[] }, metricId: string): string | null {
+/**
+ * Short scale of a relative index in one run for column heads: "100 = best in all 6 scenarios". The count is that of
+ * the scenarios the publisher computed the index over (`run.best`), never the declared list, so it cannot be wrong;
+ * a run in which nobody has the index gets no scale.
+ */
+export function derivedScale(domain: { derived?: DerivedDefinition[] }, metricId: string, run: Pick<Run, 'best'>): string | null {
   const def = (domain.derived ?? []).find((d) => d.id === metricId);
   if (def?.kind !== 'geomean_relative') return null;
-  return def.scenarios === '*' ? '100 = best in every scenario' : `100 = best in all ${def.scenarios.length} scenarios`;
+  const n = Object.keys(run.best?.[metricId] ?? {}).length;
+  if (!n) return null;
+  return n === 1 ? '100 = best in its one scenario' : `100 = best in all ${n} scenarios`;
+}
+
+/** Every relative index of a run with its scale (see derivedScale), for islands that only get the run's values. */
+export function derivedScales(domain: { derived?: DerivedDefinition[] }, run: Pick<Run, 'best'>): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const d of domain.derived ?? []) {
+    const scale = derivedScale(domain, d.id, run);
+    if (scale) out[d.id] = scale;
+  }
+  return out;
+}
+
+/**
+ * The publisher's reasons for withholding a derived metric, as visible sentences: one per reason, naming the
+ * implementations (in the given order) it applies to, or "any implementation" when `ids` are all implementations of
+ * the run (`wholeRun`) and it applies to every one of them; a selection is always named.
+ * With `label` (the index's name) a line starts "Throughput index: no index for …". Empty when nothing is withheld. Hover titles do not reach touch screens; these lines do.
+ */
+export function withheldLines(
+  run: Pick<Run, 'withheld'>,
+  ids: string[],
+  metric: string,
+  nameOf: (id: string) => string,
+  label?: string,
+  wholeRun = false,
+): string[] {
+  const groups = new Map<string, string[]>();
+  for (const id of ids) {
+    const why = run.withheld?.[id]?.[metric];
+    if (typeof why === 'string' && why) groups.set(why, [...(groups.get(why) ?? []), id]);
+  }
+  return [...groups].map(([why, who]) => {
+    const whom = wholeRun && who.length === ids.length && ids.length > 1 ? 'any implementation' : listNames(who.map(nameOf));
+    return `${label ? `${label}: no index` : 'No index'} for ${whom}. ${why}.`;
+  });
+}
+
+/**
+ * One sentence for a card whose derived headline value nobody has: the publisher's reason when all implementations
+ * share it, otherwise a pointer to the per-implementation reasons. Null when nothing was withheld (the metric was
+ * not measured in the run, which the card says itself) or for a scenario metric.
+ */
+export function noIndexSentence(run: Pick<Run, 'withheld'>, ids: string[], entry: HeadlineEntry): string | null {
+  if (entry.scenario) return null;
+  const reasons = ids.map((id) => run.withheld?.[id]?.[entry.metric]);
+  if (!reasons.some((r) => typeof r === 'string' && r)) return null;
+  const first = reasons[0];
+  if (typeof first === 'string' && first && reasons.every((r) => r === first)) return `No implementation has an index in this run. ${first}.`;
+  return 'No implementation has an index in this run; the results give the reason for each.';
+}
+
+function listNames(names: string[]): string {
+  return names.length <= 1 ? (names[0] ?? '') : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
 }
 
 const KIND_LABELS: Record<string, string> = {
@@ -361,6 +527,7 @@ export function scenarioParams(scenario: Scenario, all: Scenario[] = []): string
   if (typeof p.path === 'string') out.push(`${typeof p.method === 'string' ? p.method : 'GET'} ${p.path}`);
   if (isNum(p.rate)) out.push(`${formatNumber(p.rate, 0)} req/s fixed`);
   if (isNum(p.connections)) out.push(`${formatNumber(p.connections, 0)} connections`);
+  if (isNum(p.cpus)) out.push(p.cpus === 1 ? 'one core' : `${formatNumber(p.cpus, 0)} cores`);
   if (isNum(p.slices) && typeof p.slice_duration === 'string') out.push(`${formatNumber(p.slices, 0)} × ${p.slice_duration}`);
   else if (typeof p.duration === 'string') out.push(`${p.duration} measured`);
   const work = workText(p.work);
@@ -405,6 +572,16 @@ export function categories(impls: Implementation[]): string[] {
   const known = CATEGORY_ORDER.filter((c) => present.has(c));
   const unknown = [...present].filter((c) => !CATEGORY_ORDER.includes(c)).sort();
   return [...known, ...unknown];
+}
+
+/** How a domain's status reads next to its numbers; null for a stable domain. */
+export function domainStatus(status: string | undefined): { label: string; description: string } | null {
+  if (status === 'experimental')
+    return {
+      label: 'Experimental',
+      description: 'An experimental domain: its workloads and methodology may still change, and its results are less settled than those of a stable domain.',
+    };
+  return null;
 }
 
 export interface ProvenanceInfo {
@@ -483,6 +660,21 @@ export function communityRunsNote(status: Pick<CommunityStatus, 'community' | 'c
   const runs = `${status.community} community ${status.community === 1 ? 'run' : 'runs'}`;
   const machines = `${status.communityMachines} ${status.communityMachines === 1 ? 'machine' : 'machines'}`;
   return `${runs} from ${machines} so far.`;
+}
+
+/** True when the machine fingerprint names a hypervisor ("none" is bare metal; an unrecorded value is not a claim). */
+export function isVirtualMachine(machine: Pick<Machine, 'virtualization'> | undefined): boolean {
+  const v = machine?.virtualization;
+  return typeof v === 'string' && v !== '' && v !== 'none';
+}
+
+/**
+ * The machine's name up to its first detail ("Intel Xeon W-2133" of "Intel Xeon W-2133 · 6 cores / 12 threads",
+ * "Boat sandbox" of "Boat sandbox (cloud VM, 8 vCPU)"), for places as narrow as a select on a phone.
+ */
+export function machineShortName(machine: Machine | undefined, fallbackId = ''): string {
+  const name = machineName(machine, fallbackId);
+  return name.split(/ · | \(/)[0]!.trim() || name;
 }
 
 /** Human-readable machine name: the reference label if the machine is a reference machine. */
@@ -730,21 +922,34 @@ export function assessDiff(diff: RelativeDiff, a: Value | null, b: Value | null)
   };
 }
 
+export interface Suggestion {
+  title: string;
+  ids: string[];
+  /** What is compared and how fair it is; only comparisons the domain declares have one. */
+  note: string | null;
+}
+
 /**
- * Suggested comparisons from the data: variants built from the same source, and implementations
- * that share a runtime. Each suggestion has 2–`max` members.
+ * Suggested comparisons. A domain that declares them (`domain.compare`) gets those, in its order, limited to the
+ * given ids. Otherwise they come from the data: variants built from the same source and implementations that share
+ * a runtime. Each suggestion has 2–`max` members and appears once.
  */
-export function suggestedComparisons(domain: DomainData, ids: string[], max = 4): Array<{ title: string; ids: string[] }> {
+export function suggestedComparisons(domain: DomainData, ids: string[], max = 4): Suggestion[] {
   const impls = ids.map((id) => implementation(domain, id));
-  const out: Array<{ title: string; ids: string[] }> = [];
+  const out: Suggestion[] = [];
   const seen = new Set<string>();
-  const add = (title: string, members: Implementation[]) => {
+  const add = (title: string, members: Array<Pick<Implementation, 'id'>>, note: string | null = null) => {
     const list = members.slice(0, max).map((m) => m.id);
     const key = [...list].sort().join(',');
     if (list.length < 2 || seen.has(key)) return;
     seen.add(key);
-    out.push({ title, ids: list });
+    out.push({ title, ids: list, note });
   };
+  // A domain that declares its comparisons has said what is worth comparing; the guesses below are for the others.
+  if (domain.domain.compare?.length) {
+    for (const s of declaredSuggestions(domain, ids, max)) add(s.title, s.ids.map((id) => ({ id })), s.note);
+    return out;
+  }
   const bySource = new Map<string, Implementation[]>();
   for (const i of impls) if (i.source) bySource.set(i.source, [...(bySource.get(i.source) ?? []), i]);
   for (const members of bySource.values()) {
@@ -759,6 +964,35 @@ export function suggestedComparisons(domain: DomainData, ids: string[], max = 4)
     add(`${runtime}: ${members.map((m) => m.framework ?? m.name).join(' vs ')}`, members);
   }
   return out;
+}
+
+/**
+ * The comparisons the domain declares (`domain.compare`) whose every member is among the given ids. Title and note
+ * describe exactly the declared members, so a comparison with a member missing from the run is not offered at all
+ * (never a smaller comparison under a title and note written for more).
+ */
+export function declaredSuggestions(domain: Pick<DomainData, 'domain'>, ids: string[], max = 4): Suggestion[] {
+  const present = new Set(ids);
+  return (domain.domain.compare ?? [])
+    .filter((c) => c.ids.length >= 2 && c.ids.length <= max && c.ids.every((id) => present.has(id)))
+    .map((c) => ({ title: c.title, ids: [...c.ids], note: c.note ?? null }));
+}
+
+/** The comparison the domain declares for exactly this selection (any order), or null. */
+export function declaredComparison(domain: Pick<DomainData, 'domain'>, ids: string[]): DeclaredComparison | null {
+  const key = [...ids].sort().join(',');
+  return (domain.domain.compare ?? []).find((c) => [...c.ids].sort().join(',') === key) ?? null;
+}
+
+/**
+ * The first clause of a domain's ranking note ("Mixed TypeScript revisions"), for a ranking that stands far from
+ * the full note; the whole note when it has a single clause. A period only ends a clause before a space, so
+ * version numbers stay intact.
+ */
+export function rankingNoteShort(note: string | undefined): string {
+  const text = (note ?? '').trim();
+  const m = /^(.+?)[:;.](?:\s|$)/.exec(text);
+  return m ? m[1]!.trim() : text;
 }
 
 /* ----------------------------------------------------------------------------------------------

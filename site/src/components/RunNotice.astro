@@ -1,12 +1,13 @@
 ---
 /**
- * Honest caveats for a run: preliminary methodology, too few passes for intervals, metrics that were not measured,
- * run-level quality flags. Renders nothing for a clean multi-pass run.
+ * Honest caveats for a run: an experimental domain, a run on a virtual machine, preliminary methodology, too few
+ * passes for intervals, metrics that were not measured, run-level quality flags. Renders nothing for a clean
+ * multi-pass run of a stable domain on dedicated hardware.
  */
 import Icon from './Icon.astro';
 import { MIN_CI_PASSES, plural } from '../lib/format';
 import { methodologyInfo } from '../lib/methodology';
-import { runLevelFlags, unmeasuredMetrics } from '../lib/model';
+import { isVirtualMachine, machineName, runLevelFlags, unmeasuredMetrics } from '../lib/model';
 import { href, routes } from '../lib/paths';
 import type { DomainData, Run } from '../lib/types';
 
@@ -17,12 +18,16 @@ interface Props {
 }
 
 const { domain, run, compact = false } = Astro.props;
-const method = methodologyInfo(run.methodology);
+const method = methodologyInfo(run.methodology, domain.domain);
+const experimental = domain.domain.status === 'experimental';
+const onlyRun = domain.runs.length === 1;
+const vm = isVirtualMachine(domain.machines[run.machine]);
+const spread = (run.flags ?? []).some((f) => f.level === 'info' && !!f.metric);
 const missing = unmeasuredMetrics(domain, run);
 const runFlags = runLevelFlags(run);
 const fewPasses = run.passes < MIN_CI_PASSES;
 const passText = run.passes === 1 ? 'a single pass' : `only ${plural(run.passes, 'pass', 'passes')}`;
-const show = method.preliminary || fewPasses || missing.length > 0 || runFlags.length > 0;
+const show = experimental || vm || method.preliminary || fewPasses || missing.length > 0 || runFlags.length > 0;
 const warn = method.preliminary || fewPasses || runFlags.some((f) => f.level !== 'info');
 const missingText = missing.map((m) => m.label).join(', ');
 ---
@@ -32,6 +37,21 @@ const missingText = missing.map((m) => m.label).join(', ');
     <div class={`notice ${warn ? 'notice-warning' : 'notice-info'} run-notice`} role="note">
       <Icon name={warn ? 'alert' : 'info'} />
       <div>
+        {(experimental || vm) && (
+          <p class="run-status">
+            {experimental && (
+              <>
+                <strong>Experimental domain.</strong>{' '}
+                {`Its workloads and methodology may still change${onlyRun ? ', and this is its only published run' : ''}. `}
+              </>
+            )}
+            {vm && (
+              <>
+                {`Measured on a virtual machine, ${machineName(domain.machines[run.machine], run.machine)}, where other workloads on the same host can disturb a pass: read the intervals${spread ? ', and the notes on values whose passes spread widely' : ''}.`}
+              </>
+            )}
+          </p>
+        )}
         {method.preliminary ? (
           <p>
             <strong>Preliminary numbers.</strong> Measured with the{' '}
@@ -54,7 +74,7 @@ const missingText = missing.map((m) => m.label).join(', ');
         {method.preliminary && !compact && (
           <details class="disclosure notice-more">
             <summary>What this run measured</summary>
-            <p>{method.summary}</p>
+            {method.summary && <p>{method.summary}</p>}
             {run.options?.note && <p class="muted">Run note: {run.options.note}</p>}
           </details>
         )}
@@ -80,6 +100,9 @@ const missingText = missing.map((m) => m.label).join(', ');
   .notice-more p {
     margin-top: 6px;
     font-size: 0.875rem;
+  }
+  .run-status + p {
+    margin-top: 6px;
   }
   .run-notice p + .run-flags {
     margin-top: 8px;

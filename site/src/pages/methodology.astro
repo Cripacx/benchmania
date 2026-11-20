@@ -5,13 +5,15 @@ import CpuLayout from '../components/CpuLayout.astro';
 import Icon from '../components/Icon.astro';
 import { allDomains, getProject } from '../lib/dataset';
 import { betterText, plural } from '../lib/format';
-import { knownMethodologies, methodologyInfo } from '../lib/methodology';
+import { domainMethodologies } from '../lib/methodology';
 import {
   defaultRun,
   derivedExplanation,
+  domainStatus,
   groupLabel,
   machineName,
   metricGroups,
+  metricOrFallback,
   repoUrl,
   scenarioKindLabel,
   scenarioParams,
@@ -21,10 +23,7 @@ import { href, routes } from '../lib/paths';
 
 const project = getProject();
 const domains = allDomains();
-const versions = knownMethodologies();
-const runsByVersion = new Map<string, number>();
-for (const d of domains) for (const r of d.runs) runsByVersion.set(r.methodology ?? '', (runsByVersion.get(r.methodology ?? '') ?? 0) + 1);
-const extraVersions = [...runsByVersion.keys()].filter((v) => !versions.some((k) => k.version === v)).map((v) => methodologyInfo(v));
+const several = domains.length > 1;
 
 const toc = [
   { id: 'goals', label: 'Goals' },
@@ -51,21 +50,40 @@ const serviceText = (service: Record<string, unknown> | undefined) => {
   }
   return out;
 };
+
+// The metric whose spread between passes is noted: the one behind each domain's first relative index (as the publisher does).
+const spreadLabels = domains.flatMap((d) => {
+  const index = (d.derived ?? []).find((x) => x.kind === 'geomean_relative');
+  return index ? [metricOrFallback(d.metrics, index.metric).label.toLowerCase()] : [];
+});
+const spreadText = [...new Set(spreadLabels)].join(' or ');
+const indexDomains = domains.filter((d) => (d.derived ?? []).some((x) => x.kind === 'geomean_relative'));
 ---
 
-<BaseLayout title="Methodology" description="How results are produced, summarized and checked, and how to read them." section="methodology">
+<BaseLayout
+  title="Methodology"
+  description={`How results are produced, summarized and checked in ${plural(domains.length, 'benchmark domain')}, and how to read them.`}
+  section="methodology"
+>
   <div class="container">
     <header class="page-head">
       <Breadcrumbs items={[{ label: 'Home', path: routes.home() }, { label: 'Methodology' }]} />
       <h1>Methodology</h1>
       <p class="lead">
-        How every number on this site is produced, summarized and checked. The full reference lives in the repository; this
-        page combines it with the parameters recorded in the published data.
+        How every number on this site is produced, summarized and checked. The engine's rules hold for every domain; what a
+        domain measures and checks comes from that domain and is marked with its name. Each domain's full reference lives
+        in the repository.
       </p>
       <div class="head-links">
-        <a class="btn btn-secondary btn-sm" href={repoUrl(project, 'docs/methodology.md', 'blob')}>
-          <Icon name="book" /> Methodology document
-        </a>
+        {
+          domains.map((d) =>
+            d.domain.methodology?.document ? (
+              <a class="btn btn-secondary btn-sm" href={repoUrl(project, d.domain.methodology.document, 'blob')}>
+                <Icon name="book" /> {several ? `Methodology: ${d.domain.title}` : 'Methodology document'}
+              </a>
+            ) : null,
+          )
+        }
         <a class="btn btn-ghost btn-sm" href={repoUrl(project, 'docs/architecture.md', 'blob')}>
           <Icon name="layers" /> Architecture
         </a>
@@ -85,12 +103,13 @@ const serviceText = (service: Record<string, unknown> | undefined) => {
           <h2>Goals</h2>
           <ol class="goals">
             <li>
-              <strong>Production-shaped conditions.</strong> Services run under the resource limits of a small production pod,
-              against a real database, with realistic request mixes, not only at saturation.
+              <strong>The same realistic workload for everyone.</strong> Within a domain every implementation gets the same
+              workload and the same inputs, shaped after real use, under the same resource limits. What is verified about the
+              work it does is up to the domain (its correctness checks, below).
             </li>
             <li>
-              <strong>Same work for everyone.</strong> Every implementation passes the same functional checks, and the work it
-              does per request is measured, not assumed.
+              <strong>Verified, not assumed.</strong> Every implementation passes the domain's correctness checks before it is
+              measured, and what it does during a measurement is checked as well.
             </li>
             <li>
               <strong>Transparent and reproducible.</strong> Every number comes with the machine, the exact versions, the
@@ -106,56 +125,90 @@ const serviceText = (service: Record<string, unknown> | undefined) => {
         <section id="environment" class="doc-section">
           <h2>Environment and resource limits</h2>
           <p>
-            Each implementation runs alone in its own container with fixed limits. Supporting services (the
-            <em>environment</em>, such as a database) and the load generator run in separate containers on separate cores.
-            All containers share one network namespace and talk over loopback, so no NAT or bridge sits in the request path.
+            Each implementation runs alone in its own container with fixed CPU and memory limits, pinned to the CPUs the
+            layout assigns it. What else a domain needs runs next to it: supporting services such as a database in their own
+            containers, the load generator and the benchmark runner as processes. Each is pinned to the CPUs of its role, and
+            when the machine has enough CPUs the layout keeps those apart from the implementation's (<a href="#layout">CPU
+            layout</a>, including what pinning does not control). What the limits are and what runs next to the
+            implementation is up to the domain:
           </p>
           {
-            domains.map((d) => (
-              <div class="card card-pad env-card">
-                <h3>{d.domain.title}</h3>
-                {d.domain.description && <p class="text-2">{d.domain.description}</p>}
-                <dl class="env-stats">
-                  {serviceText(d.domain.service).map(([k, v]) => (
+            domains.map((d) => {
+              const status = domainStatus(d.domain.status);
+              return (
+                <div class="card card-pad env-card" id={`domain-${d.domain.id}`}>
+                  <h3>
+                    {d.domain.title}
+                    {status && <span class="badge badge-warning env-status" title={status.description}>{status.label}</span>}
+                  </h3>
+                  {d.domain.description && <p class="text-2">{d.domain.description}</p>}
+                  <dl class="env-stats">
+                    {serviceText(d.domain.service).map(([k, v]) => (
+                      <div>
+                        <dt>{k}</dt>
+                        <dd>{v}</dd>
+                      </div>
+                    ))}
                     <div>
-                      <dt>{k}</dt>
-                      <dd>{v}</dd>
+                      <dt>Scenarios</dt>
+                      <dd>{d.scenarios.length}</dd>
                     </div>
-                  ))}
-                  <div>
-                    <dt>Scenarios</dt>
-                    <dd>{d.scenarios.length}</dd>
-                  </div>
-                  <div>
-                    <dt>Metrics</dt>
-                    <dd>{Object.keys(d.metrics).length}</dd>
-                  </div>
-                </dl>
-              </div>
-            ))
+                    <div>
+                      <dt>Metrics</dt>
+                      <dd>{Object.keys(d.metrics).length}</dd>
+                    </div>
+                  </dl>
+                  {d.domain.methodology?.document && (
+                    <p class="env-doc">
+                      <a href={repoUrl(project, d.domain.methodology.document, 'blob')}>
+                        Full methodology: {d.domain.title} <Icon name="arrowRight" class="inline-icon" />
+                      </a>
+                    </p>
+                  )}
+                </div>
+              );
+            })
           }
         </section>
 
         <section id="layout" class="doc-section">
           <h2>CPU layout</h2>
-          <p>The layout is computed from the machine's topology at the start of every run and stored with the results:</p>
+          <p>
+            The layout is computed from the CPUs the operating system reports at the start of every run and stored with the
+            results. It assigns CPUs to roles; containers are pinned to their role's CPUs with a Docker cpuset, the load
+            generator and the runner as processes (CPU affinity):
+          </p>
           <ol>
             <li>
-              The service gets one logical CPU per physical core for as many cores as its CPU limit. The SMT siblings of those
-              cores stay idle, so the service never shares a core's execution units with other work.
+              The implementation under test gets one logical CPU per physical core for as many cores as its CPU limit. The
+              benchmark assigns the SMT siblings of those cores to no role.
             </li>
             <li>
-              The remaining physical cores are split between the environment and the load generator; the load generator gets
-              the larger half because it must never be the bottleneck.
+              The remaining physical cores are split between the environment (supporting services such as a database) and the
+              load generator, which gets the larger half because it must never be the bottleneck. The benchmark runner itself
+              is pinned to the load generator's CPUs (process affinity), also in a domain without a load generator; CPUs of a
+              role a domain does not use are assigned to nothing.
             </li>
-            <li>On machines too small for this, roles share CPUs and the run carries a warning in its quality flags.</li>
+            <li>
+              On a machine with too few physical cores the implementation gets logical CPUs whose SMT siblings can belong to
+              other roles; with fewer CPUs than roles, all roles share all CPUs. Either way the run carries a warning in its
+              quality flags. A layout given by hand is marked as such.
+            </li>
           </ol>
+          <p>
+            <strong>What the layout does not control.</strong> Pinning decides which CPUs the benchmark's own containers and
+            processes run on; it does not reserve them. Other processes on the machine, kernel threads and interrupts can
+            still run on the same CPUs, and a CPU the layout does not assign is simply not used by the benchmark, not kept
+            idle. On a virtual machine the CPUs are virtual: which physical cores run them, whether two of them share a core
+            and what other guests run on the host is decided by the hypervisor and unknown to the benchmark. Runs on a virtual
+            machine are marked next to their numbers.
+          </p>
           {
             domains.map((d) => {
               const run = defaultRun(d);
               return run ? (
                 <figure class="card card-pad layout-card">
-                  <CpuLayout layout={run.layout} machine={d.machines[run.machine]} />
+                  <CpuLayout layout={run.layout} machine={d.machines[run.machine]} roleNames={d.domain.methodology?.roles} />
                   <figcaption class="muted">
                     {d.domain.title}, default run on {machineName(d.machines[run.machine], run.machine)}.
                   </figcaption>
@@ -168,9 +221,8 @@ const serviceText = (service: Record<string, unknown> | undefined) => {
         <section id="scenarios" class="doc-section">
           <h2>Scenarios</h2>
           <p>
-            Scenarios are declared as files in the repository; the list below comes straight from the dataset. Closed-loop
-            scenarios keep a fixed number of connections busy to find the maximum throughput; fixed-rate scenarios send the same
-            request rate to every implementation and measure latency with coordinated-omission correction.
+            Scenarios are declared as files in the repository, and the domain's harness runs each one according to its kind.
+            The lists below come straight from the dataset.
           </p>
           {
             domains.map((d) => (
@@ -214,24 +266,24 @@ const serviceText = (service: Record<string, unknown> | undefined) => {
         <section id="metrics" class="doc-section">
           <h2>Metrics</h2>
           <p>
-            The metric registry defines every value an implementation can be measured on: label, unit, which direction is
-            better and how prominently the site shows it. <span class="badge">primary</span> metrics are shown first,
-            <span class="badge">secondary</span> ones on request and <span class="badge">diagnostic</span> ones mainly explain
-            measurement quality.
+            Each domain has a metric registry that defines every value an implementation can be measured on: label, unit,
+            which direction is better and how prominently the site shows it. <span class="badge">primary</span> metrics are
+            shown first, <span class="badge">secondary</span> ones on request and <span class="badge">diagnostic</span> ones
+            mainly explain measurement quality.
           </p>
           {
             domains.map((d) => (
               <>
-                {domains.length > 1 && <h3>{d.domain.title}</h3>}
+                {several && <h3>{d.domain.title}</h3>}
                 {metricGroups(d).map(({ group, metrics }) => (
-                  <details class="metric-group" open={group === 'summary' || group === 'throughput' || group === 'latency'}>
+                  <details class="metric-group" open={metrics.some((m) => m.visibility === 'primary')}>
                     <summary>
                       <span>{groupLabel(group)}</span>
                       <span class="muted">{plural(metrics.length, 'metric')}</span>
                     </summary>
                     <dl class="metric-list">
                       {metrics.map((m) => (
-                        <div class="metric-item" id={`metric-${m.id}`}>
+                        <div class="metric-item" id={`metric-${d.domain.id}-${m.id}`}>
                           <dt>
                             <span class="m-label">{m.label}</span>
                             <span class="m-meta">
@@ -284,10 +336,10 @@ const serviceText = (service: Record<string, unknown> | undefined) => {
               </p>
             </div>
             <div class="card card-pad">
-              <h3>Outliers are flagged</h3>
+              <h3>Outliers and spread are flagged</h3>
               <p>
                 A pass whose value has a robust z-score above 3.5 (based on the median absolute deviation) is marked, never
-                silently removed. Throughput varying more than 10 % between passes is flagged too.
+                silently removed.{spreadText && ` When the ${spreadText} behind a domain's index varies more than 10 % between passes, the value carries a note.`}
               </p>
             </div>
             <div class="card card-pad">
@@ -300,14 +352,15 @@ const serviceText = (service: Record<string, unknown> | undefined) => {
             </div>
           </div>
           <p class="note">
-            Derived metrics such as the throughput index are computed from the medians of one run, so they carry no interval of
-            their own. Rankings count implementations with equal values as tied.
+            Derived metrics such as an index are computed from the medians of one run, so they carry no interval of their own.
+            Rankings count implementations with equal values as tied.
           </p>
         </section>
 
         <section id="quality" class="doc-section">
           <h2>Quality controls</h2>
-          <div class="table-wrap" tabindex="0" role="region" aria-label="Quality controls">
+          <p>In every domain:</p>
+          <div class="table-wrap" tabindex="0" role="region" aria-label="Quality controls in every domain">
             <table class="data">
               <thead>
                 <tr>
@@ -317,44 +370,57 @@ const serviceText = (service: Record<string, unknown> | undefined) => {
               </thead>
               <tbody>
                 <tr>
-                  <th scope="row">Functional checks before measuring: values, shapes, content types, persisted updates, totals, rejected invalid input</th>
+                  <th scope="row">The domain's correctness checks fail before measuring (see below)</th>
                   <td>Implementation is excluded from the run</td>
-                </tr>
-                <tr>
-                  <th scope="row">Database statements per request (pg_stat_statements) deviate more than 3 % from the scenario specification</th>
-                  <td>Result flagged</td>
-                </tr>
-                <tr>
-                  <th scope="row">Errors during a measurement (socket errors, timeouts, non-2xx/3xx)</th>
-                  <td>Result flagged with count and rate; failed requests never count as throughput</td>
-                </tr>
-                <tr>
-                  <th scope="row">More than 1 % failed requests, a throughput of zero or a missing result in one of the workloads behind an index</th>
-                  <td>No index for that implementation; its scenario results stay visible</td>
                 </tr>
                 <tr>
                   <th scope="row">The measurement of an implementation fails in a pass</th>
                   <td>Flagged as an error; that pass is missing from the number of passes (n) behind its values</td>
                 </tr>
+                {
+                  indexDomains.length > 0 && (
+                    <tr>
+                      <th scope="row">A missing or invalid result in one of the scenarios behind an index</th>
+                      <td>No index for that implementation; its scenario results stay visible</td>
+                    </tr>
+                  )
+                }
                 <tr>
-                  <th scope="row">Load generator CPU above 90 %</th>
-                  <td>Throughput flagged as a lower bound</td>
+                  <th scope="row">Hypervisor steal time above the project's limit (2 % by default) during a measurement</th>
+                  <td>Measurement repeated where the domain's harness can (up to twice by default), then flagged</td>
                 </tr>
                 <tr>
-                  <th scope="row">Hypervisor steal time above the limit (2 % by default)</th>
-                  <td>Measurement repeated (twice by default), then flagged</td>
-                </tr>
-                <tr>
-                  <th scope="row">Fixed-rate scenario reaches less than 97 % of the target rate</th>
-                  <td>Result flagged</td>
-                </tr>
-                <tr>
-                  <th scope="row">A result bundle's summary does not match its per-pass data, or the bundle is filed under the wrong machine or run id</th>
+                  <th scope="row">A result bundle's summary does not match its per-pass data, or the bundle is filed under the wrong domain, machine or run id</th>
                   <td>Rejected by CI; published numbers are always recomputed from the per-pass values</td>
                 </tr>
               </tbody>
             </table>
           </div>
+          {
+            domains
+              .filter((d) => (d.domain.methodology?.checks ?? []).length > 0)
+              .map((d) => (
+                <div class="table-wrap" tabindex="0" role="region" aria-label={`Quality controls: ${d.domain.title}`}>
+                  <table class="data">
+                    <caption>{d.domain.title}</caption>
+                    <thead>
+                      <tr>
+                        <th scope="col">Check</th>
+                        <th scope="col">Effect</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(d.domain.methodology?.checks ?? []).map((c) => (
+                        <tr>
+                          <th scope="row">{c.check}</th>
+                          <td>{c.effect}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ))
+          }
           <p class="note">
             Flags appear next to the affected value in the explorer, on implementation pages and on the run page.
           </p>
@@ -363,10 +429,11 @@ const serviceText = (service: Record<string, unknown> | undefined) => {
         <section id="machines" class="doc-section">
           <h2>Machines and provenance</h2>
           <p>
-            Absolute throughput depends heavily on the CPU, so the primary comparison is always <strong>within one run</strong>.
-            Across machines, relative indices and CPU time per request are more meaningful. Every run stores the machine
-            fingerprint (CPU model, cores, SMT, governor, turbo, memory, kernel, OS, virtualization, Docker version) and the CPU
-            layout. <a href={href(routes.machines())}>See all machines.</a>
+            Absolute numbers depend heavily on the CPU, so the primary comparison is always <strong>within one run</strong>.
+            Across machines, relative indices are more meaningful. Every run stores the machine fingerprint (CPU model, cores,
+            SMT, governor, turbo, memory, kernel, OS, virtualization, Docker version) and the CPU layout. Shared cloud machines
+            vary far more from pass to pass than dedicated hardware; the site says so next to their results.
+            <a href={href(routes.machines())}>See all machines.</a>
           </p>
           <div class="grid grid-2 prov">
             <div class="card card-pad">
@@ -388,51 +455,63 @@ const serviceText = (service: Record<string, unknown> | undefined) => {
 
         <section id="versions" class="doc-section">
           <h2>Methodology versions</h2>
-          <p>Every run records the methodology it was measured with. Older versions stay visible, clearly labelled.</p>
-          <div class="versions">
-            {
-              [...versions, ...extraVersions].map((v) => (
-                <div class="card card-pad version">
-                  <div class="version-head">
-                    <h3>{v.label}</h3>
-                    {v.preliminary ? (
-                      <span class="badge badge-warning">
-                        <Icon name="alert" /> Preliminary
-                      </span>
-                    ) : (
-                      <span class="badge badge-outline">Current</span>
-                    )}
-                  </div>
-                  <p>{v.summary}</p>
-                  <p class="muted small">
-                    {plural(runsByVersion.get(v.version) ?? 0, 'published run')} with this version.
-                  </p>
+          <p>
+            Every run records the methodology version of its domain; versions are numbered per domain. Older versions stay
+            visible, clearly labelled.
+          </p>
+          {
+            domains.map((d) => (
+              <>
+                {several && <h3>{d.domain.title}</h3>}
+                <div class="versions">
+                  {domainMethodologies(d.domain, d.runs.map((r) => r.methodology)).map((v) => {
+                    const runs = d.runs.filter((r) => (r.methodology ?? '') === v.version).length;
+                    return (
+                      <div class="card card-pad version">
+                        <div class="version-head">
+                          <h4>{v.label}</h4>
+                          {v.preliminary ? (
+                            <span class="badge badge-warning">
+                              <Icon name="alert" /> Preliminary
+                            </span>
+                          ) : (
+                            <span class="badge badge-outline">{runs > 0 ? 'In use' : 'Described'}</span>
+                          )}
+                        </div>
+                        <p>{v.summary ?? 'The domain does not describe this version yet; see its methodology document.'}</p>
+                        <p class="muted small">{plural(runs, 'published run')} with this version.</p>
+                      </div>
+                    );
+                  })}
                 </div>
-              ))
-            }
-          </div>
+              </>
+            ))
+          }
         </section>
 
         <section id="limitations" class="doc-section">
           <h2>Limitations</h2>
           <ul>
+            <li>Workloads are a sample. They are shaped after real use but cannot represent every application.</li>
             <li>
-              Start-up time includes <code>docker start</code>. The overhead is identical for every implementation but means the
-              numbers are not process start times.
+              Implementations are configured to be idiomatic, and configuration choices matter. They are documented on each
+              implementation page; better configurations are welcome as pull requests.
             </li>
-            <li>CPU package energy covers the whole package, including the database and the load generator; compare it within one run only.</li>
-            <li>Memory (PSS) is sampled once per second, so very short spikes can be missed. The cgroup's anonymous-memory peak complements it.</li>
-            <li>The load generator shares the machine. Its CPU use is measured and flagged when it could limit throughput.</li>
-            <li>
-              Implementations are written to be idiomatic, but configuration choices such as pool sizes and worker counts matter.
-              They are documented on each implementation page; better configurations are welcome as pull requests.
-            </li>
-            <li>
-              Categories matter: a bare server without a framework does less work than a full-stack framework. Compare like with
-              like.
-            </li>
-            <li>Workloads are synthetic. They are shaped after common production endpoints but cannot represent every application.</li>
           </ul>
+          {
+            domains
+              .filter((d) => (d.domain.methodology?.limitations ?? []).length > 0)
+              .map((d) => (
+                <>
+                  <h3>{d.domain.title}</h3>
+                  <ul>
+                    {(d.domain.methodology?.limitations ?? []).map((l) => (
+                      <li>{l}</li>
+                    ))}
+                  </ul>
+                </>
+              ))
+          }
         </section>
       </div>
     </div>
@@ -533,6 +612,20 @@ const serviceText = (service: Record<string, unknown> | undefined) => {
   .goals strong {
     color: var(--text);
   }
+  .env-status {
+    margin-left: 8px;
+    vertical-align: middle;
+  }
+  .env-doc {
+    margin-top: 12px;
+    font-size: 0.875rem;
+  }
+  .doc-section > h3 {
+    margin-top: 28px;
+  }
+  .version-head h4 {
+    font-size: 1rem;
+  }
   .env-card h3 {
     margin-bottom: 8px;
   }
@@ -571,6 +664,50 @@ const serviceText = (service: Record<string, unknown> | undefined) => {
   }
   .scen-table th[scope='row'] {
     min-width: 150px;
+  }
+  /* Phones: one block per scenario (title and kind, the description below), nothing cut off at the right edge. */
+  @media (max-width: 599px) {
+    .scen-table table,
+    .scen-table tbody,
+    .scen-table tr,
+    .scen-table caption {
+      display: block;
+    }
+    .scen-table thead {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+    }
+    .scen-table tr {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 4px 12px;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border);
+    }
+    .scen-table tr:last-child {
+      border-bottom: 0;
+    }
+    .scen-table caption {
+      padding: 10px 14px 0;
+    }
+    .scen-table td.nowrap {
+      font-size: 0.8125rem;
+      color: var(--muted);
+    }
+    .scen-table th[scope='row'],
+    .scen-table td {
+      display: block;
+      min-width: 0;
+      padding: 0;
+      border: 0;
+      white-space: normal;
+    }
+    .scen-table td:last-child {
+      grid-column: 1 / -1;
+    }
   }
   .id {
     display: block;

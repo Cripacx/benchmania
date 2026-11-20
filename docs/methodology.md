@@ -17,12 +17,18 @@ version **1** of the backend domain. Bundles carry their methodology version; th
 
 | Role | Resources | Notes |
 |---|---|---|
-| Service | 2 logical CPUs (one per physical core), 1 GiB memory, CPU quota 2.0 | SMT siblings of these cores stay idle |
+| Service | 2 logical CPUs (one per physical core), 1 GiB memory, CPU quota 2.0 | SMT siblings of these cores are assigned to no role |
 | PostgreSQL 18 | half of the remaining cores | `synchronous_commit=off`, `shared_buffers=256MB`, `pg_stat_statements` |
 | Load generator + runner | the other half | wrk (closed loop) and oha (open loop, latency corrected) |
 
 All containers share one network namespace and talk over loopback, so no NAT or bridge sits in the path and
 no host port is used. The CPU layout is computed from the machine's topology and stored in every result.
+The service and database containers are pinned to the CPUs of their role (`--cpuset-cpus`), the load
+generator (`taskset`) and the runner (process affinity) to the load generator's CPUs. Pinning decides where the benchmark's own work runs; it does not reserve those CPUs,
+so other processes, kernel threads and interrupts on the machine can still use them, and on a virtual machine
+the CPUs are virtual CPUs placed on physical cores by the hypervisor. On machines with too few physical cores
+the service gets logical CPUs whose SMT siblings belong to other roles, or all roles share all CPUs; the run
+then carries a warning.
 
 The database holds 10,000 rows with deterministic content. Before each implementation in each pass the
 harness restores that content, runs `VACUUM ANALYZE` and `CHECKPOINT` and resets `pg_stat_statements`, so

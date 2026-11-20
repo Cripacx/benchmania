@@ -16,6 +16,7 @@ import {
   intervalsOverlap,
   licenseUrl,
   machineName,
+  machineShortName,
   measuredMetricIds,
   metricGroups,
   metricValue,
@@ -146,6 +147,18 @@ describe('values and metrics', () => {
     expect(unmeasuredScenarios(d, run).map((s) => s.id)).toEqual(['s2']);
   });
 
+  it('does not call an index "not measured" when it was withheld for everybody', () => {
+    const withheld: Run = { ...run, derived: {}, withheld: { a: { idx: 'Throughput not measured in: s2' }, b: { idx: 'Throughput not measured in: s2' } } };
+    expect(unmeasuredMetrics(d, withheld).map((m) => m.id)).toEqual(['cpu']);
+    expect(unmeasuredMetrics(d, { ...run, derived: {} }).map((m) => m.id)).toEqual(['cpu', 'idx']);
+  });
+
+  it('shortens a machine name to what fits a select on a phone', () => {
+    expect(machineShortName(d.machines.m1)).toBe('Box');
+    expect(machineShortName({ id: 'x', label: 'Boat sandbox (cloud VM, 8 vCPU)' })).toBe('Boat sandbox');
+    expect(machineShortName(undefined, 'abc')).toBe('abc');
+  });
+
   it('keeps the domain order of implementations and finds the default run', () => {
     expect(runImplementationIds(d, run)).toEqual(['b', 'a', 'c']);
     expect(defaultRun(d)?.id).toBe('r1');
@@ -176,8 +189,16 @@ describe('values and metrics', () => {
   });
 
   it('explains derived metrics from the data', () => {
-    expect(derivedExplanation(d, 'idx')).toContain('“rps” over First');
+    // Higher is better (throughput): the implementation's value divided by the best one.
+    expect(derivedExplanation(d, 'idx')).toContain('In each of the declared scenarios (First): this implementation\'s “rps” divided by the best (highest) one');
+    expect(derivedExplanation(d, 'idx')).toContain('geometric mean of those ratios times 100');
     expect(derivedExplanation(d, 'rps')).toBeNull();
+    // Lower is better (time, CPU per request): the best value divided by the implementation's, as publish.derive does.
+    const lower = { ...d, derived: [{ id: 'idx', kind: 'geomean_relative', metric: 'cpu', scenarios: ['s1', 's2'] }] };
+    expect(lower.metrics.cpu?.better).toBe('lower');
+    expect(derivedExplanation(lower, 'idx')).toContain('In each of the declared scenarios (First, Second): the best (lowest) “cpu” divided by this implementation\'s');
+    const every = { ...d, derived: [{ id: 'idx', kind: 'geomean_relative', metric: 'cpu', scenarios: '*' as const }] };
+    expect(derivedExplanation(every, 'idx')).toMatch(/^In every scenario: the best \(lowest\)/);
   });
 });
 
@@ -306,7 +327,7 @@ describe('identity, machines and links', () => {
 
   it('suggests comparisons of variants that share a source or runtime', () => {
     const s = suggestedComparisons(d, ['b', 'a', 'c']);
-    expect(s[0]).toEqual({ title: 'ASP.NET: JIT vs AOT', ids: ['a', 'c'] });
+    expect(s[0]).toEqual({ title: 'ASP.NET: JIT vs AOT', ids: ['a', 'c'], note: null });
     expect(s).toHaveLength(1);
   });
 

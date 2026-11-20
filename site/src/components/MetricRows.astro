@@ -1,7 +1,7 @@
 ---
 /** Table rows for metrics of one implementation in one scenario: median, interval, n and rank. */
 import { formatInterval, formatNumber, formatValue, isNum } from '../lib/format';
-import { metricOrFallback, metricValue, rankMap, runImplementationIds } from '../lib/model';
+import { metricOrFallback, metricValue, missingValue, rankMap, runImplementationIds } from '../lib/model';
 import type { DomainData, Run } from '../lib/types';
 
 interface Props {
@@ -23,12 +23,12 @@ const rows = metrics.map((id) => {
     metric.better,
   );
   const of = ids.filter((i) => metricValue(run, scenario, id, i)).length;
-  return { metric, value, ci, rank: ranks.get(impl) ?? null, of };
+  return { metric, value, ci, rank: ranks.get(impl) ?? null, of, missing: value ? null : missingValue(run, impl, scenario, id) };
 });
 ---
 
 {
-  rows.map(({ metric, value, ci, rank, of }) => (
+  rows.map(({ metric, value, ci, rank, of, missing }) => (
     <tr>
       <th scope="row">
         <span class="mr-label" title={metric.description || undefined}>
@@ -36,7 +36,8 @@ const rows = metrics.map((id) => {
         </span>
       </th>
       <td class="r nowrap">
-        <strong>{value ? formatValue(value.m, metric) : 'not measured'}</strong>
+        <strong>{value ? formatValue(value.m, metric) : missing?.label}</strong>
+        {missing?.label === 'no index' && <span class="mr-why muted">{missing.reason}</span>}
         {ci && <span class="mr-ci-inline muted">95 % CI {ci}</span>}
       </td>
       <td class="r nowrap muted col-ci">{ci ?? '—'}</td>
@@ -70,6 +71,15 @@ const rows = metrics.map((id) => {
   }
   .mr-label {
     font-weight: 450;
+  }
+  /* Why a derived value is withheld, at every width (not only as a title). */
+  .mr-why {
+    display: block;
+    max-width: 32ch;
+    margin-left: auto;
+    font-size: 0.75rem;
+    white-space: normal;
+    text-align: right;
   }
   .mr-best {
     color: var(--text);

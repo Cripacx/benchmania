@@ -65,12 +65,29 @@ def summarize(passes):
     return out
 
 
-def quality_flags(bundle):
+def varying_metric(domain):
+    """The metric whose spread between passes is flagged, with its label: the one behind the domain's first
+    relative index (throughput for backend, wall time for compilers); for a domain without one, the metric of
+    its first headline entry that names a scenario and a registry metric. A domain with neither gets no spread
+    note: (None, None). Only a call without a domain (old bundles, tools) falls back to throughput."""
+    if domain is None:
+        return "rps", "throughput"
+    for dv in domain.data.get("derived", []):
+        if dv.get("kind") == "geomean_relative" and dv.get("metric") in domain.metrics:
+            return dv["metric"], domain.metrics[dv["metric"]].label.lower()
+    for h in domain.headline:
+        if isinstance(h, dict) and h.get("scenario") and h.get("metric") in domain.metrics:
+            return h["metric"], domain.metrics[h["metric"]].label.lower()
+    return None, None
+
+
+def quality_flags(bundle, domain=None):
     """Human-readable notes derived from the passes (shown next to the results).
 
     A flag applies to everything measured in its scope (run, implementation or implementation/scenario)
     unless it names a `metric`: then it is a statement about that metric only.
     """
+    varying, label = varying_metric(domain)
     flags = []
     for w in bundle.get("layout", {}).get("warnings", []):
         flags.append({"level": "warning", "scope": "run", "message": w})
@@ -82,12 +99,12 @@ def quality_flags(bundle):
             for sid, q in r.get("quality", {}).items():
                 for msg in q.get("flags", []):
                     flags.append({"level": "warning", "scope": f"{iid}/{sid}", "pass": p["index"], "message": msg})
-    for iid, scen in bundle.get("summary", {}).items():
+    for iid, scen in bundle.get("summary", {}).items() if varying else ():
         for sid, metrics in scen.items():
-            s = metrics.get("rps")
+            s = metrics.get(varying)
             if s and s["n"] >= 3 and s["cv"] > 0.10:
-                flags.append({"level": "info", "scope": f"{iid}/{sid}", "metric": "rps",
-                              "message": f"throughput varies {s['cv'] * 100:.0f} % between passes"})
+                flags.append({"level": "info", "scope": f"{iid}/{sid}", "metric": varying,
+                              "message": f"{label} varies {s['cv'] * 100:.0f} % between passes"})
     return flags
 
 
@@ -192,11 +209,11 @@ def new(project, domain, machine, layout, options):
     }
 
 
-def finish(bundle, status="complete"):
+def finish(bundle, status="complete", domain=None):
     """Derive summary and flags from the passes. Also used for checkpoints (status "running"), so that a
     bundle on disk always verifies, whatever happens to the run afterwards."""
     bundle["summary"] = summarize(bundle["passes"])
-    bundle["quality"]["flags"] = quality_flags(bundle)
+    bundle["quality"]["flags"] = quality_flags(bundle, domain)
     bundle["finished"] = None if status == "running" else now()
     bundle["status"] = status
     return bundle

@@ -1,0 +1,205 @@
+---
+/**
+ * One domain in a few lines, for the top of the home page: title, status, summary, who leads its first headline
+ * metric in the default run (with the domain's ranking note, since that is a ranking) and a link to its results.
+ * Built only from the dataset; a domain without a published run says so.
+ */
+import Icon from './Icon.astro';
+import RankingNote from './RankingNote.astro';
+import { LangChip } from './islands/LangChip';
+import { formatNumber } from '../lib/format';
+import {
+  derivedScale,
+  domainStatus,
+  flagNote,
+  headlineLeader,
+  implementation,
+  noIndexSentence,
+  runImplementationIds,
+  valueFlags,
+} from '../lib/model';
+import { href, routes } from '../lib/paths';
+import type { DomainData, Run } from '../lib/types';
+
+interface Props {
+  domain: DomainData;
+  run: Run | undefined;
+}
+
+const { domain, run } = Astro.props;
+const id = domain.domain.id;
+const status = domainStatus(domain.domain.status);
+const entry = domain.domain.headline?.[0];
+const lead = run && entry ? headlineLeader(domain, run, entry) : null;
+const winners = run && lead ? lead.winners.map((w) => implementation(domain, w, run)) : [];
+const flags =
+  run && lead && entry
+    ? flagNote(domain, lead.winners.flatMap((w) => valueFlags(domain, run.flags, w, entry.scenario ?? null, entry.metric)))
+    : null;
+const direction = lead?.metric.better === 'higher' ? 'higher is better' : lead?.metric.better === 'lower' ? 'lower is better' : '';
+// A relative index only means something against the run it was computed in: say so, with the run's own scale.
+const scale = run && entry && !entry.scenario ? derivedScale(domain, entry.metric, run) : null;
+const noIndex = run && entry ? noIndexSentence(run, runImplementationIds(domain, run), entry) : null;
+---
+
+<article class="card ds" aria-labelledby={`ds-title-${id}`}>
+  <header class="ds-head">
+    <h2 id={`ds-title-${id}`} class="ds-title">{domain.domain.title}</h2>
+    {status && <span class="badge badge-warning" title={status.description}>{status.label}</span>}
+  </header>
+  <p class="ds-summary">{domain.domain.summary}</p>
+  {
+    run && entry && lead ? (
+      <div class="ds-lead">
+        <RankingNote domain={domain.domain} class="ds-note" />
+        <p class="ds-metric">
+          {entry.label}
+          {direction && <span class="muted"> · {direction}</span>}
+        </p>
+        {scale && <p class="ds-scale muted">Relative to the best of this run: {scale}</p>}
+        {lead.best ? (
+          <p class="ds-best">
+            <span class="ds-value">
+              {formatNumber(lead.best.m, lead.metric.decimals ?? 0)}
+              {lead.metric.unit !== 'index' && <span class="ds-unit">{lead.metric.unit}</span>}
+            </span>
+            <span class="ds-winner">
+              {winners.map((w, i) => (
+                <>
+                  {i > 0 && <span class="muted"> and </span>}
+                  <LangChip language={w.language} /> {w.name}
+                  {w.variant && <span class="muted"> · {w.variant}</span>}
+                </>
+              ))}
+              {flags && (
+                <span class={`ds-flag is-${flags.marker}`} title={flags.texts.join('\n')}>
+                  <Icon name={flags.marker} size={12} />
+                  <span class="visually-hidden">Flagged: {flags.texts.join('; ')}</span>
+                </span>
+              )}
+              <span class="muted ds-of"> · best of {lead.measured}</span>
+            </span>
+          </p>
+        ) : (
+          <p class="muted ds-none">{noIndex ?? 'Not measured in this run.'}</p>
+        )}
+      </div>
+    ) : (
+      <p class="muted ds-lead">No published run yet.</p>
+    )
+  }
+  <footer class="ds-links">
+    <a class="ds-open" href={href(routes.domain(id))} aria-label={`All results: ${domain.domain.title}`}>
+      All results <Icon name="arrowRight" size={14} />
+    </a>
+    {run && <a class="ds-jump" href={`#results-${id}`}>Jump to board</a>}
+  </footer>
+</article>
+
+<style>
+  .ds {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    height: 100%;
+    padding: 16px 18px;
+  }
+  .ds-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 10px;
+  }
+  .ds-title {
+    font-size: 1.0625rem;
+    letter-spacing: -0.01em;
+  }
+  .ds-summary {
+    font-size: 0.875rem;
+    line-height: 1.5;
+    color: var(--text-2);
+  }
+  .ds-lead {
+    display: grid;
+    gap: 4px;
+    margin-top: 4px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border);
+    font-size: 0.875rem;
+  }
+  .ds-lead :global(.ds-note) {
+    margin-bottom: 6px;
+  }
+  .ds-metric {
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--text-2);
+  }
+  .ds-scale {
+    font-size: 0.75rem;
+  }
+  .ds-none {
+    font-size: 0.8125rem;
+  }
+  .ds-best {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 2px 12px;
+  }
+  .ds-value {
+    font-size: 1.5rem;
+    font-weight: 600;
+    letter-spacing: -0.03em;
+    line-height: 1.15;
+    font-variant-numeric: tabular-nums;
+    color: var(--text);
+  }
+  .ds-unit {
+    margin-left: 4px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    letter-spacing: 0;
+    color: var(--muted);
+  }
+  .ds-winner {
+    min-width: 0;
+    font-weight: 500;
+    color: var(--text);
+  }
+  .ds-winner :global(.lang-chip) {
+    vertical-align: -2px;
+  }
+  .ds-of {
+    font-weight: 400;
+  }
+  .ds-flag {
+    display: inline-flex;
+    margin-left: 4px;
+    vertical-align: -1px;
+    color: var(--warn-icon);
+  }
+  .ds-flag.is-info {
+    color: var(--muted);
+  }
+  .ds-links {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px 16px;
+    margin-top: auto;
+    padding-top: 6px;
+    font-size: 0.875rem;
+  }
+  .ds-open {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-weight: 600;
+  }
+  .ds-jump {
+    font-size: 0.8125rem;
+    color: var(--muted);
+  }
+</style>

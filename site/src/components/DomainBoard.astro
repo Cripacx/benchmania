@@ -1,0 +1,484 @@
+---
+/**
+ * One domain on the home page: headline winners, the leaderboard of its default run, the comparisons it declares,
+ * the fastest implementation per workload behind its first index, and links to everything else. Every id on it
+ * carries the domain id, so several boards can share the page.
+ */
+import DeclaredComparisons from './DeclaredComparisons.astro';
+import Icon from './Icon.astro';
+import RankingNote from './RankingNote.astro';
+import RunContext from './RunContext.astro';
+import RunNotice from './RunNotice.astro';
+import { LeaderboardIsland } from './islands/Islands';
+import { LangChip } from './islands/LangChip';
+import { formatNumber, formatValue, plural } from '../lib/format';
+import { leaderboardProps } from '../lib/islandProps';
+import {
+  domainStatus,
+  flagNote,
+  headlineLeader,
+  implementation,
+  measuredScenarios,
+  metricOrFallback,
+  noIndexSentence,
+  runImplementationIds,
+  scenarioWinners,
+  valueFlags,
+} from '../lib/model';
+import { basePath, href, routes } from '../lib/paths';
+import { encodeIslandProps } from '../lib/view';
+import type { DomainData, Run } from '../lib/types';
+
+interface Props {
+  domain: DomainData;
+  run: Run;
+}
+
+const { domain, run } = Astro.props;
+const id = domain.domain.id;
+const base = basePath();
+const status = domainStatus(domain.domain.status);
+const snapEntry = domain.domain.headline?.[0];
+const scenarioCount = measuredScenarios(domain, run).length;
+const lb = leaderboardProps(domain, run, base);
+
+// Best implementation per headline metric (ties are listed together).
+const highlights =
+  (domain.domain.headline ?? []).map((h) => {
+        const { metric, best, measured, winners } = headlineLeader(domain, run, h);
+        return {
+          entry: h,
+          metric,
+          best,
+          measured,
+          winners: winners.map((id) => implementation(domain, id, run)),
+          winnerFlags: flagNote(domain, winners.flatMap((id) => valueFlags(domain, run.flags, id, h.scenario ?? null, h.metric))),
+          missing: noIndexSentence(run, runImplementationIds(domain, run), h) ?? 'Not measured in this run.',
+          href: href(`${routes.domain(domain.domain.id)}?scenario=${h.scenario ?? 'overall'}&metric=${h.metric}`),
+        };
+      });
+
+// Fastest per workload behind the first headline index (only when that headline is a derived relative index).
+const winnersSource =
+  snapEntry && !snapEntry.scenario
+    ? (domain.derived ?? []).find((d) => d.id === snapEntry.metric && d.kind === 'geomean_relative')
+    : undefined;
+const winners =
+  winnersSource
+    ? scenarioWinners(domain, run, winnersSource.id).map((w) => ({
+        ...w,
+        impls: w.winners.map((id) => implementation(domain, id, run)),
+        flags: flagNote(domain, w.winners.flatMap((id) => valueFlags(domain, run.flags, id, w.scenario.id, winnersSource.metric))),
+        href: href(`${routes.domain(domain.domain.id)}?scenario=${w.scenario.id}&metric=${winnersSource.metric}`),
+      }))
+    : [];
+const winnersMetric = winnersSource ? metricOrFallback(domain.metrics, winnersSource.metric) : null;
+---
+
+<section class="section board-section" id={`results-${id}`} aria-labelledby={`board-title-${id}`}>
+    <div class="container">
+      <div class="board-head">
+        <div>
+          <p class="eyebrow">
+            <Icon name="layers" /> Domain
+            {status && <span class="badge badge-warning board-status" title={status.description}>{status.label}</span>}
+          </p>
+          <h2 id={`board-title-${id}`}>{domain.domain.title}</h2>
+          <p class="board-summary">{domain.domain.summary}</p>
+        </div>
+        <RunContext domain={domain} run={run} />
+      </div>
+
+      <div class="board-notice">
+        <RunNotice domain={domain} run={run} compact />
+      </div>
+
+      <RankingNote domain={domain.domain} class="board-ranking-note" id={`ranking-note-${id}`} />
+
+      <ul class="highlights" aria-label="Best result per headline metric" data-reveal="stagger">
+        {highlights.map((h) => (
+          <li>
+            <a class="card card-link highlight" href={h.href}>
+              <span class="hl-label">
+                {h.entry.label}
+                <span class="dir">
+                  {h.metric.better === 'higher' ? <Icon name="arrowUp" size={12} strokeWidth={2} /> : null}
+                  {h.metric.better === 'lower' ? <Icon name="arrowDown" size={12} strokeWidth={2} /> : null}
+                  <span class="dir-text">
+                    {h.metric.better === 'higher' ? 'higher is better' : h.metric.better === 'lower' ? 'lower is better' : ''}
+                  </span>
+                </span>
+              </span>
+              {h.best ? (
+                <>
+                  <span class="hl-value">
+                    {formatNumber(h.best.m, h.metric.decimals ?? 0)}
+                    {h.metric.unit !== 'index' && <span class="hl-unit">{h.metric.unit}</span>}
+                  </span>
+                  <span class="hl-winner">
+                    {h.winners.map((w, i) => (
+                      <>
+                        {i > 0 && ' and '}
+                        <LangChip language={w.language} /> {w.name}
+                        {w.variant && <span class="muted"> · {w.variant}</span>}
+                      </>
+                    ))}
+                    {h.winnerFlags && (
+                      <span class={`snap-flag is-${h.winnerFlags.marker}`} title={h.winnerFlags.texts.join('\n')}>
+                        {' '}
+                        <Icon name={h.winnerFlags.marker} size={12} />
+                        <span class="visually-hidden">Flagged: {h.winnerFlags.texts.join('; ')}</span>
+                      </span>
+                    )}
+                  </span>
+                  <span class="hl-hint">
+                    <span class="hl-hint-text">
+                      Best of {h.measured}{h.entry.hint ? ` · ${h.entry.hint}` : ''}
+                    </span>
+                  </span>
+                </>
+              ) : (
+                <span class="hl-missing">{h.missing}</span>
+              )}
+            </a>
+          </li>
+        ))}
+      </ul>
+
+      <div class="lb-stage" data-grow>
+        <LeaderboardIsland client:idle payload={encodeIslandProps(lb)} />
+      </div>
+
+      <DeclaredComparisons domain={domain} run={run} />
+
+      {
+        winners.length > 0 && winnersMetric && winnersSource && (
+          <section class="winners" aria-labelledby={`winners-title-${id}`}>
+            <div class="winners-head">
+              <h3 id={`winners-title-${id}`}>
+                <Icon name="zap" size={16} /> Fastest in each workload
+              </h3>
+              <RankingNote domain={domain.domain} class="winners-ranking-note" shortFor={`ranking-note-${id}`} />
+              <p class="winners-note">
+                {winnersMetric.label} · the best valid result in each of the {plural(winners.length, 'workload')} behind the{' '}
+                {metricOrFallback(domain.metrics, winnersSource.id).label.toLowerCase()}
+              </p>
+            </div>
+            <ul class="winners-list" data-reveal="stagger" aria-label={`Fastest implementation per workload, ${winnersMetric.label}`}>
+              {winners.map((w) => (
+                <li>
+                  <a class="winner" href={w.href}>
+                    {/* The chip sits beside the workload, so the name has the full width of a narrow card. */}
+                    <span class="winner-top">
+                      <span class="winner-scen">{w.scenario.title}</span>
+                      <span class="winner-chips">
+                        {w.impls.map((impl) => (
+                          <LangChip language={impl.language} />
+                        ))}
+                      </span>
+                    </span>
+                    <span class="winner-name">
+                      {w.impls.map((impl, i) => (
+                        <>
+                          {i > 0 && <span class="muted"> and </span>}
+                          {impl.name}
+                          {impl.variant && <span class="muted"> · {impl.variant}</span>}
+                        </>
+                      ))}
+                      {w.flags && (
+                        <span class={`snap-flag is-${w.flags.marker}`} title={w.flags.texts.join('\n')}>
+                          <Icon name={w.flags.marker} size={12} />
+                          <span class="visually-hidden">Flagged: {w.flags.texts.join('; ')}</span>
+                        </span>
+                      )}
+                    </span>
+                    <span class="winner-val">{formatValue(w.value.m, winnersMetric)}</span>
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )
+      }
+
+      <div class="board-foot">
+        <dl class="board-defs">
+          {(domain.domain.headline ?? []).map((h) => (
+            <div>
+              <dt>{h.label}</dt>
+              <dd>{h.hint}</dd>
+            </div>
+          ))}
+        </dl>
+        <div class="board-links">
+          <a class="btn btn-secondary" href={href(routes.domain(domain.domain.id))}>
+            <Icon name="barsH" /> All {scenarioCount} scenarios and every metric
+          </a>
+          <a class="btn btn-ghost" href={href(routes.compare(domain.domain.id))}>
+            <Icon name="compare" /> Compare side by side
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+<style>
+  .snap-flag {
+    display: inline-flex;
+    margin-left: 4px;
+    vertical-align: -1px;
+    color: var(--warn-icon);
+  }
+  .snap-flag.is-info {
+    color: var(--muted);
+  }
+  .board-section {
+    padding-top: clamp(40px, 5vw, 64px);
+  }
+  .board-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 16px 32px;
+  }
+  .board-summary {
+    margin-top: 8px;
+    color: var(--text-2);
+    max-width: 60ch;
+  }
+  .board-notice {
+    margin-top: 20px;
+  }
+  .board-notice:empty {
+    display: none;
+  }
+  :global(.board-ranking-note) {
+    margin-top: 20px;
+  }
+  .highlights {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr));
+    list-style: none;
+    margin: 20px 0 28px;
+    padding: 0;
+  }
+  .highlight {
+    display: flex !important;
+    flex-direction: column;
+    height: 100%;
+    padding: 16px 18px;
+  }
+  .hl-label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--text-2);
+  }
+  .hl-value {
+    margin-top: 10px;
+    font-size: 2rem;
+    font-weight: 600;
+    letter-spacing: -0.035em;
+    line-height: 1.1;
+    color: var(--text);
+  }
+  .hl-unit {
+    margin-left: 4px;
+    font-size: 0.9375rem;
+    font-weight: 500;
+    letter-spacing: 0;
+    color: var(--muted);
+  }
+  .hl-winner {
+    margin-top: 6px;
+    font-size: 0.9375rem;
+    font-weight: 500;
+    color: var(--text);
+  }
+  .hl-hint {
+    margin-top: auto;
+    padding-top: 10px;
+    font-size: 0.75rem;
+    color: var(--muted);
+    line-height: 1.45;
+  }
+  /* Why the card has no value: shown at every width, unlike the hint. */
+  .hl-missing {
+    margin-top: 10px;
+    font-size: 0.8125rem;
+    line-height: 1.45;
+    color: var(--muted);
+  }
+  /* A long hint stays three lines in the card; the definitions below the board give it in full. */
+  .hl-hint-text {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+    overflow: hidden;
+  }
+  @media (max-width: 639px) {
+    .highlights {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+    .highlight {
+      padding: 12px 14px;
+    }
+    .hl-value {
+      font-size: 1.5rem;
+      margin-top: 6px;
+    }
+    .hl-unit {
+      font-size: 0.8125rem;
+    }
+    .hl-winner {
+      font-size: 0.8125rem;
+    }
+    .hl-hint,
+    .dir-text {
+      display: none;
+    }
+  }
+  .board-foot {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 20px 32px;
+    margin-top: 20px;
+  }
+  .board-defs {
+    display: grid;
+    gap: 10px 32px;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+    flex: 1 1 100%;
+    margin: 0;
+    font-size: 0.8125rem;
+  }
+  .board-defs dt {
+    font-weight: 550;
+    color: var(--text-2);
+  }
+  .board-defs dd {
+    margin: 2px 0 0;
+    color: var(--muted);
+  }
+  .board-links {
+    order: -1;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .hl-winner :global(.lang-chip) {
+    margin-right: 2px;
+  }
+
+  /* Fastest per workload: a static grid that shows every card at every width (one row when they fit). */
+  .winners {
+    margin-top: 20px;
+    padding: 12px 16px 16px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background:
+      radial-gradient(90% 140% at 0% 0%, var(--brand-soft), transparent 60%),
+      var(--surface);
+    box-shadow: var(--shadow-sm);
+  }
+  .winners-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 2px 12px;
+    padding-bottom: 10px;
+  }
+  .winners-head h3 {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.9375rem;
+  }
+  .winners-head h3 :global(svg) {
+    color: var(--brand-2);
+  }
+  .winners-head :global(.winners-ranking-note) {
+    flex: 1 1 100%;
+    order: 1;
+    margin-top: 6px;
+    padding: 4px 10px;
+  }
+  .winners-note {
+    flex: 1 1 100%;
+    font-size: 0.8125rem;
+    color: var(--muted);
+  }
+  .winners-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 136px), 1fr));
+    gap: 8px;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .winner {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    height: 100%;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface);
+    color: inherit;
+    text-decoration: none;
+    transition:
+      border-color 140ms var(--ease),
+      box-shadow 140ms var(--ease),
+      transform 140ms var(--ease);
+  }
+  .winner:hover {
+    text-decoration: none;
+    border-color: var(--border-strong);
+    box-shadow: var(--shadow);
+    transform: translateY(-2px);
+  }
+  .winner:active {
+    transform: scale(0.98);
+  }
+  .winner-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+  }
+  .winner-chips {
+    display: inline-flex;
+    gap: 4px;
+  }
+  .winner-scen {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--muted);
+  }
+  .winner-name {
+    font-size: 0.875rem;
+    font-weight: 550;
+    color: var(--text);
+  }
+  .winner-val {
+    margin-top: auto;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--text-2);
+    font-variant-numeric: tabular-nums;
+  }
+  .board-status {
+    margin-left: 6px;
+  }
+</style>

@@ -2,7 +2,7 @@
 import Icon from './Icon.astro';
 import RunBadges from './RunBadges.astro';
 import { formatDate, plural } from '../lib/format';
-import { machineName } from '../lib/model';
+import { domainStatus, machineName } from '../lib/model';
 import { href, routes } from '../lib/paths';
 import type { DomainData, Run } from '../lib/types';
 
@@ -15,10 +15,18 @@ interface Props {
 
 const { domain, run, detailsLink = true } = Astro.props;
 const machine = domain.machines[run.machine];
+const status = domainStatus(domain.domain.status);
 ---
 
 <div class="run-context">
-  <RunBadges run={run} />
+  <span class="badges">
+    {status && (
+      <span class="badge badge-warning" title={status.description}>
+        <Icon name="flask" /> {status.label} domain
+      </span>
+    )}
+    <RunBadges run={run} />
+  </span>
   <div class="meta-row">
     <a class="meta-link" href={href(routes.machine(run.machine))}>
       <Icon name="cpu" />
@@ -37,6 +45,11 @@ const machine = domain.machines[run.machine];
 </div>
 
 <style>
+  .badges {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
   .run-context {
     display: flex;
     flex-wrap: wrap;

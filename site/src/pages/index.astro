@@ -2,43 +2,34 @@
 import BaseLayout from '../layouts/BaseLayout.astro';
 import InstallChooser from '../components/InstallChooser.astro';
 import Icon from '../components/Icon.astro';
-import RunContext from '../components/RunContext.astro';
-import RunNotice from '../components/RunNotice.astro';
 import CpuLayout from '../components/CpuLayout.astro';
-import { LeaderboardIsland } from '../components/islands/Islands';
-import { LangChip } from '../components/islands/LangChip';
+import DomainBoard from '../components/DomainBoard.astro';
+import DomainSummary from '../components/DomainSummary.astro';
 import { allDomains, getProject } from '../lib/dataset';
-import { formatDate, formatNumber, formatValue, plural } from '../lib/format';
-import { methodologyInfo } from '../lib/methodology';
-import { leaderboardProps } from '../lib/islandProps';
+import { formatNumber, plural } from '../lib/format';
 import {
   communityRunsNote,
   communityStatus,
   defaultRun,
-  flagNote,
-  headlineValue,
-  implementation,
+  domainStatus,
   installCommand,
-  machineName,
   measuredScenarios,
   metricIdsInRun,
-  metricOrFallback,
-  rankMap,
   repoPage,
   repoUrl,
-  runImplementationIds,
-  scenarioWinners,
-  valueFlagNote,
-  valueFlags,
 } from '../lib/model';
-import { basePath, href, routes } from '../lib/paths';
-import { encodeIslandProps } from '../lib/view';
+import { href, routes } from '../lib/paths';
 
 const project = getProject();
 const domains = allDomains();
-const featured = domains[0];
-const run = featured ? defaultRun(featured) : undefined;
-const base = basePath();
+// Stable domains first, then experimental ones; every domain gets a summary at the top and, with a run, a board.
+const summaries = domains
+  .map((domain) => ({ domain, run: defaultRun(domain) }))
+  .sort((a, b) => Number(a.domain.domain.status !== 'stable') - Number(b.domain.domain.status !== 'stable'));
+const boards = summaries.filter((b): b is { domain: typeof b.domain; run: NonNullable<typeof b.run> } => !!b.run);
+// The CPU layout illustrating "Pinned CPUs": the default run of the first domain with one.
+const layoutDomain = boards[0]?.domain;
+const layoutRun = boards[0]?.run;
 
 const community = communityStatus(domains);
 const totalImpls = community.implementations;
@@ -70,75 +61,16 @@ const ways = [
   },
 ];
 
-const lb = featured && run ? leaderboardProps(featured, run, base) : null;
-
-// Best implementation per headline metric (ties are listed together).
-const highlights =
-  featured && run
-    ? (featured.domain.headline ?? []).map((h) => {
-        const metric = metricOrFallback(featured.metrics, h.metric);
-        const ids = runImplementationIds(featured, run);
-        const values = ids.map((id) => ({ id, value: headlineValue(run, h, id)?.m ?? null }));
-        const ranks = rankMap(values, metric.better);
-        const winners = ids.filter((id) => ranks.get(id) === 1);
-        const best = winners[0] ? headlineValue(run, h, winners[0]) : null;
-        return {
-          entry: h,
-          metric,
-          best,
-          measured: values.filter((v) => v.value !== null).length,
-          winners: winners.map((id) => implementation(featured, id, run)),
-          winnerFlags: flagNote(featured, winners.flatMap((id) => valueFlags(featured, run.flags, id, h.scenario ?? null, h.metric))),
-          href: href(`${routes.domain(featured.domain.id)}?scenario=${h.scenario ?? 'overall'}&metric=${h.metric}`),
-        };
-      })
-    : [];
-
-const scenarioCount = featured && run ? measuredScenarios(featured, run).length : 0;
-
-// Hero snapshot: top five by the first headline metric.
-const snapEntry = featured?.domain.headline?.[0];
-const snapMetric = featured && snapEntry ? metricOrFallback(featured.metrics, snapEntry.metric) : null;
-const snapshot =
-  featured && run && snapEntry && snapMetric
-    ? (() => {
-        const ids = runImplementationIds(featured, run);
-        const ranks = rankMap(ids.map((id) => ({ id, value: headlineValue(run, snapEntry, id)?.m ?? null })), snapMetric.better);
-        const rows = ids
-          .map((id) => ({ id, value: headlineValue(run, snapEntry, id), rank: ranks.get(id) ?? null }))
-          .filter((r) => r.value && r.rank)
-          .sort((a, b) => (a.rank ?? 0) - (b.rank ?? 0))
-          .slice(0, 5)
-          .map((r) => ({
-            ...r,
-            impl: implementation(featured, r.id, run),
-            flags: valueFlagNote(featured, run.flags, r.id, snapEntry.scenario ?? null, snapEntry.metric),
-          }));
-        const max = Math.max(...rows.map((r) => r.value?.m ?? 0), 0);
-        return { rows, max, total: ids.length };
-      })()
-    : null;
-// Fastest per workload behind the first headline index (only when that headline is a derived relative index).
-const winnersSource =
-  featured && run && snapEntry && !snapEntry.scenario
-    ? (featured.derived ?? []).find((d) => d.id === snapEntry.metric && d.kind === 'geomean_relative')
-    : undefined;
-const winners =
-  featured && run && winnersSource
-    ? scenarioWinners(featured, run, winnersSource.id).map((w) => ({
-        ...w,
-        impls: w.winners.map((id) => implementation(featured, id, run)),
-        flags: flagNote(featured, w.winners.flatMap((id) => valueFlags(featured, run.flags, id, w.scenario.id, winnersSource.metric))),
-        href: href(`${routes.domain(featured.domain.id)}?scenario=${w.scenario.id}&metric=${winnersSource.metric}`),
-      }))
-    : [];
-const winnersMetric = featured && winnersSource ? metricOrFallback(featured.metrics, winnersSource.metric) : null;
 const headlineWords = project.tagline.split(' ');
 
-const service = (featured?.domain.service ?? {}) as Record<string, unknown>;
-const cpus = typeof service.cpus === 'number' ? service.cpus : null;
-const memory = typeof service.memory === 'string' ? service.memory.replace(/^(\d+)g$/i, '$1 GiB').replace(/^(\d+)m$/i, '$1 MiB') : null;
-const machine = featured && run ? featured.machines[run.machine] : undefined;
+// Each domain's container limits, from its manifest: "2 CPUs and 1 GiB of memory (Domain title)".
+const limits = domains.flatMap((d) => {
+  const service = (d.domain.service ?? {}) as Record<string, unknown>;
+  const cpus = typeof service.cpus === 'number' ? service.cpus : null;
+  const memory = typeof service.memory === 'string' ? service.memory.replace(/^(\d+)g$/i, '$1 GiB').replace(/^(\d+)m$/i, '$1 MiB') : null;
+  return cpus && memory ? [`${plural(cpus, 'CPU')} and ${memory} of memory${domains.length > 1 ? ` (${d.domain.title})` : ''}`] : [];
+});
+const machine = layoutDomain && layoutRun ? layoutDomain.machines[layoutRun.machine] : undefined;
 ---
 
 <BaseLayout>
@@ -162,211 +94,33 @@ const machine = featured && run ? featured.machines[run.machine] : undefined;
         ))}
       </h1>
       <p class="lead hero-lead">{project.description}</p>
-      <div class="hero-cta">
-        {
-          featured && (
-            <a class="btn btn-primary" href={href(routes.domain(featured.domain.id))}>
-              Explore the results <Icon name="arrowRight" />
-            </a>
-          )
-        }
-        <a class="btn btn-secondary" href={href(routes.contribute())}>
-          <Icon name="users" /> Contribute your results
-        </a>
-        <a class="btn btn-ghost" href={href(routes.methodology())}>How we measure</a>
-      </div>
       </div>
       {
-        featured && run && snapshot && snapEntry && snapMetric && snapshot.rows.length > 0 && (
-          <a class="card hero-snap" href="#results" data-reveal data-grow aria-label={`${snapEntry.label}: top ${snapshot.rows.length} of ${snapshot.total}. Jump to the full leaderboard.`}>
-            <div class="snap-head">
-              <span class="snap-title">{featured.domain.title}</span>
-              <span class="snap-sub">
-                {snapEntry.label} · {snapMetric.better === 'lower' ? 'lower is better' : 'higher is better'}
-              </span>
-              {snapEntry.hint && <span class="snap-hint">{snapEntry.hint}</span>}
-            </div>
-            <ol class="snap-rows">
-              {snapshot.rows.map((r, i) => (
-                <li style={`--i: ${i}`} class={r.rank === 1 ? 'is-first' : undefined}>
-                  <span class="snap-rank">
-                    {r.rank && r.rank <= 3 ? <span class={`medal medal-${r.rank}`}>{r.rank}</span> : r.rank}
-                  </span>
-                  <span class="snap-name">
-                    <LangChip language={r.impl.language} />
-                    {r.impl.name}
-                    {r.impl.variant && <span class="muted"> · {r.impl.variant}</span>}
-                    {r.flags && (
-                      <span class={`snap-flag is-${r.flags.marker}`} title={r.flags.texts.join('\n')}>
-                        <Icon name={r.flags.marker} size={12} />
-                        <span class="visually-hidden">Flagged: {r.flags.texts.join('; ')}</span>
-                      </span>
-                    )}
-                  </span>
-                  <span class="snap-val">{formatNumber(r.value?.m, snapMetric.decimals ?? 0)}</span>
-                  <span class="snap-bar" aria-hidden="true">
-                    <span class="grow-bar" style={`width: ${snapshot.max > 0 ? ((r.value?.m ?? 0) / snapshot.max) * 100 : 0}%`} />
-                  </span>
+        summaries.length > 0 && (
+          <div class="hero-domains" id="domains">
+            <p class="hd-label">
+              {summaries.length === 1 ? 'The domain measured here' : `${plural(summaries.length, 'domain')}, each measured on its own`}
+            </p>
+            <ul class="hd-list">
+              {summaries.map((d) => (
+                <li>
+                  <DomainSummary domain={d.domain} run={d.run} />
                 </li>
               ))}
-            </ol>
-            <div class="snap-foot">
-              <span class="snap-machine">{machineName(featured.machines[run.machine], run.machine)}</span>
-              <span>
-                Top {snapshot.rows.length} of {snapshot.total} · {formatDate(run.created)} · {methodologyInfo(run.methodology).short}
-              </span>
-              <span class="snap-more">
-                Full leaderboard <Icon name="arrowDown" size={14} />
-              </span>
-            </div>
-          </a>
+            </ul>
+          </div>
         )
       }
+      <div class="hero-cta">
+        <a class="btn btn-primary" href={href(routes.contribute())}>
+          <Icon name="users" /> Contribute your results
+        </a>
+        <a class="btn btn-secondary" href={href(routes.methodology())}>How we measure</a>
+      </div>
     </div>
   </section>
 
-  {
-    featured && run && lb && (
-      <section class="section board-section" id="results" aria-labelledby="board-title">
-        <div class="container">
-          <div class="board-head">
-            <div>
-              <p class="eyebrow">
-                <Icon name="server" /> Featured domain
-              </p>
-              <h2 id="board-title">{featured.domain.title}</h2>
-              <p class="board-summary">{featured.domain.summary}</p>
-            </div>
-            <RunContext domain={featured} run={run} />
-          </div>
-
-          <div class="board-notice">
-            <RunNotice domain={featured} run={run} compact />
-          </div>
-
-          <ul class="highlights" aria-label="Best result per headline metric" data-reveal="stagger">
-            {highlights.map((h) => (
-              <li>
-                <a class="card card-link highlight" href={h.href}>
-                  <span class="hl-label">
-                    {h.entry.label}
-                    <span class="dir">
-                      {h.metric.better === 'higher' ? <Icon name="arrowUp" size={12} strokeWidth={2} /> : null}
-                      {h.metric.better === 'lower' ? <Icon name="arrowDown" size={12} strokeWidth={2} /> : null}
-                      <span class="dir-text">
-                        {h.metric.better === 'higher' ? 'higher is better' : h.metric.better === 'lower' ? 'lower is better' : ''}
-                      </span>
-                    </span>
-                  </span>
-                  {h.best ? (
-                    <>
-                      <span class="hl-value">
-                        {formatNumber(h.best.m, h.metric.decimals ?? 0)}
-                        {h.metric.unit !== 'index' && <span class="hl-unit">{h.metric.unit}</span>}
-                      </span>
-                      <span class="hl-winner">
-                        {h.winners.map((w, i) => (
-                          <>
-                            {i > 0 && ' and '}
-                            <LangChip language={w.language} /> {w.name}
-                            {w.variant && <span class="muted"> · {w.variant}</span>}
-                          </>
-                        ))}
-                        {h.winnerFlags && (
-                          <span class={`snap-flag is-${h.winnerFlags.marker}`} title={h.winnerFlags.texts.join('\n')}>
-                            {' '}
-                            <Icon name={h.winnerFlags.marker} size={12} />
-                            <span class="visually-hidden">Flagged: {h.winnerFlags.texts.join('; ')}</span>
-                          </span>
-                        )}
-                      </span>
-                      <span class="hl-hint">
-                        Best of {h.measured} · {h.entry.hint}
-                      </span>
-                    </>
-                  ) : (
-                    <span class="hl-hint">Not measured in this run.</span>
-                  )}
-                </a>
-              </li>
-            ))}
-          </ul>
-
-          <div class="lb-stage" data-grow>
-            <LeaderboardIsland client:idle payload={encodeIslandProps(lb)} />
-          </div>
-
-          {
-            winners.length > 0 && winnersMetric && winnersSource && (
-              <section class="winners" aria-labelledby="winners-title">
-                <div class="winners-head">
-                  <h3 id="winners-title">
-                    <Icon name="zap" size={16} /> Fastest in each workload
-                  </h3>
-                  <p class="winners-note">
-                    {winnersMetric.label} · the best valid result in each of the {plural(winners.length, 'workload')} behind the{' '}
-                    {metricOrFallback(featured.metrics, winnersSource.id).label.toLowerCase()}
-                  </p>
-                </div>
-                <ul class="winners-list" data-reveal="stagger" aria-label={`Fastest implementation per workload, ${winnersMetric.label}`}>
-                  {winners.map((w) => (
-                    <li>
-                      <a class="winner" href={w.href}>
-                        {/* The chip sits beside the workload, so the name has the full width of a narrow card. */}
-                        <span class="winner-top">
-                          <span class="winner-scen">{w.scenario.title}</span>
-                          <span class="winner-chips">
-                            {w.impls.map((impl) => (
-                              <LangChip language={impl.language} />
-                            ))}
-                          </span>
-                        </span>
-                        <span class="winner-name">
-                          {w.impls.map((impl, i) => (
-                            <>
-                              {i > 0 && <span class="muted"> and </span>}
-                              {impl.name}
-                              {impl.variant && <span class="muted"> · {impl.variant}</span>}
-                            </>
-                          ))}
-                          {w.flags && (
-                            <span class={`snap-flag is-${w.flags.marker}`} title={w.flags.texts.join('\n')}>
-                              <Icon name={w.flags.marker} size={12} />
-                              <span class="visually-hidden">Flagged: {w.flags.texts.join('; ')}</span>
-                            </span>
-                          )}
-                        </span>
-                        <span class="winner-val">{formatValue(w.value.m, winnersMetric)}</span>
-                      </a>
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            )
-          }
-
-          <div class="board-foot">
-            <dl class="board-defs">
-              {(featured.domain.headline ?? []).map((h) => (
-                <div>
-                  <dt>{h.label}</dt>
-                  <dd>{h.hint}</dd>
-                </div>
-              ))}
-            </dl>
-            <div class="board-links">
-              <a class="btn btn-secondary" href={href(routes.domain(featured.domain.id))}>
-                <Icon name="barsH" /> All {scenarioCount} scenarios and every metric
-              </a>
-              <a class="btn btn-ghost" href={href(routes.compare(featured.domain.id))}>
-                <Icon name="compare" /> Compare side by side
-              </a>
-            </div>
-          </div>
-        </div>
-      </section>
-    )
-  }
+{boards.map((b) => <DomainBoard domain={b.domain} run={b.run} />)}
 
   <section class="section" id="community" aria-labelledby="community-title">
     <div class="container">
@@ -458,8 +212,9 @@ const machine = featured && run ? featured.machines[run.machine] : undefined;
           <p class="eyebrow"><Icon name="flask" /> Methodology</p>
           <h2 id="how-title">Measured the same way, for everyone</h2>
           <p>
-            Numbers are only worth comparing when the conditions are identical. Every implementation gets the same box,
-            the same work and the same statistics.
+            Numbers are only worth comparing when the conditions are the same. Within a run, implementations are measured
+            on the same machine, with the same workload and inputs for each scenario, and summarized using the same
+            statistics.
           </p>
         </div>
         <a class="btn btn-secondary" href={href(routes.methodology())}>Read the methodology <Icon name="arrowRight" /></a>
@@ -469,18 +224,23 @@ const machine = featured && run ? featured.machines[run.machine] : undefined;
           <span class="how-icon"><Icon name="memory" size={18} /></span>
           <h3>Same limits</h3>
           <p>
-            {
-              cpus && memory
-                ? `Each service runs in its own container limited to ${cpus} CPUs and ${memory} of memory, like a small production pod.`
-                : 'Each implementation runs in its own container with the same resource limits.'
-            }
+            Within a domain, every implementation runs alone in its own container with the same limits{limits.length ? `: ${limits.join('; ')}.` : '.'}
           </p>
         </article>
         <article class="card card-pad">
           <span class="how-icon"><Icon name="cpu" size={18} /></span>
-          <h3>Isolated cores</h3>
-          <p>Service, database and load generator are pinned to separate cores, so they never compete for CPU time.</p>
-          {run && <div class="how-cpu"><CpuLayout layout={run.layout} machine={machine} compact /></div>}
+          <h3>Pinned CPUs</h3>
+          <p>
+            The implementation under test is pinned to the CPUs the run's layout assigns it, one per physical core where the
+            machine has enough. Whatever else a domain runs, such as a database container or the load generator's processes,
+            is pinned to the CPUs of its own role, apart from the implementation's when the machine has enough CPUs.
+            Pinning does not keep other work on the machine, or a hypervisor, off those CPUs.
+          </p>
+          {layoutDomain && layoutRun && (
+            <div class="how-cpu">
+              <CpuLayout layout={layoutRun.layout} machine={machine} roleNames={layoutDomain.domain.methodology?.roles} compact />
+            </div>
+          )}
         </article>
         <article class="card card-pad">
           <span class="how-icon"><Icon name="layers" size={18} /></span>
@@ -494,8 +254,8 @@ const machine = featured && run ? featured.machines[run.machine] : undefined;
           <span class="how-icon"><Icon name="checkCircle" size={18} /></span>
           <h3>Verified work</h3>
           <p>
-            Every implementation must pass functional checks before it is measured, and the backend harness counts the
-            database statements each request really runs.
+            Every implementation must pass its domain's correctness checks before it is measured, and what it does while it
+            is measured is checked as well. <a href={`${href(routes.methodology())}#quality`}>Checks per domain</a>
           </p>
         </article>
       </div>
@@ -508,7 +268,7 @@ const machine = featured && run ? featured.machines[run.machine] : undefined;
         <div>
           <p class="eyebrow"><Icon name="grid" /> Go deeper</p>
           <h2 id="explore-title">Everything behind the headline</h2>
-          <p>The leaderboard shows four numbers. The dataset has many more, and all of it is open.</p>
+          <p>Each leaderboard shows a domain's headline numbers. The dataset has many more, and all of it is open.</p>
         </div>
       </div>
       <div class="grid grid-4" data-reveal="stagger">
@@ -523,8 +283,9 @@ const machine = featured && run ? featured.machines[run.machine] : undefined;
               <Icon name="barsH" size={18} />
               <h3>{d.domain.title}</h3>
               <p>
+                {domainStatus(d.domain.status) ? `${domainStatus(d.domain.status)?.label}. ` : ''}
                 {plural(d.implementations.length, 'implementation')}, {plural(scenarios, 'scenario')} and{' '}
-                {plural(metrics, 'metric')} with confidence intervals.
+                {plural(metrics, 'metric')} with confidence intervals, and a side-by-side comparison.
               </p>
               <span class="entry-cta">
                 Open explorer <Icon name="arrowRight" class="arrow" />
@@ -532,18 +293,6 @@ const machine = featured && run ? featured.machines[run.machine] : undefined;
             </a>
             );
           })
-        }
-        {
-          featured && (
-            <a class="card card-pad card-link entry" href={href(routes.compare(featured.domain.id))}>
-              <Icon name="compare" size={18} />
-              <h3>Compare</h3>
-              <p>Put up to four implementations side by side and see the relative difference in every scenario.</p>
-              <span class="entry-cta">
-                Start comparing <Icon name="arrowRight" class="arrow" />
-              </span>
-            </a>
-          )
         }
         <a class="card card-pad card-link entry" href={href(routes.machines())}>
           <Icon name="cpu" size={18} />
@@ -652,167 +401,9 @@ const machine = featured && run ? featured.machines[run.machine] : undefined;
     position: relative;
     display: grid;
     grid-template-columns: minmax(0, 1fr);
-    gap: 40px;
-    align-items: center;
-    padding-block: clamp(48px, 7vw, 88px) clamp(44px, 6vw, 72px);
-  }
-  @media (min-width: 1080px) {
-    .hero-inner {
-      grid-template-columns: minmax(0, 1.25fr) minmax(0, 0.9fr);
-      gap: 56px;
-    }
-  }
-  .hero-snap {
-    display: none;
-    padding: 18px 20px 16px;
-    color: inherit;
-    text-decoration: none;
-    box-shadow: var(--shadow);
-    transition:
-      box-shadow 160ms var(--ease),
-      border-color 160ms var(--ease);
-  }
-  .hero-snap:hover {
-    text-decoration: none;
-    border-color: var(--border-strong);
-    box-shadow: var(--shadow-lg);
-  }
-  /* The snapshot races in from the right; its bars then grow (see global .grow-bar). */
-  :global(.anim) .hero-snap.is-in:not(.is-done) {
-    animation: race-in 500ms var(--ease-out) backwards;
-  }
-  @keyframes race-in {
-    from {
-      opacity: 0;
-      translate: 48px 0;
-    }
-    to {
-      opacity: 1;
-      translate: 0 0;
-    }
-  }
-  @media (min-width: 1080px) {
-    .hero-snap {
-      display: block;
-    }
-  }
-  .snap-head {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    padding-bottom: 12px;
-    border-bottom: 1px solid var(--border);
-  }
-  .snap-title {
-    font-weight: 600;
-    letter-spacing: -0.01em;
-  }
-  .snap-sub {
-    font-size: 0.8125rem;
-    color: var(--muted);
-  }
-  .snap-hint {
-    margin-top: 4px;
-    font-size: 0.75rem;
-    line-height: 1.45;
-    color: var(--text-2);
-  }
-  .snap-flag {
-    display: inline-flex;
-    margin-left: 4px;
-    vertical-align: -1px;
-    color: var(--warn-icon);
-  }
-  .snap-flag.is-info {
-    color: var(--muted);
-  }
-  .snap-rows {
-    display: grid;
-    gap: 12px;
-    list-style: none;
-    margin: 14px 0 0;
-    padding: 0;
-  }
-  .snap-rows li {
-    display: grid;
-    grid-template-columns: 24px minmax(0, 1fr) auto;
-    grid-template-areas: 'rank name val' '. bar bar';
-    column-gap: 10px;
-    row-gap: 6px;
-    align-items: baseline;
-  }
-  .snap-rows li.is-first {
-    margin: -6px -8px;
-    padding: 6px 8px;
-    border-radius: 9px;
-    background: linear-gradient(90deg, var(--brand-soft), transparent 80%);
-    box-shadow: inset 2px 0 0 var(--brand-2);
-  }
-  .snap-rank {
-    grid-area: rank;
-    align-self: center;
-    text-align: center;
-    font-size: 0.8125rem;
-    color: var(--muted);
-    font-variant-numeric: tabular-nums;
-  }
-  .snap-name {
-    grid-area: name;
-    font-size: 0.875rem;
-    font-weight: 500;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .snap-name :global(.lang-chip) {
-    margin-right: 6px;
-  }
-  .snap-val {
-    grid-area: val;
-    text-align: right;
-    font-size: 0.875rem;
-    font-weight: 600;
-    font-variant-numeric: tabular-nums;
-  }
-  .snap-bar {
-    grid-area: bar;
-    display: block;
-    height: 6px;
-    border-radius: 0 3px 3px 0;
-    background: var(--track);
-  }
-  .snap-bar span {
-    display: block;
-    height: 100%;
-    border-radius: 0 3px 3px 0;
-    background: var(--bar);
-  }
-  .snap-foot {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: space-between;
-    gap: 8px;
-    margin-top: 16px;
-    padding-top: 12px;
-    border-top: 1px solid var(--border);
-    font-size: 0.75rem;
-    color: var(--muted);
-  }
-  .snap-machine {
-    flex-basis: 100%;
-  }
-  .hero-snap:hover .snap-more :global(svg) {
-    transform: translateY(2px);
-  }
-  .snap-more :global(svg) {
-    transition: transform 160ms var(--ease);
-  }
-  .snap-more {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    color: var(--accent);
-    font-weight: 500;
+    gap: 0;
+    align-items: start;
+    padding-block: clamp(40px, 6vw, 72px) clamp(36px, 5vw, 56px);
   }
   .hero-eyebrow {
     display: inline-flex;
@@ -846,141 +437,27 @@ const machine = featured && run ? featured.machines[run.machine] : undefined;
   .hero-lead {
     margin-top: 20px;
   }
+  .hero-domains {
+    margin-top: 28px;
+  }
+  .hd-label {
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--muted);
+  }
+  .hd-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
+    gap: 12px;
+    margin: 10px 0 0;
+    padding: 0;
+    list-style: none;
+  }
   .hero-cta {
     display: flex;
     flex-wrap: wrap;
     gap: 10px;
-    margin-top: 32px;
-  }
-
-  .board-section {
-    padding-top: clamp(40px, 5vw, 64px);
-  }
-  .board-head {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: flex-end;
-    justify-content: space-between;
-    gap: 16px 32px;
-  }
-  .board-summary {
-    margin-top: 8px;
-    color: var(--text-2);
-    max-width: 60ch;
-  }
-  .board-notice {
-    margin-top: 20px;
-  }
-  .board-notice:empty {
-    display: none;
-  }
-  .highlights {
-    display: grid;
-    gap: 12px;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr));
-    list-style: none;
-    margin: 20px 0 28px;
-    padding: 0;
-  }
-  .highlight {
-    display: flex !important;
-    flex-direction: column;
-    height: 100%;
-    padding: 16px 18px;
-  }
-  .hl-label {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    font-size: 0.8125rem;
-    font-weight: 500;
-    color: var(--text-2);
-  }
-  .hl-value {
-    margin-top: 10px;
-    font-size: 2rem;
-    font-weight: 600;
-    letter-spacing: -0.035em;
-    line-height: 1.1;
-    color: var(--text);
-  }
-  .hl-unit {
-    margin-left: 4px;
-    font-size: 0.9375rem;
-    font-weight: 500;
-    letter-spacing: 0;
-    color: var(--muted);
-  }
-  .hl-winner {
-    margin-top: 6px;
-    font-size: 0.9375rem;
-    font-weight: 500;
-    color: var(--text);
-  }
-  .hl-hint {
-    margin-top: auto;
-    padding-top: 10px;
-    font-size: 0.75rem;
-    color: var(--muted);
-    line-height: 1.45;
-  }
-  @media (max-width: 639px) {
-    .highlights {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 8px;
-    }
-    .highlight {
-      padding: 12px 14px;
-    }
-    .hl-value {
-      font-size: 1.5rem;
-      margin-top: 6px;
-    }
-    .hl-unit {
-      font-size: 0.8125rem;
-    }
-    .hl-winner {
-      font-size: 0.8125rem;
-    }
-    .hl-hint,
-    .dir-text {
-      display: none;
-    }
-  }
-  .board-foot {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 20px 32px;
-    margin-top: 20px;
-  }
-  .board-defs {
-    display: grid;
-    gap: 6px 24px;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
-    flex: 1 1 520px;
-    margin: 0;
-    font-size: 0.8125rem;
-  }
-  .board-defs div {
-    display: flex;
-    gap: 8px;
-  }
-  .board-defs dt {
-    flex: none;
-    font-weight: 550;
-    color: var(--text-2);
-  }
-  .board-defs dd {
-    margin: 0;
-    color: var(--muted);
-  }
-  .board-links {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
+    margin-top: 24px;
   }
 
   .how p {
@@ -1134,101 +611,5 @@ const machine = featured && run ? featured.machines[run.machine] : undefined;
   .status-text strong {
     color: var(--text);
     font-weight: 600;
-  }
-  .hl-winner :global(.lang-chip) {
-    margin-right: 2px;
-  }
-
-  /* Fastest per workload: a static grid that shows every card at every width (one row when they fit). */
-  .winners {
-    margin-top: 20px;
-    padding: 12px 16px 16px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-lg);
-    background:
-      radial-gradient(90% 140% at 0% 0%, var(--brand-soft), transparent 60%),
-      var(--surface);
-    box-shadow: var(--shadow-sm);
-  }
-  .winners-head {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 2px 12px;
-    padding-bottom: 10px;
-  }
-  .winners-head h3 {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 0.9375rem;
-  }
-  .winners-head h3 :global(svg) {
-    color: var(--brand-2);
-  }
-  .winners-note {
-    flex: 1 1 100%;
-    font-size: 0.8125rem;
-    color: var(--muted);
-  }
-  .winners-list {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 136px), 1fr));
-    gap: 8px;
-    list-style: none;
-    margin: 0;
-    padding: 0;
-  }
-  .winner {
-    display: flex;
-    flex-direction: column;
-    gap: 1px;
-    height: 100%;
-    padding: 8px 10px;
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    background: var(--surface);
-    color: inherit;
-    text-decoration: none;
-    transition:
-      border-color 140ms var(--ease),
-      box-shadow 140ms var(--ease),
-      transform 140ms var(--ease);
-  }
-  .winner:hover {
-    text-decoration: none;
-    border-color: var(--border-strong);
-    box-shadow: var(--shadow);
-    transform: translateY(-2px);
-  }
-  .winner:active {
-    transform: scale(0.98);
-  }
-  .winner-top {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 6px;
-  }
-  .winner-chips {
-    display: inline-flex;
-    gap: 4px;
-  }
-  .winner-scen {
-    font-size: 0.75rem;
-    font-weight: 500;
-    color: var(--muted);
-  }
-  .winner-name {
-    font-size: 0.875rem;
-    font-weight: 550;
-    color: var(--text);
-  }
-  .winner-val {
-    margin-top: auto;
-    font-size: 0.8125rem;
-    font-weight: 500;
-    color: var(--text-2);
-    font-variant-numeric: tabular-nums;
   }
 </style>

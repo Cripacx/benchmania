@@ -4,7 +4,7 @@ import ExplorerPage from '../../components/ExplorerPage.astro';
 import Breadcrumbs from '../../components/Breadcrumbs.astro';
 import { allDomains } from '../../lib/dataset';
 import { defaultRun } from '../../lib/model';
-import { routes } from '../../lib/paths';
+import { href, routes } from '../../lib/paths';
 import type { DomainData } from '../../lib/types';
 
 export function getStaticPaths() {
@@ -30,6 +30,9 @@ const run = defaultRun(domain);
           <details class="disclosure about">
             <summary>About this domain</summary>
             <p>{domain.domain.description}</p>
+            <p>
+              <a href={`${href(routes.methodology())}#domain-${domain.domain.id}`}>How this domain is measured</a>
+            </p>
           </details>
         )
       }

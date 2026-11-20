@@ -26,7 +26,7 @@ const provenances = ['reference', 'community', 'unknown'].map((p) => ({
 })).filter((p) => p.count > 0);
 ---
 
-<BaseLayout title={`Runs · ${domain.domain.title}`} description={`Every published run of ${domain.domain.title.toLowerCase()}.`} section={`domain:${domain.domain.id}`}>
+<BaseLayout title={`Runs · ${domain.domain.title}`} description={`Every published run: ${domain.domain.title}.`} section={`domain:${domain.domain.id}`}>
   <div class="container">
     <header class="page-head">
       <Breadcrumbs
@@ -38,7 +38,7 @@ const provenances = ['reference', 'community', 'unknown'].map((p) => ({
       />
       <h1>Runs</h1>
       <p class="lead">
-        {plural(runs.length, 'published run')} of {domain.domain.title.toLowerCase()}. Reference runs were measured by the
+        {plural(runs.length, 'published run')} in {domain.domain.title}. Reference runs were measured by the
         maintainers themselves; every other run is a community run. Compare implementations within one run: absolute
         numbers depend on the machine.
       </p>
@@ -59,7 +59,7 @@ const provenances = ['reference', 'community', 'unknown'].map((p) => ({
       </div>
 
       <div class="table-wrap" tabindex="0" role="region" aria-label="Runs">
-        <table class="data">
+        <table class="data runs-table">
           <thead>
             <tr>
               <th scope="col">Date</th>
@@ -79,16 +79,17 @@ const provenances = ['reference', 'community', 'unknown'].map((p) => ({
                     <a href={href(routes.run(domain.domain.id, r.id))}>{formatDate(r.created)}</a>
                     {r.id === domain.default_run && <span class="tag default-tag">default</span>}
                   </th>
-                  <td>
+                  {/* data-label: the column head, shown inside the cell when a phone stacks every run into one block. */}
+                  <td data-label="Provenance and methodology">
                     <RunBadges run={r} />
                   </td>
-                  <td>
+                  <td data-label="Machine">
                     <a href={href(routes.machine(r.machine))}>{machineName(domain.machines[r.machine], r.machine)}</a>
                   </td>
-                  <td class="r">{r.passes}</td>
-                  <td class="r">{runImplementationIds(domain, r).length}</td>
-                  <td class="r">{(r.flags ?? []).length}</td>
-                  <td>{r.status ?? 'unknown'}</td>
+                  <td class="r" data-label="Passes">{r.passes}</td>
+                  <td class="r" data-label="Implementations">{runImplementationIds(domain, r).length}</td>
+                  <td class="r" data-label="Flags">{(r.flags ?? []).length}</td>
+                  <td data-label="Status">{r.status ?? 'unknown'}</td>
                 </tr>
               ))
             }
@@ -140,5 +141,57 @@ const provenances = ['reference', 'community', 'unknown'].map((p) => ({
   .runs-note {
     font-size: 0.8125rem;
     max-width: 90ch;
+  }
+  /* On a phone every run is one block: date first, then each column as a labelled line, nothing off to the right. */
+  @media (max-width: 639px) {
+    .runs-table {
+      min-width: 0;
+      width: 100%;
+    }
+    .runs-table thead {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+      white-space: nowrap;
+    }
+    .runs-table tbody,
+    .runs-table tr,
+    .runs-table th,
+    .runs-table td {
+      display: block;
+    }
+    .runs-table tr {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border);
+    }
+    .runs-table tr[hidden] {
+      display: none;
+    }
+    .runs-table th,
+    .runs-table td {
+      padding: 0;
+      border: 0;
+      text-align: left;
+      white-space: normal;
+    }
+    .runs-table th {
+      margin-bottom: 6px;
+    }
+    .runs-table td {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 2px 12px;
+      padding-block: 3px;
+    }
+    .runs-table td::before {
+      content: attr(data-label);
+      flex: none;
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
   }
 </style>

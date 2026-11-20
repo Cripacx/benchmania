@@ -1,0 +1,97 @@
+---
+/**
+ * The comparisons a domain declares (`[[compare]]` in domain.toml), with the domain's note on what each one compares
+ * and how fair it is. Limited to implementations of the run; renders nothing for a domain that declares none.
+ */
+import Icon from './Icon.astro';
+import { declaredSuggestions, runImplementationIds } from '../lib/model';
+import { href, routes } from '../lib/paths';
+import type { DomainData, Run } from '../lib/types';
+
+interface Props {
+  domain: DomainData;
+  run: Run;
+  /** Run id on run-scoped pages, so the links stay inside that run. */
+  scope?: string | null;
+  /** Heading level of the section title. */
+  level?: 2 | 3;
+}
+
+const { domain, run, scope = null, level = 3 } = Astro.props;
+const id = domain.domain.id;
+const comparisons = declaredSuggestions(domain, runImplementationIds(domain, run));
+const Heading = level === 2 ? 'h2' : 'h3';
+---
+
+{
+  comparisons.length > 0 && (
+    <section class="dc" aria-labelledby={`compare-title-${id}`}>
+      <Heading id={`compare-title-${id}`} class="dc-title">
+        <Icon name="compare" size={16} /> Read it by comparison
+      </Heading>
+      <ul class="dc-list">
+        {comparisons.map((c) => (
+          <li>
+            <a class="card card-link dc-item" href={href(routes.compare(id, c.ids, scope))}>
+              <span class="dc-name">{c.title}</span>
+              {c.note && <span class="dc-note">{c.note}</span>}
+              <span class="dc-cta">
+                Compare side by side <Icon name="arrowRight" size={14} />
+              </span>
+            </a>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}
+
+<style>
+  .dc {
+    margin-top: 28px;
+  }
+  .dc-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 1rem;
+  }
+  .dc-list {
+    display: grid;
+    gap: 10px;
+    margin: 12px 0 0;
+    padding: 0;
+    list-style: none;
+  }
+  @media (min-width: 760px) {
+    .dc-list {
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    }
+  }
+  .dc-item {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    height: 100%;
+    padding: 14px 16px;
+  }
+  .dc-name {
+    font-weight: 600;
+    color: var(--text);
+  }
+  .dc-note {
+    font-size: 0.8125rem;
+    line-height: 1.5;
+    color: var(--text-2);
+  }
+  .dc-cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: auto;
+    padding-top: 4px;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--accent);
+  }
+</style>

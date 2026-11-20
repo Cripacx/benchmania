@@ -2,7 +2,7 @@
 import Logo from './Logo.astro';
 import { getIndex, listDomains } from '../lib/dataset';
 import { formatDateTime } from '../lib/format';
-import { licenseUrl, repoPage, repoUrl } from '../lib/model';
+import { domainStatus, licenseUrl, repoPage, repoUrl } from '../lib/model';
 import { href, routes } from '../lib/paths';
 
 const index = getIndex();
@@ -29,13 +29,14 @@ const dataLicense = project.data_license;
             domains.map((d) => (
               <li>
                 <a href={href(routes.domain(d.id))}>{d.title}</a>
+                {domainStatus(d.status) && <span class="muted"> · {domainStatus(d.status)?.label.toLowerCase()}</span>}
               </li>
             ))
           }
           {
             domains.map((d) => (
               <li>
-                <a href={href(routes.compare(d.id))}>Compare {d.title.toLowerCase()}</a>
+                <a href={href(routes.compare(d.id))}>Compare: {d.title}</a>
               </li>
             ))
           }
@@ -54,7 +55,17 @@ const dataLicense = project.data_license;
       <nav aria-label="Repository">
         <h2>Repository</h2>
         <ul>
-          <li><a href={repoUrl(project, 'docs/methodology.md', 'blob')}>Methodology document</a></li>
+          {
+            domains.map((d) =>
+              d.methodology?.document ? (
+                <li>
+                  <a href={repoUrl(project, d.methodology.document, 'blob')}>
+                    {domains.length > 1 ? `Methodology: ${d.title}` : 'Methodology document'}
+                  </a>
+                </li>
+              ) : null,
+            )
+          }
           <li><a href={repoUrl(project, 'CONTRIBUTING.md', 'blob')}>Contributing guide</a></li>
           <li><a href={repoUrl(project, 'results', 'tree')}>Raw result bundles</a></li>
           <li><a href={repoPage(project, 'discussions')}>Discussions</a></li>

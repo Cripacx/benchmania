@@ -1,22 +1,32 @@
 ---
 /**
- * Logical CPUs of the machine colored by role (service, environment, load generator, idle).
- * Only facts from the run's layout are drawn; the physical core pairing is not inferred.
+ * Logical CPUs of the machine colored by the role the run's layout assigns them (service, environment, load
+ * generator), and those it assigns to no role. Only facts from the run's layout are drawn; the physical core pairing
+ * is not inferred. What a role is in a domain (a database, nothing at all: an empty name) comes from the domain
+ * (`methodology.roles`); without it the engine's names. The layout is CPU affinity (cpusets): it decides where the
+ * benchmark's own work runs, not what else runs on those CPUs, and the note says so.
  */
+import { isVirtualMachine } from '../lib/model';
 import type { CpuLayout, Machine } from '../lib/types';
 
 interface Props {
   layout: CpuLayout | undefined;
   machine: Machine | undefined;
+  /** The domain's names for the roles, e.g. { environment: 'PostgreSQL' }. */
+  roleNames?: Record<string, string>;
   compact?: boolean;
 }
 
-const { layout, machine, compact = false } = Astro.props;
+const { layout, machine, roleNames = {}, compact = false } = Astro.props;
+// A role the domain names with an empty string is not used there: the benchmark assigns its CPUs to nothing.
+const unused = (id: string) => roleNames[id] === '';
 const roles = [
-  { id: 'service', label: 'Service under test', cpus: layout?.service ?? [] },
-  { id: 'environment', label: 'Environment (database)', cpus: layout?.environment ?? [] },
-  { id: 'loadgen', label: 'Load generator', cpus: layout?.loadgen ?? [] },
-  { id: 'idle', label: 'Kept idle', cpus: layout?.idle ?? [] },
+  { id: 'service', label: roleNames.service || 'Implementation under test', cpus: layout?.service ?? [] },
+  { id: 'environment', label: roleNames.environment || 'Environment', cpus: unused('environment') ? [] : (layout?.environment ?? []) },
+  // The runner is pinned to the load generator's CPUs in every domain, so this role is never unassigned.
+  { id: 'loadgen', label: roleNames.loadgen || (unused('loadgen') ? 'Benchmark runner' : 'Load generator'), cpus: layout?.loadgen ?? [] },
+  { id: 'free', label: 'Not assigned (role unused here)', cpus: unused('environment') ? (layout?.environment ?? []) : [] },
+  { id: 'idle', label: 'Not assigned (SMT siblings)', cpus: layout?.idle ?? [] },
 ];
 const assigned = new Map<number, string>();
 for (const r of roles) for (const c of r.cpus) if (!assigned.has(c)) assigned.set(c, r.id);
@@ -24,7 +34,19 @@ const maxCpu = Math.max(-1, ...assigned.keys());
 const logical = Math.max(machine?.cpu?.logical ?? 0, maxCpu + 1);
 const cells = Array.from({ length: logical }, (_, i) => ({ cpu: i, role: assigned.get(i) ?? 'none' }));
 const hasLayout = assigned.size > 0;
-const roleLabel = (id: string) => roles.find((r) => r.id === id)?.label ?? 'Unassigned';
+const roleLabel = (id: string) => roles.find((r) => r.id === id)?.label ?? 'Not assigned by the benchmark';
+const vm = isVirtualMachine(machine);
+// What this layout does about SMT, from the layout itself: `idle` is filled only when every service CPU got a
+// physical core of its own; the planner's fallbacks for small machines and manual layouts leave it empty.
+const smtNote =
+  (layout?.idle?.length ?? 0) > 0
+    ? 'SMT is on. The implementation under test gets one logical CPU per physical core, and the benchmark assigns the SMT siblings of those cores to no role.'
+    : layout?.smt === true
+      ? 'SMT is on, and this layout leaves no SMT sibling of the service CPUs unassigned.'
+      : layout?.smt === false
+        ? `SMT is off${vm ? ' as far as the virtual machine reports it' : ' on this machine'}.`
+        : null;
+const limitsNote = `Pinning (CPU affinity) decides where the benchmark's containers and processes run; it does not keep other work on the ${vm ? 'virtual machine' : 'machine'} off these CPUs${vm ? ', and they are virtual CPUs whose placement on physical cores is up to the hypervisor' : ''}.`;
 ---
 
 {
@@ -52,13 +74,10 @@ const roleLabel = (id: string) => roles.find((r) => r.id === id)?.label ?? 'Unas
               </li>
             ))}
         </ul>
-        {layout?.smt !== undefined && (
-          <p class="muted cpu-note">
-            {layout.smt
-              ? 'SMT is on. The service gets one logical CPU per physical core; the SMT siblings of those cores stay idle.'
-              : 'SMT is off on this machine.'}
-          </p>
-        )}
+        <p class="muted cpu-note">
+          {smtNote && `${smtNote} `}
+          {limitsNote}
+        </p>
       </figcaption>
     </figure>
   ) : (
@@ -114,7 +133,8 @@ const roleLabel = (id: string) => roles.find((r) => r.id === id)?.label ?? 'Unas
     --role: var(--role-idle);
     color: var(--text-2);
   }
-  .role-none {
+  .role-none,
+  .role-free {
     background: transparent;
     box-shadow: inset 0 0 0 1px var(--border-strong);
     color: var(--muted);
@@ -124,6 +144,9 @@ const roleLabel = (id: string) => roles.find((r) => r.id === id)?.label ?? 'Unas
   .dot.role-loadgen,
   .dot.role-idle {
     background: var(--role);
+  }
+  .dot.role-free {
+    background: transparent;
   }
   figcaption {
     margin-top: 12px;

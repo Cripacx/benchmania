@@ -10,6 +10,7 @@ import type { Better, Metric, Value } from '../../lib/types';
 import type { ImplLite } from '../../lib/view';
 import { Icon } from './Icon';
 import { LangChip } from './LangChip';
+import { WithheldNotes } from './WithheldNotes';
 import { useFlip } from './useFlip';
 
 export interface LeaderboardColumn {
@@ -41,6 +42,8 @@ interface Props {
   languages: string[];
   categories: Array<{ id: string; label: string }>;
   caption: string;
+  /** Why a derived column has no value for some implementations (withheldLines), shown below the table. */
+  notes?: string[];
 }
 
 type Dir = 'best' | 'worst';
@@ -51,7 +54,7 @@ function directionIcon(better: Better) {
   return null;
 }
 
-export function Leaderboard({ columns, rows, languages, categories, caption }: Props) {
+export function Leaderboard({ columns, rows, languages, categories, caption, notes = [] }: Props) {
   const [sortCol, setSortCol] = useState(0);
   const [dir, setDir] = useState<Dir>('best');
   const [language, setLanguage] = useState('');
@@ -105,6 +108,7 @@ export function Leaderboard({ columns, rows, languages, categories, caption }: P
     <div class="lb" data-active={sortCol}>
       <div class="lb-toolbar">
         <div class="lb-filters">
+          {languages.length > 1 && (
           <label class="field">
             <span>Language</span>
             <span class="select">
@@ -118,6 +122,8 @@ export function Leaderboard({ columns, rows, languages, categories, caption }: P
               </select>
             </span>
           </label>
+          )}
+          {categories.length > 1 && (
           <label class="field">
             <span>Category</span>
             <span class="select">
@@ -131,6 +137,7 @@ export function Leaderboard({ columns, rows, languages, categories, caption }: P
               </select>
             </span>
           </label>
+          )}
           <label class="field lb-mobile-sort">
             <span>Ranked by</span>
             <span class="select">
@@ -282,6 +289,7 @@ Flags: ${note.texts.join('; ')}` : '';
           </tbody>
         </table>
       </div>
+      <WithheldNotes lines={notes} />
     </div>
   );
 }
