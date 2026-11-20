@@ -7,7 +7,7 @@ category = "tool"
 description = "The TypeScript compiler of the 7.1 line in Go, at the 7.1.0-beta pre-release. Included although it is a beta: it is the packaged Go build of the upstream revision that tsrs targets, so it is the like-for-like counterpart of tsrs."
 notes = [
   "Pre-release: 7.1 has no stable release yet.",
-  "The 7.1.0-beta release corresponds to microsoft/TypeScript@3e9236361fa97a9e6c685f4833ac457ae2d8c50a, the revision tsrs states it ports. tsc-rs states that it tracks an earlier 7.1 development build (7.1.0-dev.20261008.1), so a comparison with tsc-rs mixes compiler revision and implementation language.",
+  "The 7.1.0-beta package was published from microsoft/TypeScript@3e9236361fa97a9e6c685f4833ac457ae2d8c50a (gitHead of its package.json), the revision tsrs states it ports. tsc-rs tracks an earlier 7.1 development build (7.1.0-dev.20261008.1), so a comparison with tsc-rs mixes compiler revision and implementation language.",
   "tsc 7.0 and tsc 7.1 are both written in Go: a comparison between them is between two releases of the same Go compiler, not a change of implementation language.",
 ]
 maintainers = []

@@ -4,10 +4,10 @@ language = "Rust"
 runtime = "native (Rust), started by a shell launcher that execs the binary"
 variant = "experimental port"
 category = "tool"
-description = "An experimental port of the TypeScript 7.1 compiler to Rust (pingdotgg/ts-rust). Release 0.8.0 states that it tracks the revision behind the 7.1.0-dev.20261008.1 nightly, which is older than 7.1.0-beta."
+description = "An experimental port of the TypeScript 7.1 compiler to Rust (pingdotgg/ts-rust). Release 0.8.0 tracks the revision behind the 7.1.0-dev.20261008.1 nightly, which is older than 7.1.0-beta."
 notes = [
   "Experimental: a port, not the TypeScript team's compiler.",
-  "States that it tracks microsoft/TypeScript@fed0bf24149fb1ed36039212648bafdafc1ea10e (7.1.0-dev.20261008.1), an earlier 7.1 revision than tsc 7.1 (beta) and tsrs: a comparison with them mixes revision and implementation.",
+  "Tracks microsoft/TypeScript@fed0bf24149fb1ed36039212648bafdafc1ea10e (7.1.0-dev.20261008.1), an earlier 7.1 revision than tsc 7.1 (beta) and tsrs: a comparison with them mixes revision and implementation.",
   "Its --fast mode is not measured: it changes what the checker does and only the ports have it.",
 ]
 maintainers = []
