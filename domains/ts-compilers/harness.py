@@ -25,7 +25,6 @@ from benchcore.layout import cpuset
 WORKLOADS_DIR = "/workloads"
 OUT_DIR = "/tmp/emit"  # tmpfs in every container, so emit does not depend on the disk
 TIMER = "/bench/timer.py"
-EMIT_SUFFIXES = (".js", ".d.ts")
 
 
 def _compilers():
@@ -124,7 +123,7 @@ class CompilerHarness(Harness):
         spec = {"argv": C.command(c, s.params["mode"], w["tsconfig"], OUT_DIR),
                 "cwd": f"{WORKLOADS_DIR}/{w['id']}/{w['project']}", "env": c.get("env", {}), "runs": runs}
         if s.params["mode"] == "emit":
-            spec.update(clean=OUT_DIR, count=list(EMIT_SUFFIXES))
+            spec.update(clean=OUT_DIR, count=list(C.EMIT_SUFFIXES))
         return spec
 
     def _time(self, spec):
@@ -151,8 +150,9 @@ class CompilerHarness(Harness):
     # --- functional check ----------------------------------------------------------------------------
     def check(self, impl):
         """Every scenario twice: on the unchanged workload and on a copy with every seeded error of the
-        workload appended. A mode that silently checked less (an ignored flag, a mode that skips files or the
-        checker) would pass the first run and miss seeds in the second. Problems name the scenario."""
+        workload appended. A mode that silently checked less (skipped files or the checker) passes the first
+        run and is caught in the second when it misses a seed or reports it differently; one that still
+        checked the seeded files, or that ignored a single-threaded flag, is not. Problems name the scenario."""
         problems = []
         line = impl.data["compiler"]["typescript"]
         try:

@@ -1,7 +1,7 @@
 title = "TypeORM · check on one core"
 kind = "compile"
 order = 20
-description = "Full type check of TypeORM without output on one core, with the tool's single-threaded flag where it has one (tsc 6 has none and runs unchanged)."
+description = "Type check of the TypeORM project (not incremental) without output on one core, with the tool's single-threaded flag where it has one (tsc 6 has none and runs unchanged)."
 workload = "typeorm"
 mode = "single"
 cpus = 1

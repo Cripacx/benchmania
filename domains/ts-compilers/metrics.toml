@@ -53,4 +53,4 @@ better = "higher"
 group = "summary"
 decimals = 1
 visibility = "primary"
-description = "Per check scenario, the fastest tool's median wall time divided by this tool's; the geometric mean of those ratios over the four check scenarios, times 100 (100 = fastest in all four, 50 = twice the fastest time on geometric average). Relative to the tools of the run, from the per-scenario medians. Spans different compiler revisions: the like-for-like pair is tsc 7.1 (beta) and tsrs, two packaged implementations of the same upstream revision."
+description = "Per check scenario, the fastest median wall time among the tools that have an index divided by this tool's; the geometric mean of those ratios over the four check scenarios, times 100 (100 = fastest in all four, 50 = twice the fastest time on geometric average). Relative to the tools of the run, from the per-scenario medians, so another set of tools can change it. Spans different compiler revisions: the like-for-like pair is tsc 7.1 (beta) and tsrs, two packaged implementations with the same declared upstream revision."

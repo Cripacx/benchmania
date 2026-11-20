@@ -1,7 +1,7 @@
 title = "Excalidraw · check"
 kind = "compile"
 order = 30
-description = "Full type check of Excalidraw without output (--noEmit), with the tool's default settings on four cores."
+description = "Type check of the Excalidraw project (not incremental) without output (--noEmit), with the tool's default settings on four cores."
 workload = "excalidraw"
 mode = "check"
 cpus = 4
