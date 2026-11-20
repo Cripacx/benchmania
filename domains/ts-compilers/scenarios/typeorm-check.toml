@@ -1,0 +1,7 @@
+title = "TypeORM · check"
+kind = "compile"
+order = 10
+description = "Full type check of TypeORM without output (--noEmit), with the tool's default settings on four cores."
+workload = "typeorm"
+mode = "check"
+cpus = 4

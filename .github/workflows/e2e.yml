@@ -128,3 +128,62 @@ jobs:
           path: .e2e-results
           include-hidden-files: true
           if-no-files-found: ignore
+
+  ts-compilers:
+    name: TypeScript compilers (when the domain changes)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      # Building the workloads fetches two projects and their dependencies: on pull requests only when the
+      # domain itself changed. The weekly schedule and manual runs always run it (they cover engine changes).
+      - name: Did the domain change?
+        id: changed
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          run=true
+          if [ "$EVENT_NAME" = "pull_request" ] && \
+             ! git diff --name-only "origin/$BASE_REF...HEAD" | grep -q '^domains/ts-compilers/'; then
+            run=false
+          fi
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+      - name: Build and check
+        if: steps.changed.outputs.run == 'true'
+        run: ./benchmania check ts-compilers
+      - name: Quick run
+        if: steps.changed.outputs.run == 'true'
+        run: ./benchmania run ts-compilers --quick --passes 1 --results .e2e-results
+      - name: Bundle exists and verifies
+        if: steps.changed.outputs.run == 'true'
+        run: |
+          ls .e2e-results/ts-compilers/*/*.json
+          python3 - <<'PY'
+          import glob, json, sys
+          sys.path.insert(0, "core")
+          from benchcore import bundle, manifest
+          d = manifest.load_all(".")["ts-compilers"]
+          impls, scenarios = {i.id for i in d.implementations}, {s.id for s in d.scenarios}
+          for f in glob.glob(".e2e-results/ts-compilers/*/*.json"):
+              b = json.load(open(f))
+              problems = bundle.verify(b, d, f)
+              assert not problems, problems
+              assert b["status"] == "complete" and len(b["passes"]) == 1
+              for p in b["passes"]:
+                  assert set(p["results"]) == impls, sorted(p["results"])
+                  for iid, r in p["results"].items():
+                      assert set(r["scenarios"]) == scenarios, (iid, r.get("quality"))
+                      assert all(m["wall_ms"] > 0 for m in r["scenarios"].values()), iid
+          print("ok")
+          PY
+      - uses: actions/upload-artifact@v7
+        if: always() && steps.changed.outputs.run == 'true'
+        with:
+          name: e2e-results-ts-compilers
+          path: .e2e-results
+          include-hidden-files: true
+          if-no-files-found: ignore

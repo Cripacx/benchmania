@@ -1,0 +1,8 @@
+title = "TypeORM · emit"
+kind = "compile"
+order = 50
+description = "Type check of TypeORM that also writes JavaScript and declaration files (--outDir, --declaration) to an in-memory file system, on four cores. The output directory is emptied before every run, outside the timed window, and the number of files written is verified."
+workload = "typeorm"
+mode = "emit"
+cpus = 4
+expect_files = { ".js" = 3287, ".d.ts" = 3287 }

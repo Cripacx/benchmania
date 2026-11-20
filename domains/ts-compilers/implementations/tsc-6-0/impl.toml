@@ -1,0 +1,32 @@
+id = "tsc-6-0"
+name = "tsc 6.0"
+language = "TypeScript"
+runtime = "Node.js 24"
+variant = "stable"
+category = "tool"
+description = "The TypeScript compiler of the 6.0 line, the last one written in TypeScript; it runs on Node.js."
+notes = [
+  "Has no single-threaded flag (it rejects --singleThreaded and --checkers): it checks on one thread anyway, so the one-core scenarios run it unchanged. Node.js still runs work such as garbage collection on helper threads, so one core is slower for it, too.",
+  "TypeScript 6.0 is an older compiler revision than 7.0 and 7.1: differences to them mix revision and implementation.",
+]
+maintainers = []
+
+[versions]
+typescript = "6.0.3"
+
+# How the harness runs it (published with every result): `command` followed by the arguments of the mode.
+# {tsconfig} is the workload's tsconfig, {out} the output directory of the emit scenario.
+[compiler]
+package = "typescript"
+typescript = "6.0"
+command = ["tsc", "-p", "{tsconfig}", "--incremental", "false", "--composite", "false", "--pretty", "false"]
+env = {}
+
+[compiler.modes]
+check = ["--noEmit"]
+single = ["--noEmit"]
+emit = ["--outDir", "{out}", "--declaration"]
+
+[build]
+dockerfile = "../../images/tool/Dockerfile"
+context = "../../images/tool"

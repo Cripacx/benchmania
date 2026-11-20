@@ -1,0 +1,20 @@
+title = "TypeORM"
+description = "The typeorm package of the TypeORM monorepo: an ORM for Node.js, a large server-side code base."
+repository = "https://github.com/typeorm/typeorm"
+commit = "d5b143dd7ed659e2a1cbac044a2c78d90c0f6f8f"
+project = "packages/typeorm"     # the compiler runs here; diagnostics are relative to it
+tsconfig = "tsconfig.bench.json" # tsconfig.json with module/moduleResolution nodenext (see tsconfig.bench.json)
+
+# Diagnostics each TypeScript line must report on the unchanged workload. Empty = none.
+# A new line (or a new workload) must declare its own: minor versions change diagnostics.
+[expected]
+"6.0" = []
+"7.0" = []
+"7.1" = []
+
+# Appended to a file in a throwaway copy of the workload: every tool must report exactly this, in addition
+# to the expected diagnostics.
+[seeded_error]
+file = "src/util/StringUtils.ts"
+append = "\nexport const benchSeededError: number = \"not a number\"\n"
+expect = "src/util/StringUtils.ts(125,14): error TS2322"

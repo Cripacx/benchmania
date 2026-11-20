@@ -1,7 +1,9 @@
 # Adding a domain
 
 A domain is a self-contained directory: `domains/<id>/`. The engine discovers it automatically; the website
-creates pages for it as soon as its status is not `example` (a domain without results gets empty pages).
+creates pages for it as soon as its status is not `example`. A domain without results gets empty pages, but the
+website's dataset tests (`npm test` in `site/`, part of CI) fail for it: keep a new domain at `example` until
+the pull request that adds its first result bundle, and set its real status there.
 
 ## 1. Copy the template
 

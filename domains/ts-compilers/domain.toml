@@ -1,0 +1,67 @@
+id = "ts-compilers"
+title = "TypeScript compilers"
+summary = "The same TypeScript projects, type-checked and compiled by tsc 6, tsc 7 and two experimental Rust ports."
+description = """
+Five compilers check two open-source projects (TypeORM and Excalidraw) at pinned commits: tsc 6.0 (TypeScript \
+on Node.js), tsc 7.0 and the 7.1 beta (Go), and the Rust ports tsrs and tsc-rs, which track TypeScript 7.1. \
+Each tool runs as a user would run it, through the command its npm package installs, in a fresh container \
+without network access, on four cores with default settings and on one core with its single-threaded flag where it has one. A \
+tool is only measured after it reported exactly the diagnostics expected for its TypeScript line on every \
+project and found an error seeded into a copy of each. The tools implement different TypeScript revisions: \
+tsc 7.1 (beta) and tsrs share one, so they are the like-for-like comparison of implementation languages; tsc-rs \
+tracks an earlier 7.1 build, and tsc 6.0 and 7.0 are older lines."""
+# "example" keeps the domain off the website until it has results: the website's dataset tests reject a
+# published domain without a run. Set it to "experimental" in the pull request that adds the first result bundle.
+status = "example"
+harness = "harness:CompilerHarness"
+methodology_version = "1"
+
+# Limits of every measurement container. The four-core scenarios use all service CPUs, the one-core scenarios
+# the first of them. Node.js sizes its default heap from the memory limit, so the limit is part of the setup.
+[service]
+cpus = 4
+memory = "8g"
+
+[defaults]
+warmup = 1        # untimed runs first in every fresh container (page cache, Node.js compile cache)
+repetitions = 5   # timed runs per scenario and pass; the median is reported, every value is kept
+
+[quick]           # `--quick`: smoke test only, never published
+warmup = 0
+repetitions = 1
+
+# Index over the four check scenarios (not emit): each tool's wall time relative to the fastest per scenario.
+# A tool gets it only when it has a valid measurement in all four.
+[[derived]]
+id = "check_index"
+kind = "geomean_relative"
+metric = "wall_ms"
+scenarios = ["typeorm-check", "typeorm-check-1cpu", "excalidraw-check", "excalidraw-check-1cpu"]
+
+[[derived]]
+id = "peak_rss_max_mib"
+kind = "max"
+metric = "peak_rss_mib"
+scenarios = "*"
+
+[[headline]]
+metric = "check_index"
+label = "Check speed index"
+hint = "Geometric mean over four type checks (TypeORM and Excalidraw, on four cores and on one) of the wall time relative to the fastest tool; 100 means fastest in all four. It spans different compiler revisions (TypeScript 6.0, 7.0 and 7.1): the like-for-like comparisons are between tools of the same line, above all tsc 7.1 (beta) and tsrs, which share one revision."
+
+[[headline]]
+scenario = "typeorm-check"
+metric = "wall_ms"
+label = "TypeORM check"
+hint = "Median wall time of a full type check of TypeORM without output, default settings, four cores."
+
+[[headline]]
+scenario = "excalidraw-check"
+metric = "wall_ms"
+label = "Excalidraw check"
+hint = "Median wall time of a full type check of Excalidraw without output, default settings, four cores."
+
+[[headline]]
+metric = "peak_rss_max_mib"
+label = "Memory"
+hint = "Highest peak resident set size of the compiler process in any scenario."

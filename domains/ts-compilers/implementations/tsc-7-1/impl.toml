@@ -1,0 +1,31 @@
+id = "tsc-7-1"
+name = "tsc 7.1 (beta)"
+language = "Go"
+runtime = "native (Go), started by a Node.js launcher"
+variant = "pre-release (beta)"
+category = "tool"
+description = "The TypeScript compiler of the 7.1 line in Go, at the 7.1.0-beta pre-release. Included although it is a beta: it is the only Go build of the upstream revision that tsrs ports, so it is the like-for-like counterpart of the Rust ports."
+notes = [
+  "Pre-release: 7.1 has no stable release yet.",
+  "Built from microsoft/TypeScript@3e9236361fa97a9e6c685f4833ac457ae2d8c50a, the revision tsrs ports. Against tsc 7.0 a comparison mixes compiler revision and implementation language.",
+]
+maintainers = []
+
+[versions]
+typescript = "7.1.0-beta"
+
+[compiler]
+package = "typescript"
+typescript = "7.1"
+upstream = "microsoft/TypeScript@3e9236361fa97a9e6c685f4833ac457ae2d8c50a"
+command = ["tsc", "-p", "{tsconfig}", "--incremental", "false", "--composite", "false", "--pretty", "false"]
+env = {}
+
+[compiler.modes]
+check = ["--noEmit"]
+single = ["--noEmit", "--singleThreaded"]
+emit = ["--outDir", "{out}", "--declaration"]
+
+[build]
+dockerfile = "../../images/tool/Dockerfile"
+context = "../../images/tool"
