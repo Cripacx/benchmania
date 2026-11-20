@@ -26,7 +26,7 @@ better = "lower"
 group = "memory"
 decimals = 0
 visibility = "primary"
-description = "Largest peak resident set size (ru_maxrss from wait4) of any single process of the command, which is the compiler itself; a launcher process is not added. Resident pages of that process, including its mapped binary and libraries; not the page cache of files it only read, and nothing of other processes in the container."
+description = "Median over the timed runs of the largest peak resident set size of any single process of the command (ru_maxrss from wait4, which covers the command and the descendants it waited for). It is a maximum over processes, not a sum: a launcher's memory is not added to the compiler's. It counts resident pages of that one process, including its mapped binary and libraries; not the page cache of files it only read, and nothing of processes the command did not wait for."
 
 [parallelism]
 label = "Parallelism"
@@ -44,7 +44,7 @@ better = "lower"
 group = "summary"
 decimals = 0
 visibility = "primary"
-description = "Highest peak memory over all scenarios."
+description = "The highest peak memory (the per-scenario median of the largest single-process resident set) in any scenario."
 
 [check_index]
 label = "Check speed index"
@@ -53,4 +53,4 @@ better = "higher"
 group = "summary"
 decimals = 1
 visibility = "primary"
-description = "Geometric mean over the four check scenarios of the wall time relative to the fastest tool in each (100 = fastest everywhere). Spans different compiler revisions."
+description = "Per check scenario, the fastest tool's median wall time divided by this tool's; the geometric mean of those ratios over the four check scenarios, times 100 (100 = fastest in all four, 50 = twice the fastest time on geometric average). Relative to the tools of the run, from the per-scenario medians. Spans different compiler revisions: the like-for-like pair is tsc 7.1 (beta) and tsrs, two packaged implementations of the same upstream revision."

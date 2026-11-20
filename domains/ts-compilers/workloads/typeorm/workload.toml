@@ -73,10 +73,10 @@ append = "\nexport class BenchSeedNamingStrategy implements NamingStrategyInterf
 "7.1" = ["src/naming-strategy/DefaultNamingStrategy.ts(201,14): error TS2420"]
 
 [[seeded_errors]]
-intent = "TS2345: object literal missing a required property (TableOptions.name), in a test file, through the re-exports of src/index.ts"
+intent = "TS2345: object literal missing a required property (TableOptions.name), in a test file, through the re-exports of src/index.ts. TypeScript 6.0 reports it as TS2345 (argument not assignable), 7.0 and 7.1 as TS2741 (property missing), at the same position."
 file = "test/utils/test-utils.ts"
 append = "\nexport const benchSeedTable: Table = new Table({ columns: [] })\n"
 [seeded_errors.expect]
 "6.0" = ["test/utils/test-utils.ts(614,48): error TS2345"]
-"7.0" = ["test/utils/test-utils.ts(614,48): error TS2345"]
-"7.1" = ["test/utils/test-utils.ts(614,48): error TS2345"]
+"7.0" = ["test/utils/test-utils.ts(614,48): error TS2741"]
+"7.1" = ["test/utils/test-utils.ts(614,48): error TS2741"]

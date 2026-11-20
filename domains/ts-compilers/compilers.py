@@ -59,21 +59,24 @@ def compare(expected, actual):
     return problems
 
 
-def run_problems(run, expected, expect_files=None):
+def run_problems(run, expected, error_exit, expect_files=None):
     """Why one run is not a valid measurement (empty = valid).
 
-    Diagnostics decide, not exit codes (tsc 7.0 exits 1 where the others exit 2 for the same error), but the
-    exit code must agree with them: 0 when no diagnostics are expected, non-zero otherwise. A non-zero exit
-    without the expected diagnostics (a crash, out of memory) is never valid.
+    The diagnostics must be exactly the expected ones, and the exit code must be exactly the one the tool
+    returns for that outcome: 0 when no diagnostics are expected, `error_exit` (from [compiler] of impl.toml,
+    for the run's mode) otherwise. Any other code (a crash, out of memory, a crash after the diagnostics were
+    printed) is never valid. A process of the command still present after it returned (`leftover`, from the
+    timer) makes the run invalid as well: its time would not be the command's.
     """
     code = run["exit"]
     if code < 0:
         return [f"killed by signal {-code}"]
     problems = compare(expected, parse_diagnostics(run["output"]))
-    if not expected and code != 0:
-        problems.append(f"exit code {code} where 0 was expected")
-    if expected and code == 0:
-        problems.append("exit code 0 although errors were expected")
+    want = error_exit if expected else 0
+    if code != want:
+        problems.append(f"exit code {code} where {want} was expected")
+    if run.get("leftover"):
+        problems.append("processes still present after the command returned: " + "; ".join(run["leftover"][:5]))
     for suffix, n in (expect_files or {}).items():
         got = run.get("files", {}).get(suffix)
         if got != n:
@@ -90,6 +93,13 @@ def command(compiler, mode, tsconfig, out):
     return [a.replace("{tsconfig}", tsconfig).replace("{out}", out) for a in args]
 
 
+def error_exit(compiler, mode):
+    """The exit code a tool returns in `mode` when it reports errors ([compiler] error_exit: one code, or one
+    per mode: tsc 7.0 exits 1 when it wrote no output, as with --noEmit, and 2 when it did)."""
+    code = compiler["error_exit"]
+    return code[mode] if isinstance(code, dict) else code
+
+
 def compiler_problems(data, workloads):
     """Static checks of an implementation's [compiler] table against the workloads."""
     c = data.get("compiler")
@@ -101,6 +111,12 @@ def compiler_problems(data, workloads):
         problems.append("[compiler] package must name the npm package")
     elif not isinstance(data.get("versions", {}).get(package), str):
         problems.append(f"[versions] must give the exact version of '{package}' (it is what the image installs)")
+    code = c.get("error_exit")
+    codes = list(code.values()) if isinstance(code, dict) else [code]
+    if (isinstance(code, dict) and set(code) != set(MODES)) or not all(
+            isinstance(v, int) and not isinstance(v, bool) and 1 <= v <= 255 for v in codes):
+        problems.append("[compiler] error_exit must be the exit code (1-255) the tool returns when it reports "
+                        f"errors, or a table with one for each mode ({', '.join(MODES)})")
     line = c.get("typescript")
     if not isinstance(line, str) or not re.fullmatch(r"\d+\.\d+", line):
         problems.append("[compiler] typescript must be the TypeScript line it implements, like \"7.1\"")
@@ -166,15 +182,53 @@ def workload_problems(w):
                     normalize(d)
                 except (ValueError, AttributeError) as e:
                     problems.append(f"{where}: expected \"{line}\": {e}")
-    seed = w.get("seeded_error")
-    if not isinstance(seed, dict) or not all(isinstance(seed.get(k), str) for k in ("file", "append", "expect")):
-        problems.append(f"{where}: [seeded_error] needs file, append and expect")
-    else:
-        try:
-            normalize(seed["expect"])
-        except ValueError as e:
-            problems.append(f"{where}: seeded_error.expect: {e}")
+    problems += _seed_problems(where, w.get("seeded_errors"), expected if isinstance(expected, dict) else {})
     return problems
+
+
+def _seed_problems(where, seeds, expected):
+    """[[seeded_errors]]: each one appended to a different file, expecting at least one diagnostic in that
+    file for every TypeScript line the workload declares."""
+    if not isinstance(seeds, list) or not seeds:
+        return [f"{where}: [[seeded_errors]] must list the errors seeded into the workload"]
+    problems, files = [], []
+    for i, seed in enumerate(seeds, 1):
+        at = f"{where}: seeded error {i}"
+        if not isinstance(seed, dict) or not all(isinstance(seed.get(k), str) and seed[k]
+                                                   for k in ("intent", "file", "append")):
+            problems.append(f"{at} needs intent, file and append")
+            continue
+        files.append(seed["file"])
+        if not seed["append"].startswith("\n"):
+            problems.append(f"{at}: append must start with a newline, so that the file's last line stays as it is")
+        expect = seed.get("expect")
+        if not isinstance(expect, dict):
+            problems.append(f"{at} needs [seeded_errors.expect], keyed by TypeScript line like [expected]")
+            continue
+        for line in expected:
+            if line not in expect:
+                problems.append(f"{at} expects nothing for TypeScript {line}")
+        for line, diags in expect.items():
+            if not isinstance(diags, list) or not diags:
+                problems.append(f"{at}: expect \"{line}\" must list at least one diagnostic")
+                continue
+            for d in diags:
+                try:
+                    key = normalize(d)
+                except (ValueError, AttributeError) as e:
+                    problems.append(f"{at}: expect \"{line}\": {e}")
+                    continue
+                if not key.startswith(f"{seed['file']}("):
+                    problems.append(f"{at}: expect \"{line}\": {key} is not in {seed['file']}")
+    for f, n in Counter(files).items():
+        if n > 1:
+            problems.append(f"{where}: {n} seeded errors in {f}; each must have a file of its own")
+    return problems
+
+
+def seeded_expected(w, line):
+    """What a run on the seeded copy must report: the workload's expected diagnostics plus every seed's."""
+    return list(w["expected"][line]) + [d for seed in w["seeded_errors"] for d in seed["expect"][line]]
 
 
 def scenario_problems(params, workloads):
@@ -187,7 +241,11 @@ def scenario_problems(params, workloads):
     if cpus is not None and (not isinstance(cpus, int) or cpus < 1):
         problems.append("cpus must be a positive whole number")
     files = params.get("expect_files")
-    if files is not None and (params.get("mode") != "emit" or not isinstance(files, dict)
-                              or not all(isinstance(v, int) for v in files.values())):
+    if params.get("mode") == "emit" and files is None:
+        problems.append("an emit scenario needs expect_files (file suffix = count), "
+                        "or nothing about its output is verified")
+    elif files is not None and (params.get("mode") != "emit" or not isinstance(files, dict) or not files
+                                or not all(isinstance(v, int) and not isinstance(v, bool) and v > 0
+                                           for v in files.values())):
         problems.append("expect_files is a table of file suffix = count, for emit scenarios only")
     return problems

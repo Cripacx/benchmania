@@ -21,6 +21,7 @@ package = "typescript"
 typescript = "6.0"
 command = ["tsc", "-p", "{tsconfig}", "--incremental", "false", "--composite", "false", "--pretty", "false"]
 env = {}
+error_exit = 2  # exit code when it reports errors, observed in every mode; a run expecting diagnostics must exit with exactly this
 
 [compiler.modes]
 check = ["--noEmit"]

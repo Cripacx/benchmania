@@ -3,13 +3,14 @@ title = "TypeScript compilers"
 summary = "The same TypeScript projects, type-checked and compiled by tsc 6, tsc 7 and two experimental Rust ports."
 description = """
 Five compilers check two open-source projects (TypeORM and Excalidraw) at pinned commits: tsc 6.0 (TypeScript \
-on Node.js), tsc 7.0 and the 7.1 beta (Go), and the Rust ports tsrs and tsc-rs, which track TypeScript 7.1. \
+on Node.js), tsc 7.0 and the 7.1 beta (Go), and the Rust ports tsrs and tsc-rs, which port TypeScript 7.1 builds. \
 Each tool runs as a user would run it, through the command its npm package installs, in a fresh container \
 without network access, on four cores with default settings and on one core with its single-threaded flag where it has one. A \
 tool is only measured after it reported exactly the diagnostics expected for its TypeScript line on every \
-project and found an error seeded into a copy of each. The tools implement different TypeScript revisions: \
-tsc 7.1 (beta) and tsrs share one, so they are the like-for-like comparison of implementation languages; tsc-rs \
-tracks an earlier 7.1 build, and tsc 6.0 and 7.0 are older lines."""
+project, and the expected diagnostics plus every one of seven or eight errors seeded into different files of a \
+copy of each, in every mode. The tools implement different TypeScript revisions: tsc 7.1 (beta) and tsrs are two \
+packaged implementations of the same upstream revision, so they are the like-for-like comparison of \
+implementation languages; tsc-rs tracks an earlier 7.1 build, and tsc 6.0 and 7.0 are older lines."""
 # "example" keeps the domain off the website until it has results: the website's dataset tests reject a
 # published domain without a run. Set it to "experimental" in the pull request that adds the first result bundle.
 status = "example"
@@ -32,8 +33,8 @@ repetitions = 5   # timed runs per scenario and pass; the median is reported, ev
 warmup = 0
 repetitions = 1
 
-# Index over the four check scenarios (not emit): each tool's wall time relative to the fastest per scenario.
-# A tool gets it only when it has a valid measurement in all four.
+# Index over the four check scenarios (not emit): per scenario the fastest tool's median wall time divided by
+# this tool's, geometric mean of those ratios, times 100. A tool gets it only with a valid measurement in all four.
 [[derived]]
 id = "check_index"
 kind = "geomean_relative"
@@ -49,7 +50,7 @@ scenarios = "*"
 [[headline]]
 metric = "check_index"
 label = "Check speed index"
-hint = "Geometric mean over four type checks (TypeORM and Excalidraw, on four cores and on one) of the wall time relative to the fastest tool; 100 means fastest in all four. It spans different compiler revisions (TypeScript 6.0, 7.0 and 7.1): the like-for-like comparisons are between tools of the same line, above all tsc 7.1 (beta) and tsrs, which share one revision."
+hint = "For each of four type checks (TypeORM and Excalidraw, on four cores and on one), the fastest tool's median wall time divided by this tool's; the index is the geometric mean of those four ratios times 100. 100 means fastest in all four, 50 means twice the fastest time on geometric average. It is relative to the tools of this run and spans different compiler revisions (TypeScript 6.0, 7.0 and 7.1): the like-for-like pair is tsc 7.1 (beta) and tsrs, two packaged implementations of the same upstream revision (tsc-rs tracks an earlier 7.1 build)."
 
 [[headline]]
 scenario = "typeorm-check"
@@ -66,4 +67,4 @@ hint = "Median wall time of a full type check of Excalidraw without output, defa
 [[headline]]
 metric = "peak_rss_max_mib"
 label = "Memory"
-hint = "Highest peak resident set size of the compiler process in any scenario."
+hint = "Per scenario, the median over the timed runs of the largest resident set of any single process of the command (ru_maxrss from wait4, over the processes it waited for; not a sum). The headline is the highest such value in any scenario."

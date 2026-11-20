@@ -9,8 +9,8 @@ the first one for the one-core scenarios). Inside, images/tool/timer.py runs the
 runs, then the timed repetitions, each timed in the container and verified (diagnostics, exit code, emitted
 files). A scenario that fails is left unmeasured with the reason in its quality flags; the others still run.
 
-`check` is the correctness gate: every scenario on the unchanged workload and again with an error seeded
-into it.
+`check` is the correctness gate: every scenario on the unchanged workload and again on a copy with all of the
+workload's seeded errors appended.
 """
 
 import importlib.util
@@ -134,6 +134,9 @@ class CompilerHarness(Harness):
     def _expected(self, impl, s):
         return self.workloads[s.params["workload"]]["expected"][impl.data["compiler"]["typescript"]]
 
+    def _run_problems(self, impl, s, run, expected, files=None):
+        return C.run_problems(run, expected, C.error_exit(impl.data["compiler"], s.params["mode"]), files)
+
     def _environment_problems(self):
         """The container must have nothing but loopback (`--network none`) and the declared Node.js."""
         problems = []
@@ -147,25 +150,27 @@ class CompilerHarness(Harness):
 
     # --- functional check ----------------------------------------------------------------------------
     def check(self, impl):
-        """Every scenario twice: on the unchanged workload and on a copy with the seeded error. A mode that
-        silently checked less (an ignored flag, a mode that skips the checker) would pass the first run and
-        fail the second. Problems name the scenario."""
+        """Every scenario twice: on the unchanged workload and on a copy with every seeded error of the
+        workload appended. A mode that silently checked less (an ignored flag, a mode that skips files or the
+        checker) would pass the first run and miss seeds in the second. Problems name the scenario."""
         problems = []
+        line = impl.data["compiler"]["typescript"]
         try:
             for i, s in enumerate(self.ctx.domain.scenarios):
                 w = self.workloads[s.params["workload"]]
+                files = s.params.get("expect_files")
                 self._start(impl, self._cpus(s)[0])
                 if i == 0:
                     problems += self._environment_problems()
                 run = self._time(self._spec(impl, s, 1))[0]
-                problems += [f"{s.id}: {p}" for p in C.run_problems(run, self._expected(impl, s),
-                                                                     s.params.get("expect_files"))]
-                seed = w["seeded_error"]  # the edit is thrown away with this container
-                path = f"{WORKLOADS_DIR}/{w['id']}/{w['project']}/{seed['file']}"
-                self.ctx.docker.exec(self.name, "sh", "-c", 'printf "%s" "$1" >> "$2"', "sh", seed["append"], path)
+                problems += [f"{s.id}: {p}" for p in self._run_problems(impl, s, run, self._expected(impl, s), files)]
+                root = f"{WORKLOADS_DIR}/{w['id']}/{w['project']}"
+                for seed in w["seeded_errors"]:  # the edits are thrown away with this container
+                    self.ctx.docker.exec(self.name, "sh", "-c", 'test -f "$2" && printf "%s" "$1" >> "$2"', "sh",
+                                         seed["append"], f"{root}/{seed['file']}")
                 run = self._time(self._spec(impl, s, 1))[0]
-                expected = self._expected(impl, s) + [seed["expect"]]
-                problems += [f"{s.id} with seeded error: {p}" for p in C.run_problems(run, expected)]
+                problems += [f"{s.id} with seeded errors: {p}"
+                             for p in self._run_problems(impl, s, run, C.seeded_expected(w, line))]
             return problems
         except Exception as e:
             return problems + [f"{type(e).__name__}: {e}"]
@@ -190,21 +195,23 @@ class CompilerHarness(Harness):
         warmup, reps = int(self.defaults["warmup"]), int(self.defaults["repetitions"])
         cpus, wanted = self._cpus(s)
         spec = self._spec(impl, s, warmup + reps)
+        expected, files = self._expected(impl, s), s.params.get("expect_files")
         attempts = 1 + self.max_retries
         for attempt in range(1, attempts + 1):
             self._start(impl, cpus)  # fresh container for every attempt
             with collectors.Window({}, freq_cpus=cpus) as w:
                 runs = self._time(spec)
             self.ctx.docker.remove(self.name)
+            # Every attempt is verified, also one that is about to be repeated for steal: a failure is never
+            # hidden by a retry.
+            for i, run in enumerate(runs):
+                problems = self._run_problems(impl, s, run, expected, files)
+                if problems:
+                    kind = "warm-up run" if i < warmup else "timed run"
+                    raise RuntimeError(f"attempt {attempt}, {kind} {i + 1}: " + "; ".join(problems))
             if w.steal is None or w.steal <= self.max_steal or attempt == attempts:
                 break
             self.ctx.log(f"  {s.id}: steal {w.steal:.1f} %, repeating ({attempt}/{attempts - 1})")
-        expected = self._expected(impl, s)
-        for i, run in enumerate(runs):
-            problems = C.run_problems(run, expected, s.params.get("expect_files"))
-            if problems:
-                kind = "warm-up run" if i < warmup else "timed run"
-                raise RuntimeError(f"{kind} {i + 1}: " + "; ".join(problems))
         timed = runs[warmup:]
         walls = [round(r["wall_ms"], 3) for r in timed]
         cpu = [round(r["cpu_ms"], 3) for r in timed]

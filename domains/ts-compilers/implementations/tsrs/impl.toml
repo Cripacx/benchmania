@@ -1,13 +1,13 @@
 id = "tsrs"
 name = "tsrs"
 language = "Rust"
-runtime = "native (Rust), started by a Node.js launcher"
+runtime = "native (Rust), started by a Node.js launcher that replaces itself with the binary (execve)"
 variant = "experimental port"
 category = "tool"
-description = "An experimental port of the TypeScript 7.1 compiler to Rust (oxc-project/tsrs). It tracks the revision of the 7.1.0-beta release, so tsc 7.1 (beta) is its like-for-like counterpart."
+description = "An experimental port of the TypeScript 7.1 compiler to Rust (oxc-project/tsrs). It states that it tracks the revision of the 7.1.0-beta release, so tsc 7.1 (beta) is its like-for-like counterpart."
 notes = [
   "Experimental: a port, not the TypeScript team's compiler.",
-  "Tracks microsoft/TypeScript@3e9236361fa97a9e6c685f4833ac457ae2d8c50a (7.1.0-beta), the revision of tsc 7.1 (beta) in this domain.",
+  "States that it tracks microsoft/TypeScript@3e9236361fa97a9e6c685f4833ac457ae2d8c50a (7.1.0-beta), the revision of tsc 7.1 (beta) in this domain. The benchmark checks that it reports the same diagnostics on the workloads, not that it implements that revision.",
   "Its --fast mode is not measured: it changes what the checker does and only the ports have it.",
 ]
 maintainers = []
@@ -22,6 +22,7 @@ upstream = "microsoft/TypeScript@3e9236361fa97a9e6c685f4833ac457ae2d8c50a"
 repository = "https://github.com/oxc-project/tsrs"
 command = ["tsrs", "-p", "{tsconfig}", "--incremental", "false", "--composite", "false", "--pretty", "false"]
 env = {}
+error_exit = 2  # exit code when it reports errors, observed in every mode; a run expecting diagnostics must exit with exactly this
 
 [compiler.modes]
 check = ["--noEmit"]
