@@ -1,0 +1,16 @@
+title = "Excalidraw"
+description = "The Excalidraw monorepo: a React whiteboard application and its packages (TSX)."
+repository = "https://github.com/excalidraw/excalidraw"
+commit = "53973c3a423fbd75a4ce68107786b4fcb90e4968"
+project = "."
+tsconfig = "tsconfig.bench.json" # tsconfig.json without "baseUrl" (see prepare.sh)
+
+[expected]
+"6.0" = []
+"7.0" = []
+"7.1" = []
+
+[seeded_error]
+file = "packages/excalidraw/index.tsx"
+append = "\nexport const benchSeededError: number = \"not a number\"\n"
+expect = "packages/excalidraw/index.tsx(560,14): error TS2322"

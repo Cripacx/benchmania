@@ -1,0 +1,56 @@
+# Metric registry of the ts-compilers domain. Every value is the median of the timed runs of one pass;
+# the raw values of every run are in the quality data of the result bundle.
+
+[wall_ms]
+label = "Wall time"
+unit = "ms"
+better = "lower"
+group = "time"
+decimals = 0
+visibility = "primary"
+description = "Time from spawning the tool's command until it exited, measured inside the container with a monotonic clock (docker exec is not included). Covers the whole command: a launcher and the compiler it starts."
+
+[cpu_ms]
+label = "CPU time"
+unit = "ms"
+better = "lower"
+group = "cpu"
+decimals = 0
+visibility = "primary"
+description = "User plus system CPU time of the command and every process it started and waited for (from wait4), all threads included."
+
+[peak_rss_mib]
+label = "Peak memory"
+unit = "MiB"
+better = "lower"
+group = "memory"
+decimals = 0
+visibility = "primary"
+description = "Largest peak resident set size (ru_maxrss from wait4) of any single process of the command, which is the compiler itself; a launcher process is not added. Resident pages of that process, including its mapped binary and libraries; not the page cache of files it only read, and nothing of other processes in the container."
+
+[parallelism]
+label = "Parallelism"
+unit = "cores"
+better = "neutral"
+group = "cpu"
+decimals = 2
+visibility = "diagnostic"
+description = "CPU time divided by wall time: how many cores the tool kept busy on average. Neither higher nor lower is better on its own."
+
+[peak_rss_max_mib]
+label = "Peak memory, any scenario"
+unit = "MiB"
+better = "lower"
+group = "summary"
+decimals = 0
+visibility = "primary"
+description = "Highest peak memory over all scenarios."
+
+[check_index]
+label = "Check speed index"
+unit = "index"
+better = "higher"
+group = "summary"
+decimals = 1
+visibility = "primary"
+description = "Geometric mean over the four check scenarios of the wall time relative to the fastest tool in each (100 = fastest everywhere). Spans different compiler revisions."
