@@ -13,8 +13,10 @@ reject a published domain without results. It becomes `experimental` with its fi
 | `tsrs` | `tsrs@7.1.0-beta.tsrs3` | Rust | 7.1, the revision of 7.1.0-beta (`microsoft/TypeScript@3e923636`) | experimental port |
 | `tsc-rs` | `tsc-rs@0.8.0` | Rust | 7.1, the revision of 7.1.0-dev.20261008.1 (`microsoft/TypeScript@fed0bf24`) | experimental port |
 
-The revisions of the ports are the ones their projects state; the benchmark checks that the tools report the
-same diagnostics on the workloads, not which revision they implement.
+Where the revisions come from: the `typescript@7.1.0-beta` package names `3e923636` as its `gitHead`, and the
+`tsrs` package names the same commit as `typescriptCommit`. The `tsc-rs` package states only that it ports
+`7.1.0-dev`; the nightly and commit in the table are not in the package. The benchmark checks that the tools
+report the same diagnostics on the workloads, not which revision they implement.
 
 **Read the comparisons by TypeScript line.** The tools implement different compiler revisions, and a newer
 revision can be faster or slower for reasons that have nothing to do with the language it is written in.
@@ -87,7 +89,9 @@ after the runs of the first attempt were verified: a failure is never hidden by 
 - `peak_rss_mib`: the median over the timed runs of the largest resident set of any single process of the
   command (`ru_maxrss` from `wait4`, which covers the command and the descendants it waited for). It is a
   maximum over processes, not a sum. Since the launchers replace themselves with the compiler, that process
-  is the compiler, and its maximum also covers the short launcher phase before the `execve`. It counts the
+  is the compiler, and its maximum also covers the launcher phase before the `execve`: with the Node.js
+  launcher of tsc 7 and tsrs that is about 50 MiB, against about 12 MiB for the binary run directly
+  (measured with `--version`), so no value of theirs is below that. It counts the
   resident pages of that process (its binary included), not the page cache of the files it read. The
   container's cgroup `memory.peak` is not used: it counts page cache, which the kernel charges to whichever
   container read a file first, so it would depend on the order in which tools run.
