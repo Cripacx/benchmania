@@ -149,10 +149,13 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
         run: |
           run=true
-          if [ "$EVENT_NAME" = "pull_request" ] && \
-             ! git diff --name-only "origin/$BASE_REF...HEAD" \
-               | grep -qE '^(domains/ts-compilers/|core/benchcore/|tests/test_ts_compilers\.py$)'; then
-            run=false
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            # Its own statement: if git fails, the step fails instead of looking like "nothing changed".
+            changed="$(git diff --name-only "origin/$BASE_REF...HEAD")"
+            if ! printf '%s\n' "$changed" \
+                 | grep -qE '^(domains/ts-compilers/|core/benchcore/|tests/test_ts_compilers\.py$)'; then
+              run=false
+            fi
           fi
           echo "run=$run" >> "$GITHUB_OUTPUT"
       - name: Build and check

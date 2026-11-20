@@ -254,7 +254,7 @@ def test_scenario_problems():
     emit = {"workload": "typeorm", "mode": "emit"}
     assert C.scenario_problems({**emit, "expect_files": {".js": 3, ".d.ts": 3}}, workloads) == []
     assert "an emit scenario needs expect_files" in C.scenario_problems(emit, workloads)[0]
-    for files in ({}, {".js": 0}, {".js": "3"}, {".js": True}):
+    for files in ({}, {".js": 0}, {".js": "3"}, {".js": True}, {".map": 3}):  # .map: the timer does not count it
         assert C.scenario_problems({**emit, "expect_files": files}, workloads), files
 
 
@@ -358,7 +358,11 @@ def test_an_attempt_repeated_for_steal_is_verified_first(domain, monkeypatch):
         h._measure(domain.implementation("tsrs"), s)
     assert len(calls) == 1
 
-    good = [run("", 0, wall_ms=2.0, cpu_ms=3.0, maxrss_kib=2048)] * 3
+    h._time = lambda spec: [run("", 134, wall_ms=1.0)] + [run("", 0, wall_ms=1.0, cpu_ms=1.0, maxrss_kib=1024)] * 2
+    with pytest.raises(RuntimeError, match=r"^attempt 1, warm-up run 1: exit code 134 where 0 was expected"):
+        h._measure(domain.implementation("tsrs"), s)  # a failed warm-up run is not hidden either
+
+    good =[run("", 0, wall_ms=2.0, cpu_ms=3.0, maxrss_kib=2048)] * 3
     h._time = lambda spec: calls.append(spec) or good
     m, q = h._measure(domain.implementation("tsrs"), s)  # good runs, high steal: retried, then flagged
     assert len(calls) == 1 + 3 and q["attempts"] == 3 and m["wall_ms"] == 2.0

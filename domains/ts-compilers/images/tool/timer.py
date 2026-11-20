@@ -12,10 +12,12 @@ resident set of any single one of those processes (the kernel reports a maximum,
 to a file and is returned in full, so that the caller can verify every run. After the run, files below
 `clean` whose names end in one of the `count` suffixes are counted.
 
-After wait4 returned, the timer lists the processes of the container that were not there before the command
-was spawned (`leftover`): a process the command left running, or one that exited and was never reaped (the
-container's PID 1 is `sleep infinity`, which reaps nobody, so a zombie stays visible). The caller decides
-what a leftover means; the time of such a run is not the time of all the work the command started.
+After wait4 returned, the timer lists the process ids visible in the container that were not there before
+the command was spawned (`leftover`): a process the command left running, or one that exited and was never
+reaped (the container's PID 1 is `sleep infinity`, which reaps nobody, so a zombie stays visible). It is a
+comparison of two snapshots, not of ancestry: any other new process in the container would be listed too.
+The caller decides what a leftover means; the time of such a run is not the time of all the work the command
+started.
 """
 
 import json

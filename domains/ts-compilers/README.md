@@ -15,8 +15,10 @@ reject a published domain without results. It becomes `experimental` with its fi
 
 Where the revisions come from: the `typescript@7.1.0-beta` package names `3e923636` as its `gitHead`, and the
 `tsrs` package names the same commit as `typescriptCommit`. The `tsc-rs` package states only that it ports
-`7.1.0-dev`; the nightly and commit in the table are not in the package. The benchmark checks that the tools
-report the same diagnostics on the workloads, not which revision they implement.
+`7.1.0-dev`; the nightly and commit in the table come from `UPSTREAM.md` of its repository ("tsc-rs 0.4.0 to
+0.8.0 used the pin `fed0bf24149f`", the `gitHead` of `typescript@7.1.0-dev.20261008.1`; read at
+`pingdotgg/ts-rust@91f3d02`). These are the revisions the packages and repositories declare: the benchmark
+checks that the tools report the same diagnostics on the workloads, not which revision they implement.
 
 **Read the comparisons by TypeScript line.** The tools implement different compiler revisions, and a newer
 revision can be faster or slower for reasons that have nothing to do with the language it is written in.
@@ -43,7 +45,7 @@ Five scenarios:
 
 | Scenario | What runs | CPUs |
 |---|---|---|
-| `typeorm-check`, `excalidraw-check` | a full type check without output (`--noEmit`), default settings | 4 |
+| `typeorm-check`, `excalidraw-check` | a type check of the project (`-p`, not incremental) without output (`--noEmit`), default settings | 4 |
 | `typeorm-check-1cpu`, `excalidraw-check-1cpu` | the same check with the tool's single-threaded flag (`--singleThreaded`); tsc 6 has none and runs unchanged | 1 |
 | `typeorm-emit` | the check plus JavaScript and declaration output (`--outDir`, `--declaration`) | 4 |
 
@@ -98,9 +100,9 @@ after the runs of the first attempt were verified: a failure is never hidden by 
 - `parallelism` (diagnostic): CPU time divided by wall time.
 - `steal_pct`, `host_load`, `cpu_mhz` (diagnostic, from the engine): hypervisor steal, load average and CPU
   clock around the scenario's runs (warm-up included).
-- Derived: `check_index`: for each of the four check scenarios, the fastest tool's median wall time divided
-  by this tool's; the geometric mean of those four ratios, times 100 (100 = fastest in all four, 50 = twice
-  the fastest time on geometric average). A tool only gets it with a valid measurement in all four.
+- Derived: `check_index`: a tool only gets it with a valid measurement in all four check scenarios. For each
+  of them, the fastest median wall time among those tools divided by this tool's; the geometric mean of the
+  four ratios, times 100 (100 = fastest in all four, 50 = twice the fastest time on geometric average).
   `peak_rss_max_mib`: the highest `peak_rss_mib` of a tool in any scenario.
 
 ### Does `--singleThreaded` take effect?
@@ -150,8 +152,11 @@ indexed access type, and in two `.tsx` files a JSX prop of the wrong type and mi
 names, so nothing else in the file changes and no line above them moves. Expectations are per TypeScript line:
 the TypeORM seed in `test/utils` is TS2345 for 6.0 and TS2741 for 7.0 and 7.1, at the same position.
 
-Every mode (default, single-threaded, emit) goes through both steps, so a flag or mode that made a tool check
-less (skip files, skip the checker, stop early) would pass the first step and miss seeds in the second.
+Every mode (default, single-threaded, emit) goes through both steps. A flag or mode that made a tool check
+less (skip files, skip the checker, stop early) passes the first step and is caught in the second when it
+changes one of the expected outcomes: a seed that is not reported, another code or position, another exit
+code. A tool that checked less but still checked the fifteen seeded files and what they depend on would
+pass, and so would one that ignored its single-threaded flag (see the observations above).
 
 **What passing is evidence of.** On these two projects, in every mode, the tool reports no diagnostic that its
 TypeScript line does not expect, and it finds fifteen errors that it can only find by resolving imports and
@@ -201,14 +206,23 @@ the expected diagnostics were printed, is never valid.
 
 ## Limits
 
-- The Node.js base image is referenced by tag (`node:<version>-trixie-slim`), and the compiler's own npm
-  package is installed at an exact version, but its transitive npm packages (the native binary packages of
-  tsc 7, tsrs and tsc-rs) are not locked. Every result bundle records the id of the image that was measured.
+- The Node.js base image is referenced by tag (`node:<version>-trixie-slim`), its Debian packages (git,
+  Python) are installed from the live package repositories, and the compiler's own npm package is installed at
+  an exact version, but its transitive npm packages (the native binary packages of tsc 7, tsrs and tsc-rs)
+  are not locked. Every result bundle records the id of the image that was measured.
 - Emitted output is verified by the number of `.js` and `.d.ts` files only, not by content, and not compared
   between tools.
-- The index is computed from the per-scenario medians of one run and is relative to the tools in that run:
-  adding or removing a tool changes the reference of every other tool's index.
-- The single-threaded observations above come from one machine and are not checked by the gate.
+- The index is computed from the per-scenario medians of one run and is relative to the tools that have an
+  index in that run: adding or removing a tool can change the reference of every other tool's index. A
+  measurement that carries a quality flag (for example steal above the limit after the last retry) still
+  counts in the medians; the flag is published next to it.
+- The single-threaded ratios and the launcher memory figures above are observations from one machine and
+  the image that was tested, and they are not checked by the gate. That tsc 7's extra CPU time in
+  single-threaded mode comes from the Go runtime is an inference.
+- The check for leftover processes compares the process ids visible in the container before the command and
+  after `wait4` returned. It does not follow ancestry: a second `docker exec` into the container during a run
+  would be reported (the harness starts none), and a leftover process that got the id of a process that had
+  exited in the meantime would be missed.
 
 ## Not compared, and deferred
 

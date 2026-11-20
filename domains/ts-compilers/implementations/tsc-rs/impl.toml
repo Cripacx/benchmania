@@ -4,10 +4,10 @@ language = "Rust"
 runtime = "native (Rust), started by a shell launcher that execs the binary"
 variant = "experimental port"
 category = "tool"
-description = "An experimental port of the TypeScript 7.1 compiler to Rust (pingdotgg/ts-rust). Release 0.8.0 tracks the revision behind the 7.1.0-dev.20261008.1 nightly, which is older than 7.1.0-beta."
+description = "An experimental port of the TypeScript 7.1 compiler to Rust (pingdotgg/ts-rust). According to its repository, release 0.8.0 tracks the revision behind the 7.1.0-dev.20261008.1 nightly, which is older than 7.1.0-beta."
 notes = [
   "Experimental: a port, not the TypeScript team's compiler.",
-  "Tracks microsoft/TypeScript@fed0bf24149fb1ed36039212648bafdafc1ea10e (7.1.0-dev.20261008.1), an earlier 7.1 revision than tsc 7.1 (beta) and tsrs: a comparison with them mixes revision and implementation.",
+  "UPSTREAM.md of its repository states that releases 0.4.0 to 0.8.0 are pinned to microsoft/TypeScript@fed0bf24149fb1ed36039212648bafdafc1ea10e (the gitHead of typescript@7.1.0-dev.20261008.1), an earlier 7.1 revision than tsc 7.1 (beta) and tsrs: a comparison with them mixes revision and implementation. The npm package itself only reports version 7.1.0-dev.",
   "Its --fast mode is not measured: it changes what the checker does and only the ports have it.",
 ]
 maintainers = []
@@ -18,7 +18,7 @@ tsc-rs = "0.8.0"
 [compiler]
 package = "tsc-rs"
 typescript = "7.1"
-upstream = "microsoft/TypeScript@fed0bf24149fb1ed36039212648bafdafc1ea10e"
+upstream = "microsoft/TypeScript@fed0bf24149fb1ed36039212648bafdafc1ea10e"  # from UPSTREAM.md of the repository, not from the npm package
 repository = "https://github.com/pingdotgg/ts-rust"
 command = ["tsc-rs", "-p", "{tsconfig}", "--incremental", "false", "--composite", "false", "--pretty", "false"]
 env = {}

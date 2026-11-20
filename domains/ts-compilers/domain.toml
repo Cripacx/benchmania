@@ -33,8 +33,9 @@ repetitions = 5   # timed runs per scenario and pass; the median is reported, ev
 warmup = 0
 repetitions = 1
 
-# Index over the four check scenarios (not emit): per scenario the fastest tool's median wall time divided by
-# this tool's, geometric mean of those ratios, times 100. A tool gets it only with a valid measurement in all four.
+# Index over the four check scenarios (not emit). A tool gets it only with a valid measurement in all four;
+# per scenario the fastest median wall time among those tools divided by this tool's, geometric mean of those
+# ratios, times 100.
 [[derived]]
 id = "check_index"
 kind = "geomean_relative"
@@ -50,19 +51,19 @@ scenarios = "*"
 [[headline]]
 metric = "check_index"
 label = "Check speed index"
-hint = "For each of four type checks (TypeORM and Excalidraw, on four cores and on one), the fastest tool's median wall time divided by this tool's; the index is the geometric mean of those four ratios times 100. 100 means fastest in all four, 50 means twice the fastest time on geometric average. It is relative to the tools of this run and spans different compiler revisions (TypeScript 6.0, 7.0 and 7.1): the like-for-like pair is tsc 7.1 (beta) and tsrs, two packaged implementations of the same upstream revision (tsc-rs tracks an earlier 7.1 build)."
+hint = "For each of four type checks (TypeORM and Excalidraw, on four cores and on one), the fastest median wall time among the tools that have an index divided by this tool's; the index is the geometric mean of those four ratios times 100. 100 means fastest in all four, 50 means twice the fastest time on geometric average. It is relative to the tools of this run, so another set of tools can change it, and it spans different compiler revisions (TypeScript 6.0, 7.0 and 7.1): the like-for-like pair is tsc 7.1 (beta) and tsrs, two packaged implementations with the same declared upstream revision (tsc-rs tracks an earlier 7.1 build)."
 
 [[headline]]
 scenario = "typeorm-check"
 metric = "wall_ms"
 label = "TypeORM check"
-hint = "Median wall time of a full type check of TypeORM without output, default settings, four cores."
+hint = "Median wall time of a type check of the TypeORM project (not incremental, no output), default settings, four cores."
 
 [[headline]]
 scenario = "excalidraw-check"
 metric = "wall_ms"
 label = "Excalidraw check"
-hint = "Median wall time of a full type check of Excalidraw without output, default settings, four cores."
+hint = "Median wall time of a type check of the Excalidraw project (not incremental, no output), default settings, four cores."
 
 [[headline]]
 metric = "peak_rss_max_mib"

@@ -13,6 +13,7 @@ from collections import Counter
 from pathlib import Path
 
 MODES = ("check", "single", "emit")
+EMIT_SUFFIXES = (".js", ".d.ts")  # the emitted files the timer counts; expect_files can name only these
 PLACEHOLDERS = ("{tsconfig}", "{out}")
 DIAGNOSTIC_RE = re.compile(r"^(?:(?P<file>.+?)\((?P<line>\d+),(?P<col>\d+)\): )?"
                            r"(?P<cat>error|warning|message) TS(?P<code>\d+)(?:: (?P<msg>.*))?$")
@@ -245,7 +246,9 @@ def scenario_problems(params, workloads):
         problems.append("an emit scenario needs expect_files (file suffix = count), "
                         "or nothing about its output is verified")
     elif files is not None and (params.get("mode") != "emit" or not isinstance(files, dict) or not files
+                                or not all(k in EMIT_SUFFIXES for k in files)
                                 or not all(isinstance(v, int) and not isinstance(v, bool) and v > 0
                                            for v in files.values())):
-        problems.append("expect_files is a table of file suffix = count, for emit scenarios only")
+        problems.append(f"expect_files is a table of file suffix = count ({', '.join(EMIT_SUFFIXES)}), "
+                        "for emit scenarios only")
     return problems
