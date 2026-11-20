@@ -10,7 +10,77 @@ tsconfig = "tsconfig.bench.json" # tsconfig.json without "baseUrl" (see prepare.
 "7.0" = []
 "7.1" = []
 
-[seeded_error]
-file = "packages/excalidraw/index.tsx"
-append = "\nexport const benchSeededError: number = \"not a number\"\n"
-expect = "packages/excalidraw/index.tsx(560,14): error TS2322"
+# Seeded errors: see workloads/typeorm/workload.toml. Most of them cross a package boundary through the
+# `paths` mapping of tsconfig.json (@excalidraw/element, @excalidraw/excalidraw, @excalidraw/math).
+
+[[seeded_errors]]
+intent = "TS2344: violated generic constraint of a project type (LineSegment<P extends GlobalPoint | LocalPoint>, from ./types)"
+file = "packages/math/src/segment.ts"
+append = "\nexport type BenchSeedConstraint = LineSegment<number>;\n"
+[seeded_errors.expect]
+"6.0" = ["packages/math/src/segment.ts(206,47): error TS2344"]
+"7.0" = ["packages/math/src/segment.ts(206,47): error TS2344"]
+"7.1" = ["packages/math/src/segment.ts(206,47): error TS2344"]
+
+[[seeded_errors]]
+intent = "TS2322: assignability against a project type (an indexed access into the ExcalidrawElement union of ./types)"
+file = "packages/element/src/sizeHelpers.ts"
+append = "\nexport const benchSeedElementType: ExcalidrawElement[\"type\"] = \"hexagon\";\n"
+[seeded_errors.expect]
+"6.0" = ["packages/element/src/sizeHelpers.ts(286,14): error TS2322"]
+"7.0" = ["packages/element/src/sizeHelpers.ts(286,14): error TS2322"]
+"7.1" = ["packages/element/src/sizeHelpers.ts(286,14): error TS2322"]
+
+[[seeded_errors]]
+intent = "TS2345: wrong argument to a project function of another package (pointFromPair from @excalidraw/math)"
+file = "packages/common/src/points.ts"
+append = "\nexport const benchSeedPointArgument: GlobalPoint = pointFromPair(\"1,2\");\n"
+[seeded_errors.expect]
+"6.0" = ["packages/common/src/points.ts(83,66): error TS2345"]
+"7.0" = ["packages/common/src/points.ts(83,66): error TS2345"]
+"7.1" = ["packages/common/src/points.ts(83,66): error TS2345"]
+
+[[seeded_errors]]
+intent = "TS18048: possibly-undefined access under strict null checks (optional customData of the element types of @excalidraw/element)"
+file = "packages/utils/src/export.ts"
+append = "\nexport const benchSeedPossiblyUndefined = (\n  element: NonDeletedExcalidrawElement,\n): number => element.customData.size;\n"
+[seeded_errors.expect]
+"6.0" = ["packages/utils/src/export.ts(229,14): error TS18048"]
+"7.0" = ["packages/utils/src/export.ts(229,14): error TS18048"]
+"7.1" = ["packages/utils/src/export.ts(229,14): error TS18048"]
+
+[[seeded_errors]]
+intent = "TS2339: property that does not exist on a project class of another package (Scene from @excalidraw/element)"
+file = "packages/excalidraw/scene/Renderer.ts"
+append = "\nexport const benchSeedMissingMember = (scene: Scene): unknown =>\n  scene.benchMissingMember;\n"
+[seeded_errors.expect]
+"6.0" = ["packages/excalidraw/scene/Renderer.ts(427,9): error TS2339"]
+"7.0" = ["packages/excalidraw/scene/Renderer.ts(427,9): error TS2339"]
+"7.1" = ["packages/excalidraw/scene/Renderer.ts(427,9): error TS2339"]
+
+[[seeded_errors]]
+intent = "TS2739: object literal missing required properties of a project interface (ExportedDataState from ./types)"
+file = "packages/excalidraw/data/json.ts"
+append = "\nexport const benchSeedExportedData: ExportedDataState = {\n  type: \"excalidraw\",\n  version: 2,\n  source: \"bench\",\n};\n"
+[seeded_errors.expect]
+"6.0" = ["packages/excalidraw/data/json.ts(161,14): error TS2739"]
+"7.0" = ["packages/excalidraw/data/json.ts(161,14): error TS2739"]
+"7.1" = ["packages/excalidraw/data/json.ts(161,14): error TS2739"]
+
+[[seeded_errors]]
+intent = "TS2322: JSX prop of the wrong type (Tooltip label, declared in ./Tooltip)"
+file = "packages/excalidraw/components/HelpButton.tsx"
+append = "\nexport const BenchSeedTooltipLabel = () => (\n  <Tooltip label={42}>bench</Tooltip>\n);\n"
+[seeded_errors.expect]
+"6.0" = ["packages/excalidraw/components/HelpButton.tsx(26,12): error TS2322"]
+"7.0" = ["packages/excalidraw/components/HelpButton.tsx(26,12): error TS2322"]
+"7.1" = ["packages/excalidraw/components/HelpButton.tsx(26,12): error TS2322"]
+
+[[seeded_errors]]
+intent = "TS2739: JSX element missing required props (Tooltip children and label), in the app, across the package boundary"
+file = "excalidraw-app/components/EncryptedIcon.tsx"
+append = "\nexport const BenchSeedTooltipProps = () => <Tooltip long />;\n"
+[seeded_errors.expect]
+"6.0" = ["excalidraw-app/components/EncryptedIcon.tsx(23,45): error TS2739"]
+"7.0" = ["excalidraw-app/components/EncryptedIcon.tsx(23,45): error TS2739"]
+"7.1" = ["excalidraw-app/components/EncryptedIcon.tsx(23,45): error TS2739"]
