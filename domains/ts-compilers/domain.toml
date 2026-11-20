@@ -9,13 +9,15 @@ without network access, on four cores with default settings and on one core with
 tool is only measured after it reported exactly the diagnostics expected for its TypeScript line on every \
 project, and the expected diagnostics plus every one of seven or eight errors seeded into different files of a \
 copy of each, in every mode. The tools implement different TypeScript revisions: tsc 7.1 (beta) and tsrs are two \
-packaged implementations of the same upstream revision, so they are the like-for-like comparison of \
-implementation languages; tsc-rs tracks an earlier 7.1 build, and tsc 6.0 and 7.0 are older lines."""
-# "example" keeps the domain off the website until it has results: the website's dataset tests reject a
-# published domain without a run. Set it to "experimental" in the pull request that adds the first result bundle.
+packaged implementations with the same declared upstream revision, so they are the like-for-like pair; tsc-rs \
+tracks an earlier 7.1 build, and tsc 6.0 and 7.0 are older lines."""
+# "example" keeps the domain off the website until it has a result bundle: the website's dataset tests reject a
+# published domain without a run. Set it to "experimental" in the pull request that adds the first bundle; the
+# website then marks the domain as such next to its numbers.
 status = "example"
 harness = "harness:CompilerHarness"
 methodology_version = "1"
+ranking_note = "Mixed TypeScript revisions: tsc 7.1 (beta) and tsrs declare the same upstream revision, tsc-rs is pinned to an earlier 7.1 build, tsc 6.0 and 7.0 are older lines."
 
 # Limits of every measurement container. The four-core scenarios are pinned to all service CPUs, the one-core
 # scenarios to the first of them (a cpuset, no CPU quota on top). Node.js sizes its default heap from the
@@ -69,3 +71,42 @@ hint = "Median wall time of a type check of the Excalidraw project (not incremen
 metric = "peak_rss_max_mib"
 label = "Memory"
 hint = "Per scenario, the median over the timed runs of the largest resident set of any single process of the command (ru_maxrss from wait4, over the processes it waited for; not a sum). The headline is the highest such value in any scenario."
+
+# Comparisons the website suggests, first one first. Say what is compared and why it is fair or not, never who wins.
+[[compare]]
+title = "Same declared revision: Go and Rust"
+ids = ["tsc-7-1", "tsrs"]
+note = "tsc 7.1 (beta) and tsrs are two packaged implementations with the same declared upstream revision (the one of 7.1.0-beta), one written in Go and one in Rust: the like-for-like pair of this domain. Launcher, runtime and threading differ as well, and the correctness gate does not show that both do the same amount of work, so a difference is not the language alone."
+
+[[compare]]
+title = "The tsc lines: 6.0, 7.0 and 7.1 (beta)"
+ids = ["tsc-6-0", "tsc-7-0", "tsc-7-1"]
+note = "The TypeScript team's compiler across three lines: 6.0 is written in TypeScript and runs on Node.js, 7.0 and the 7.1 beta are written in Go. 6.0 against 7.0 mixes compiler revision and implementation language; 7.0 against 7.1 compares two releases of the same Go compiler."
+
+[[compare]]
+title = "The Rust ports and tsc 7.1 (beta)"
+ids = ["tsc-7-1", "tsrs", "tsc-rs"]
+note = "All three target TypeScript 7.1, but tsc-rs is pinned to an earlier 7.1 development build than the other two, so a comparison with tsc-rs mixes revision and implementation."
+
+# The domain's part of the methodology page: engine-wide rules are described by the website itself.
+[methodology]
+document = "domains/ts-compilers/README.md"
+# An empty name marks a role this domain does not use: there is no supporting service, so those cores are
+# assigned to no role. There is no load generator either, but the engine pins the benchmark runner to that role's cores.
+roles = { service = "Compiler under test", environment = "", loadgen = "Benchmark runner" }
+checks = [
+  { check = "Correctness gate before measuring: in every scenario and mode a tool must report exactly the diagnostics expected for its TypeScript line, and on a copy of each project with seven or eight seeded errors exactly those as well, each at the expected file, line, column and code, with exactly the exit code the tool declares", effect = "Tool is excluded from the run" },
+  { check = "A run (warm-up or timed) reports other diagnostics, exits with another code than expected, leaves a process behind, or (emit) writes a different number of .js and .d.ts files", effect = "Not a measurement: the scenario stays unmeasured in that pass, with the reason in its quality flags" },
+]
+limitations = [
+  "The tools implement different TypeScript revisions (6.0, 7.0 and two builds of 7.1). Only tsc 7.1 (beta) and tsrs declare the same upstream revision; the check speed index spans all of them.",
+  "The correctness gate shows agreement on the diagnostics of two projects and on fifteen seeded errors. It does not show that every tool checks every file or does the same amount of work, so a difference in time is not attributable to the implementation language alone.",
+  "Three of the five tools are not stable releases: tsc 7.1 is a beta, tsrs and tsc-rs are experimental ports.",
+  "Every tool runs through the command its npm package installs. For tsc 7, tsrs and tsc-rs that is a launcher that replaces itself with the compiler; its start-up is part of the wall time and of the peak memory.",
+  "Two projects at pinned commits, whole-project checks only: incremental checks, watch mode and editor (language server) use are not measured.",
+  "Emitted output is verified by the number of files, not by content, and not compared between tools.",
+  "Peak memory is that of the largest single process of a command, not a sum over its processes.",
+  "The Node.js base image is referenced by tag and the compilers' transitive npm packages are not locked; every result records the image that was measured.",
+  "A measurement that carries a quality flag still counts in the medians; the flag is shown next to it.",
+]
+versions = { "1" = "First methodology of this domain: correctness gate with fifteen seeded errors in every mode and exact exit codes, a fresh container per scenario and pass, one untimed warm-up and five timed runs, verification of every run (also before a steal-time retry), no process left behind." }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { assessDiff, derivedScale, missingValue, relativeDiff, runScope, flagNote, hasAlertFlags, highestFlagLevel, valueFlagNote, valueFlags, type ValueContext } from '../src/lib/model';
+import { assessDiff, derivedScale, measuredMetricIds, missingValue, noIndexSentence, rankingNoteShort, withheldLines, relativeDiff, runScope, flagNote, hasAlertFlags, highestFlagLevel, valueFlagNote, valueFlags, type ValueContext } from '../src/lib/model';
 import type { DomainData, Flag, Run } from '../src/lib/types';
 
 const ctx: ValueContext = {
@@ -114,9 +114,54 @@ describe('missing values', () => {
     expect(missingValue(run, 'go', null, 'throughput_index').label).toBe('not measured');
     expect(missingValue({}, 'go', null, 'throughput_index').label).toBe('not measured');
   });
-  it('describes the scale of a relative index', () => {
-    expect(derivedScale(ctx, 'throughput_index')).toBe('100 = best in all 2 scenarios');
-    expect(derivedScale(ctx, 'peak_memory_mib')).toBeNull();
+  it('describes the scale of a relative index with the scenarios it was computed over in the run', () => {
+    const best = (...ids: string[]) => ({ best: { throughput_index: Object.fromEntries(ids.map((s) => [s, { value: 1, by: ['a'] }])) } });
+    expect(derivedScale(ctx, 'throughput_index', best('json', 'orders'))).toBe('100 = best in all 2 scenarios');
+    // A scenario the publisher left out (best value 0) is not counted, whatever the declared list says.
+    expect(derivedScale(ctx, 'throughput_index', best('json'))).toBe('100 = best in its one scenario');
+    // Nobody has the index in this run: there is no scale to state.
+    expect(derivedScale(ctx, 'throughput_index', {})).toBeNull();
+    expect(derivedScale(ctx, 'peak_memory_mib', best('json'))).toBeNull();
+  });
+});
+
+describe('withheld indexes are said in visible text', () => {
+  const name = (id: string) => id.toUpperCase();
+  const reason = 'Throughput not measured in: orders';
+  it('groups implementations by reason, in the given order', () => {
+    const run = { withheld: { b: { throughput_index: reason }, c: { throughput_index: reason }, d: { throughput_index: 'Error rate above 0.01 in: db' } } };
+    expect(withheldLines(run, ['a', 'b', 'c', 'd'], 'throughput_index', name)).toEqual([
+      `No index for B and C. ${reason}.`,
+      'No index for D. Error rate above 0.01 in: db.',
+    ]);
+    expect(withheldLines(run, ['a', 'b'], 'throughput_index', name, 'Throughput index')).toEqual([`Throughput index: no index for B. ${reason}.`]);
+    expect(withheldLines(run, ['a'], 'throughput_index', name)).toEqual([]);
+  });
+  it('says when nobody has the index, and why', () => {
+    const run = { withheld: { a: { throughput_index: reason }, b: { throughput_index: reason } } };
+    expect(withheldLines(run, ['a', 'b'], 'throughput_index', name, undefined, true)).toEqual([`No index for any implementation. ${reason}.`]);
+    // A selection (explorer picker, compare page) is named: others outside it may have an index.
+    expect(withheldLines(run, ['a', 'b'], 'throughput_index', name)).toEqual([`No index for A and B. ${reason}.`]);
+    expect(noIndexSentence(run, ['a', 'b'], { metric: 'throughput_index', label: 'T' })).toBe(`No implementation has an index in this run. ${reason}.`);
+    const mixed = { withheld: { a: { throughput_index: reason }, b: { throughput_index: 'Throughput of zero in: db' } } };
+    expect(noIndexSentence(mixed, ['a', 'b'], { metric: 'throughput_index', label: 'T' })).toMatch(/reason for each/);
+    // Not measured at all (nothing withheld) and scenario metrics: the card says "not measured" itself.
+    expect(noIndexSentence({}, ['a', 'b'], { metric: 'throughput_index', label: 'T' })).toBeNull();
+    expect(noIndexSentence(run, ['a', 'b'], { metric: 'rps', scenario: 'json', label: 'T' })).toBeNull();
+  });
+  it('keeps an index that is withheld for everybody among the derived metrics of a run', () => {
+    const run = { results: {}, derived: {}, withheld: { a: { throughput_index: reason } } };
+    expect(measuredMetricIds({}, run, null)).toEqual(['throughput_index']);
+    expect(measuredMetricIds({}, { results: {}, derived: {} }, null)).toEqual([]);
+  });
+});
+
+describe('short ranking note', () => {
+  it('takes the first clause and keeps version numbers whole', () => {
+    expect(rankingNoteShort('Mixed TypeScript revisions: tsc 7.1 (beta) and tsrs declare the same revision.')).toBe('Mixed TypeScript revisions');
+    expect(rankingNoteShort('Versions 1.2 and 1.3 differ. More text.')).toBe('Versions 1.2 and 1.3 differ');
+    expect(rankingNoteShort('One clause only')).toBe('One clause only');
+    expect(rankingNoteShort(undefined)).toBe('');
   });
 });
 

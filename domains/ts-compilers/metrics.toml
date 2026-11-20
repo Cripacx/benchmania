@@ -37,15 +37,7 @@ decimals = 2
 visibility = "diagnostic"
 description = "CPU time divided by wall time: how many cores the tool kept busy on average. Neither higher nor lower is better on its own."
 
-[peak_rss_max_mib]
-label = "Peak memory, any scenario"
-unit = "MiB"
-better = "lower"
-group = "summary"
-decimals = 0
-visibility = "primary"
-description = "The highest peak memory (the per-scenario median of the largest single-process resident set) in any scenario."
-
+# Summary metrics in the order the website lists them: the index first, as in the headline.
 [check_index]
 label = "Check speed index"
 unit = "index"
@@ -54,3 +46,12 @@ group = "summary"
 decimals = 1
 visibility = "primary"
 description = "Per check scenario, the fastest median wall time among the tools that have an index divided by this tool's; the geometric mean of those ratios over the four check scenarios, times 100 (100 = fastest in all four, 50 = twice the fastest time on geometric average). Relative to the tools of the run, from the per-scenario medians, so another set of tools can change it. Spans different compiler revisions: the like-for-like pair is tsc 7.1 (beta) and tsrs, two packaged implementations with the same declared upstream revision."
+
+[peak_rss_max_mib]
+label = "Peak memory, any scenario"
+unit = "MiB"
+better = "lower"
+group = "summary"
+decimals = 0
+visibility = "primary"
+description = "The highest peak memory (the per-scenario median of the largest single-process resident set) in any scenario."

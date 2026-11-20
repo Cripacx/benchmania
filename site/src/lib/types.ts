@@ -24,6 +24,7 @@ export interface HeadlineEntry {
   metric: string;
   /** Without a scenario the metric is a derived metric from `run.derived`. */
   scenario?: string;
+  /** Optional in domain.toml; the dataset loader fills in the metric's label when it is missing. */
   label: string;
   hint?: string;
 }
@@ -36,11 +37,37 @@ export interface DomainSummary {
   service?: Record<string, unknown>;
   headline: HeadlineEntry[];
   description?: string;
+  /** Short caveat shown directly above every ranking of the domain (`ranking_note`); empty or absent: none. */
+  ranking_note?: string;
+  /** Comparisons the domain suggests, most important first (`[[compare]]` in domain.toml). */
+  compare?: DeclaredComparison[];
+  /** The domain's own part of the methodology; engine-wide rules are described by the site. */
+  methodology?: DomainMethodology;
   runs?: number;
   implementations?: number;
   scenarios?: number;
   machines?: number;
   default_run?: string | null;
+}
+
+export interface DeclaredComparison {
+  title: string;
+  /** Two to four implementation ids. */
+  ids: string[];
+  /** What is compared and how fair it is. */
+  note?: string;
+}
+
+export interface DomainMethodology {
+  /** Path of the domain's methodology document, relative to the repository root. */
+  document?: string;
+  /** What each CPU role of the layout is in this domain (service, environment, loadgen). */
+  roles?: Record<string, string>;
+  /** Domain-specific quality controls. */
+  checks?: Array<{ check: string; effect: string }>;
+  limitations?: string[];
+  /** Methodology version -> what it measures and changed. */
+  versions?: Record<string, string>;
 }
 
 export interface DatasetIndex {

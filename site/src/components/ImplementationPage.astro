@@ -8,6 +8,7 @@ import Breadcrumbs from './Breadcrumbs.astro';
 import Icon from './Icon.astro';
 import { LangChip } from './islands/LangChip';
 import MetricRows from './MetricRows.astro';
+import RankingNote from './RankingNote.astro';
 import RunContext from './RunContext.astro';
 import RunNotice from './RunNotice.astro';
 import RunScopeNotice from './RunScopeNotice.astro';
@@ -25,6 +26,8 @@ import {
   headlineValue,
   implementation,
   implementationLinks,
+  implLabel,
+  manifestDetails,
   machineName,
   measuredMetricIds,
   measuredScenarios,
@@ -55,7 +58,7 @@ const project = getProject();
 const id = domain.domain.id;
 const scope = scoped && run ? run.id : null;
 const impl: Implementation = implementation(domain, implId, run);
-const title = impl.variant ? `${impl.name} (${impl.variant})` : impl.name;
+const title = implLabel(impl);
 const inRun = run ? runImplementationIds(domain, run).includes(implId) : false;
 const links = implementationLinks(project, domain.domain.id, impl);
 const versions = measuredVersions(domain, implId, inRun ? run : undefined);
@@ -97,7 +100,7 @@ const tiles =
 const scenarios = run && inRun ? measuredScenarios(domain, run) : [];
 const sections = run && inRun
   ? [
-      ...(Object.keys(run.derived?.[implId] ?? {}).length
+      ...(Object.keys(run.derived?.[implId] ?? {}).length || Object.keys(run.withheld?.[implId] ?? {}).length
         ? [{ key: null as string | null, title: 'Overall', kind: 'Derived', params: [] as string[], description: 'Derived from the scenario medians of this run.' }]
         : []),
       ...scenarios.map((s) => ({
@@ -108,7 +111,15 @@ const sections = run && inRun
         description: s.description ?? '',
       })),
     ].map((sec) => {
-      const metricIds = measuredMetricIds(domain.metrics, { results: { [implId]: run.results[implId] ?? {} }, derived: { [implId]: run.derived?.[implId] ?? {} } }, sec.key);
+      const metricIds = measuredMetricIds(
+        domain.metrics,
+        {
+          results: { [implId]: run.results[implId] ?? {} },
+          derived: { [implId]: run.derived?.[implId] ?? {} },
+          withheld: { [implId]: run.withheld?.[implId] ?? {} },
+        },
+        sec.key,
+      );
       const vis = byVisibility(domain.metrics, metricIds);
       const scenarioFlags = flags.filter((f) => flagScenario(f) === sec.key);
       const extraGroups = groupMetricIds(domain.metrics, [...vis.secondary, ...vis.diagnostic]);
@@ -133,6 +144,14 @@ const crumbs =
       ];
 const related = suggestedComparisons(domain, ids, 4).filter((s) => s.ids.includes(implId));
 const comparePeers = related[0]?.ids ?? [implId];
+// A declared comparison names its members; a derived one groups variants of the same source or runtime.
+const compareText =
+  comparePeers.length < 2
+    ? 'Compare'
+    : related[0]?.note
+      ? `Compare with ${comparePeers.filter((p) => p !== implId).map((p) => implementation(domain, p, run).name).join(' and ')}`
+      : 'Compare with its variants';
+const details = manifestDetails(domain, implId, inRun ? run : undefined);
 ---
 
 <BaseLayout
@@ -163,7 +182,7 @@ const comparePeers = related[0]?.ids ?? [implId];
         )}
         {inRun && (
           <a class="btn btn-secondary btn-sm" href={href(routes.compare(id, comparePeers.length > 1 ? comparePeers : [implId], scope))}>
-            <Icon name="compare" /> {comparePeers.length > 1 ? 'Compare with its variants' : 'Compare'}
+            <Icon name="compare" /> {compareText}
           </a>
         )}
       </div>
@@ -180,6 +199,7 @@ const comparePeers = related[0]?.ids ?? [implId];
 
           <section aria-labelledby="headline-title" class="impl-section">
             <h2 id="headline-title" class="visually-hidden">Headline results</h2>
+            <RankingNote domain={domain.domain} class="impl-ranking-note" />
             <ul class="tiles">
               {tiles.map((t) => (
                 <li class="card tile">
@@ -204,14 +224,18 @@ const comparePeers = related[0]?.ids ?? [implId];
                         {t.flags && (
                           <span class={`tile-flags is-${t.flags.marker}`} title={t.flags.texts.join('\n')}>
                             <Icon name={t.flags.marker} class="inline-icon" />
-                            <span>{t.flags.texts.length === 1 ? t.flags.texts[0] : `${t.flags.texts.length} quality flags: ${t.flags.texts.join('; ')}`}</span>
+                            <span>
+                              {t.flags.texts.length === 1
+                                ? t.flags.texts[0]
+                                : `${t.flags.texts.length} quality ${t.flags.marker === 'info' ? 'notes' : 'flags'}; each scenario below lists its own`}
+                            </span>
                           </span>
                         )}
                         <span class="tile-best">
                           {t.rank === 1
                             ? 'Best in this run'
                             : t.best && t.bestImpl
-                              ? `Best: ${formatNumber(t.best.m, t.metric.decimals ?? 0)} (${t.bestImpl.name}${t.bestImpl.variant ? `, ${t.bestImpl.variant}` : ''})`
+                              ? `Best: ${formatNumber(t.best.m, t.metric.decimals ?? 0)} (${implLabel(t.bestImpl)})`
                               : ''}
                         </span>
                       </>
@@ -333,6 +357,39 @@ const comparePeers = related[0]?.ids ?? [implId];
                 )}
               </section>
 
+              {details.map((d) => (
+                <section class="card card-pad">
+                  <h2 class="aside-title">{d.title}</h2>
+                  <dl class="details">
+                    {d.rows.map((r) => (
+                      <div>
+                        <dt>
+                          {r.label}
+                          {r.scenarios && r.scenarios.length > 0 && <span class="detail-scen">for {r.scenarios.join(', ')}</span>}
+                        </dt>
+                        <dd>
+                          {r.kind === 'code' ? <code class="cmd">{r.value}</code> : r.kind === 'link' ? <a href={r.value}>{r.value.replace(/^https?:\/\//, '')}</a> : r.value}
+                        </dd>
+                      </div>
+                    ))}
+                  </dl>
+                </section>
+              ))}
+
+              {related.length > 0 && (
+                <section class="card card-pad">
+                  <h2 class="aside-title">Suggested comparisons</h2>
+                  <ul class="related">
+                    {related.map((r) => (
+                      <li>
+                        <a href={href(routes.compare(id, r.ids, scope))}>{r.title}</a>
+                        {r.note && <p class="muted">{r.note}</p>}
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )}
+
               <section class="card card-pad">
                 <h2 class="aside-title">In this run</h2>
                 <dl class="kv">
@@ -361,7 +418,7 @@ const comparePeers = related[0]?.ids ?? [implId];
 
               {impl.notes && impl.notes.length > 0 && (
                 <section class="card card-pad">
-                  <h2 class="aside-title">Configuration notes</h2>
+                  <h2 class="aside-title">Notes</h2>
                   <ul class="notes">
                     {impl.notes.map((n) => (
                       <li>{n}</li>
@@ -487,6 +544,9 @@ const comparePeers = related[0]?.ids ?? [implId];
   }
   .impl-section {
     margin-top: 20px;
+  }
+  :global(.impl-ranking-note) {
+    margin-bottom: 12px;
   }
   .tiles {
     display: grid;
@@ -706,6 +766,47 @@ const comparePeers = related[0]?.ids ?? [implId];
   }
   .notes li + li {
     margin-top: 6px;
+  }
+  .notes,
+  .details dd {
+    overflow-wrap: anywhere;
+  }
+  .details {
+    display: grid;
+    gap: 10px;
+    margin: 0;
+    font-size: 0.8125rem;
+  }
+  .details dt {
+    color: var(--muted);
+  }
+  .details dd {
+    margin: 2px 0 0;
+  }
+  .detail-scen {
+    display: block;
+    font-size: 0.75rem;
+  }
+  .cmd {
+    display: block;
+    font-size: 0.75rem;
+    line-height: 1.5;
+    white-space: pre-wrap;
+  }
+  .related {
+    display: grid;
+    gap: 10px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: 0.8125rem;
+  }
+  .related a {
+    font-weight: 550;
+  }
+  .related p {
+    margin-top: 2px;
+    line-height: 1.45;
   }
   .check {
     display: inline-flex;

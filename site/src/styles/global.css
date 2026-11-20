@@ -760,6 +760,45 @@ a.card-link:hover .arrow {
 .notice-info > svg {
   color: var(--info-text);
 }
+/* The domain's caveat directly above a ranking (`ranking_note`): one quiet line, never louder than the numbers. */
+.ranking-note {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm, 8px);
+  border: 1px solid var(--info-border);
+  background: var(--info-bg);
+  color: var(--text-2);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+.ranking-note > svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--info-text);
+}
+/* Why a derived value reads "no index" (components/islands/WithheldNotes.tsx): visible, not only a hover title. */
+.withheld-notes {
+  display: grid;
+  gap: 4px;
+  margin-top: 10px;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.withheld-notes p {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.withheld-notes svg {
+  flex: none;
+  margin-top: 3px;
+}
 
 .meta-row {
   display: flex;

@@ -3,6 +3,7 @@
  * Shared body of the domain explorer: used by /<domain>/ (default run) and /<domain>/runs/<id>/ (`scoped`, whose
  * links stay inside that run).
  */
+import DeclaredComparisons from './DeclaredComparisons.astro';
 import Icon from './Icon.astro';
 import RunContext from './RunContext.astro';
 import RunNotice from './RunNotice.astro';
@@ -48,6 +49,8 @@ const missingScenarios = unmeasuredScenarios(domain, run);
     </p>
   )
 }
+
+<DeclaredComparisons domain={domain} run={run} scope={scope} level={2} />
 
 <section class="ex-index" aria-labelledby="ex-index-title">
   <h2 id="ex-index-title">Implementations in this run</h2>

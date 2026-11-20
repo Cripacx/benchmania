@@ -58,6 +58,117 @@ def test_invalid_manifest_is_reported(tmp_path):
     assert "headline metric 'nope'" in text
 
 
+def test_invalid_comparisons_and_methodology_are_reported(tmp_path):
+    d = tmp_path / "domains" / "shown"
+    (d / "scenarios").mkdir(parents=True)
+    (d / "implementations" / "x").mkdir(parents=True)
+    (d / "domain.toml").write_text(
+        'id = "shown"\ntitle = "Shown"\nharness = "h:H"\n'
+        '[[compare]]\ntitle = "Pair"\nids = ["x", "ghost"]\n'
+        '[[compare]]\ntitle = "Alone"\nids = ["x"]\n'
+        '[methodology]\ndocument = "../outside.md"\nroles = { database = "PostgreSQL" }\n'
+        'checks = [{ check = "something" }]\nversions = { "v2" = "text" }\nsummary = "unknown key"\n')
+    (d / "implementations" / "x" / "impl.toml").write_text('id = "x"\nname = "X"\nlanguage = "L"\ncategory = "tool"\n')
+    (d / "implementations" / "x" / "Dockerfile").write_text("FROM scratch\n")
+    with pytest.raises(manifest.ManifestError) as e:
+        manifest.load_all(tmp_path)
+    text = "\n".join(e.value.problems)
+    assert "names 'ghost', which is not an implementation" in text
+    assert "two to four different implementations" in text
+    assert "document must be a path relative to the repository root" in text
+    assert "unknown role 'database'" in text
+    assert "needs 'check' and 'effect'" in text
+    assert "key 'v2' must be a methodology version" in text
+    assert "unknown key 'summary'" in text
+
+
+def _presentation(tmp_path, toml):
+    """Problems of a minimal domain with implementations x and y plus the given presentation tables."""
+    d = tmp_path / "domains" / "shown"
+    (d / "scenarios").mkdir(parents=True, exist_ok=True)
+    for i in ("x", "y"):
+        (d / "implementations" / i).mkdir(parents=True, exist_ok=True)
+        (d / "implementations" / i / "impl.toml").write_text(f'id = "{i}"\nname = "{i}"\nlanguage = "L"\ncategory = "tool"\n')
+        (d / "implementations" / i / "Dockerfile").write_text("FROM scratch\n")
+    (d / "domain.toml").write_text('id = "shown"\ntitle = "Shown"\nharness = "h:H"\n' + toml)
+    try:
+        manifest.load_domain(d)
+    except manifest.ManifestError as e:
+        return "\n".join(e.problems)
+    return ""
+
+
+@pytest.mark.parametrize("toml, expected", [
+    ('[[compare]]\ntitle = "Nested"\nids = [["x"], ["y"]]\n', "two to four different implementations"),
+    ('[[compare]]\ntitle = "Numbers"\nids = [1, 2]\n', "two to four different implementations"),
+    ('[[compare]]\ntitle = 3\nids = ["x", "y"]\n', "needs a 'title'"),
+    ('[[compare]]\ntitle = "Pair"\nids = ["x", "y"]\nnote = 4\n', "'note' must be a non-empty string"),
+    ('compare = "x,y"\n', "[[compare]] must be a list"),
+    ('compare = ["x"]\n', "[[compare]] 1 must be a table"),
+    ('ranking_note = 7\n', "ranking_note must be"),
+    ('ranking_note = ""\n', "ranking_note must be"),
+    ('methodology = "text"\n', "[methodology] must be a table"),
+    ('[methodology]\nlimitations = "One sentence."\n', "limitations must be a list of sentences"),
+    ('[methodology]\nlimitations = ["ok", 2]\n', "limitations must be a list of sentences"),
+    ('[methodology]\nroles = { service = 1 }\n', "name of 'service' must be a string"),
+    ('[methodology]\nroles = ["service"]\n', "[methodology.roles] must be a table"),
+    ('[methodology]\nchecks = "check"\n', "checks must be a list"),
+    ('[methodology]\nchecks = ["check"]\n', "needs 'check' and 'effect'"),
+    ('[methodology]\nchecks = [{ check = 1, effect = "x" }]\n', "needs 'check' and 'effect'"),
+    ('[methodology]\nversions = { "1" = 2 }\n', "description of '1' must be a non-empty string"),
+    ('[methodology]\nversions = ["1"]\n', "[methodology.versions] must be a table"),
+    ('headline = "steal_pct"\n', "[[headline]] must be a list of tables"),
+    ('headline = [1]\n', "[[headline]] 1 must be a table"),
+    ('headline = [["steal_pct"]]\n', "[[headline]] 1 must be a table"),
+    ('[[headline]]\nmetric = ["steal_pct"]\n', "headline metric"),
+    ('[[headline]]\nmetric = "steal_pct"\nlabel = 3\n', "[[headline]] 1 'label' must be a string"),
+    ('[[headline]]\nmetric = "steal_pct"\nhint = ["x"]\n', "[[headline]] 1 'hint' must be a string"),
+    ('[[headline]]\nmetric = "steal_pct"\nscenario = "nope"\n', "headline scenario 'nope'"),
+    ('[[headline]]\nmetric = "steal_pct"\nscenario = 2\n', "headline scenario '2'"),
+])
+def test_malformed_presentation_data_is_reported_not_raised(tmp_path, toml, expected):
+    assert expected in _presentation(tmp_path, toml)
+
+
+def test_wellformed_presentation_data_passes(tmp_path):
+    assert _presentation(tmp_path, 'ranking_note = "Mixed revisions."\n'
+                         '[[compare]]\ntitle = "Pair"\nids = ["x", "y"]\nnote = "Fair."\n'
+                         '[methodology]\nroles = { service = "Tool", environment = "" }\n'
+                         'checks = [{ check = "c", effect = "e" }]\nlimitations = ["One."]\nversions = { "1" = "First." }\n'
+                         '[[headline]]\nmetric = "steal_pct"\nlabel = "Steal"\nhint = ""\n') == ""
+
+
+def test_ranking_note_is_published(proj, domains, tmp_path):
+    publish.build(proj, tmp_path)
+    index = json.loads((tmp_path / "index.json").read_text())
+    for entry in index["domains"]:
+        data = json.loads((tmp_path / f"{entry['id']}.json").read_text())
+        assert data["domain"]["ranking_note"] == entry["ranking_note"] == domains[entry["id"]].data.get("ranking_note", "")
+    notes = {e["id"]: e["ranking_note"] for e in index["domains"]}
+    assert notes["backend"] == ""
+    # ts-compilers declares one. It reaches the dataset through to_public() as soon as the domain is published
+    # (a domain with status "example" is not).
+    assert domains["ts-compilers"].to_public()["ranking_note"].startswith("Mixed TypeScript revisions")
+
+
+def test_comparisons_and_methodology_are_published(proj, domains, tmp_path):
+    """What the website reads to suggest comparisons and to describe a domain's own methodology."""
+    publish.build(proj, tmp_path)
+    index = json.loads((tmp_path / "index.json").read_text())
+    for entry in index["domains"]:
+        data = json.loads((tmp_path / f"{entry['id']}.json").read_text())
+        d = domains[entry["id"]]
+        assert data["domain"]["compare"] == d.data.get("compare", []) == entry["compare"]
+        assert data["domain"]["methodology"] == d.data.get("methodology", {}) == entry["methodology"]
+        impls = {i["id"] for i in data["implementations"]}
+        for c in data["domain"]["compare"]:
+            assert set(c["ids"]) <= impls
+    # A methodology document the website links to exists in the repository.
+    for entry in index["domains"]:
+        doc = entry["methodology"].get("document")
+        assert doc is None or (ROOT / doc).is_file(), doc
+
+
 def test_repository_bundles_verify(proj, domains):
     found = bundle.load_all(proj.root / "results")
     assert found, "the repository should contain at least one real result bundle"
@@ -166,6 +277,70 @@ def test_index_is_withheld_rather_than_flattered(domains):
     assert "best" not in withheld and "half" not in withheld
     # the failing implementation must not become the reference everybody else is compared with
     assert out["half"]["throughput_index"] == 50
+
+
+def _rps(scenarios, value):
+    return {sid: {"rps": {"median": value}, "error_rate": {"median": 0.0}} for sid in scenarios}
+
+
+def test_listed_scenario_missing_for_everybody_withholds_the_index(domains):
+    # Every listed scenario is required: the index is never computed over the scenarios that happen to be there.
+    d = domains["backend"]
+    without_orders = [s for s in SCENARIOS if s != "orders"]
+    summary = {"a": _rps(without_orders, 100.0), "b": _rps(without_orders, 50.0)}
+    withheld, best = {}, {}
+    out = publish.derive(d, summary, withheld, best)
+    assert all("throughput_index" not in out.get(i, {}) for i in summary)
+    assert withheld["a"]["throughput_index"] == withheld["b"]["throughput_index"] == "Throughput not measured in: orders"
+    assert "throughput_index" not in best
+
+
+def test_listed_scenario_missing_for_one_implementation_withholds_only_its_index(domains):
+    d = domains["backend"]
+    summary = {"a": _rps(SCENARIOS, 100.0), "b": _rps(SCENARIOS, 50.0),
+               "c": _rps([s for s in SCENARIOS if s not in ("db", "list")], 200.0)}
+    withheld, best = {}, {}
+    out = publish.derive(d, summary, withheld, best)
+    assert out["a"]["throughput_index"] == 100 and out["b"]["throughput_index"] == 50
+    assert withheld["c"]["throughput_index"] == "Throughput not measured in: db, list"
+    assert set(best["throughput_index"]) == set(SCENARIOS)
+
+
+def test_run_without_any_work_has_no_index_but_a_reason(domains):
+    # Everybody measured every listed scenario, and nobody did any work in any of them: every scenario is left
+    # out of the index, so there is none. That is not "not measured": every implementation gets the reason.
+    d = domains["backend"]
+    summary = {"a": _rps(SCENARIOS, 0.0), "b": _rps(SCENARIOS, 0.0)}
+    withheld, best = {}, {}
+    out = publish.derive(d, summary, withheld, best)
+    assert all("throughput_index" not in out.get(i, {}) for i in summary)
+    assert withheld["a"]["throughput_index"] == withheld["b"]["throughput_index"] \
+        == "Best throughput of zero in every scenario of the index"
+    assert "throughput_index" not in best
+
+
+def test_metric_not_measured_in_the_run_has_no_index_and_no_reason(domains):
+    # A run that never measured the metric (e.g. CPU per request in an older run): the site says
+    # "not measured in this run"; there is nothing to withhold.
+    d = domains["backend"]
+    summary = {"a": _rps(SCENARIOS, 100.0), "b": _rps(SCENARIOS, 50.0)}
+    withheld, best = {}, {}
+    out = publish.derive(d, summary, withheld, best)
+    assert out["a"]["throughput_index"] == 100
+    assert all("efficiency_index" not in out[i] for i in summary)
+    assert all("efficiency_index" not in withheld.get(i, {}) for i in summary)
+    assert "efficiency_index" not in best
+
+
+def test_wildcard_index_spans_the_measured_scenarios():
+    from types import SimpleNamespace
+    d = SimpleNamespace(
+        id="t", data={"derived": [{"id": "speed", "kind": "geomean_relative", "metric": "rps", "scenarios": "*"}]},
+        metrics={"rps": SimpleNamespace(better="higher", label="Throughput")})
+    summary = {"a": {"x": {"rps": {"median": 100.0}}}, "b": {"x": {"rps": {"median": 50.0}}}}
+    withheld = {}
+    out = publish.derive(d, summary, withheld)
+    assert out == {"a": {"speed": 100}, "b": {"speed": 50}} and withheld == {}
 
 
 def test_scenario_without_information_is_left_out_for_everybody(domains):
@@ -290,6 +465,45 @@ def test_flags_about_one_metric_name_it(domains):
     assert len(note) == 1 and note[0]["metric"] == "rps" and note[0]["scope"] == f"{first}/db"
     warning = [f for f in flags if f["level"] == "warning"]
     assert len(warning) == 1 and "metric" not in warning[0] and warning[0]["pass"] == 2
+    assert note[0]["message"].startswith("throughput varies")
+
+
+def test_spread_between_passes_is_flagged_for_the_metric_behind_the_index(domains):
+    """A domain without throughput gets the note on the metric of its first relative index (compilers: wall time)."""
+    d = domains["ts-compilers"]
+    metric, label = bundle.varying_metric(d)
+    assert (metric, label) == ("wall_ms", d.metrics["wall_ms"].label.lower())
+    impls = [i.id for i in d.implementations[:2]]
+    sid = d.scenarios[0].id
+    passes = [{"index": p, "order": impls, "results": {
+        impls[0]: {"scenarios": {sid: {"wall_ms": 300.0 * f, "cpu_ms": 900.0}}},
+        impls[1]: {"scenarios": {sid: {"wall_ms": 500.0, "cpu_ms": 900.0 * f}}}}}
+        for p, f in enumerate([1.0, 1.4, 0.7], 1)]
+    b = {"schema": "benchcore.result/v1", "id": "t", "domain": d.id, "created": "2026-01-01T00:00:00Z",
+         "machine": {"id": "m"}, "implementations": {i: {} for i in impls}, "scenarios": {sid: {}},
+         "passes": passes, "summary": {}, "quality": {"flags": []}, "options": {}}
+    flags = publish._run_entry(d, bundle.finish(b, "complete", d), set())["flags"]
+    assert [(f["scope"], f["metric"]) for f in flags] == [(f"{impls[0]}/{sid}", "wall_ms")]
+    assert flags[0]["message"].startswith(f"{label} varies")
+    assert bundle.finish(b, "complete", d)["quality"]["flags"] == flags  # the bundle stores the same notes
+
+
+def test_spread_metric_without_an_index_comes_from_the_headline_never_from_throughput(domains):
+    """A domain without a relative index: the first headline metric of a scenario; with neither, no spread note."""
+    d = copy.copy(domains["ts-compilers"])
+    d.data = {k: v for k, v in d.data.items() if k != "derived"}
+    assert bundle.varying_metric(d)[0] == "wall_ms"  # first headline entry with a scenario: TypeORM check
+    d.data = {**d.data, "headline": [{"metric": "peak_rss_max_mib", "label": "Memory"}]}
+    assert bundle.varying_metric(d) == (None, None)
+    assert bundle.varying_metric(None) == ("rps", "throughput")
+    impls = [i.id for i in d.implementations[:1]]
+    sid = d.scenarios[0].id
+    passes = [{"index": p, "order": impls, "results": {impls[0]: {"scenarios": {sid: {"wall_ms": 300.0 * f, "rps": 10.0 * f}}}}}
+              for p, f in enumerate([1.0, 1.5, 0.6], 1)]
+    b = {"schema": "benchcore.result/v1", "id": "t", "domain": d.id, "created": "2026-01-01T00:00:00Z",
+         "machine": {"id": "m"}, "implementations": {i: {} for i in impls}, "scenarios": {sid: {}},
+         "passes": passes, "summary": {}, "quality": {"flags": []}, "options": {}}
+    assert bundle.finish(b, "complete", d)["quality"]["flags"] == []
 
 
 def test_schema_file_matches_what_the_engine_writes(proj, domains):

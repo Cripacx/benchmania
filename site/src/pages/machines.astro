@@ -6,7 +6,7 @@ import Icon from '../components/Icon.astro';
 import RunBadges from '../components/RunBadges.astro';
 import { allDomains, getProject } from '../lib/dataset';
 import { formatDate, isNum, plural } from '../lib/format';
-import { communityStatus, machineName, repoUrl } from '../lib/model';
+import { communityStatus, isVirtualMachine, machineName, repoUrl } from '../lib/model';
 import { href, routes } from '../lib/paths';
 import type { DomainData, Machine, Run } from '../lib/types';
 
@@ -30,8 +30,12 @@ const specs = (m: Machine): Array<[string, string]> => {
   const out: Array<[string, string]> = [];
   const c = m.cpu ?? {};
   if (c.model) out.push(['CPU', c.model]);
-  if (isNum(c.physical_cores) || isNum(c.logical))
-    out.push(['Cores', `${c.physical_cores ?? '?'} physical / ${c.logical ?? '?'} logical${isNum(c.sockets) && c.sockets > 1 ? `, ${c.sockets} sockets` : ''}`]);
+  const sockets = isNum(c.sockets) && c.sockets > 1 ? `, ${c.sockets} sockets` : '';
+  // Inside a virtual machine the topology is the guest's view: vCPUs placed by the hypervisor, not physical cores.
+  if (isVirtualMachine(m) && (isNum(c.physical_cores) || isNum(c.logical)))
+    out.push(['vCPUs', `${c.logical ?? '?'} (guest-reported topology: ${c.physical_cores ?? '?'} cores / ${c.logical ?? '?'} threads${sockets})`]);
+  else if (isNum(c.physical_cores) || isNum(c.logical))
+    out.push(['Cores', `${c.physical_cores ?? '?'} physical / ${c.logical ?? '?'} logical${sockets}`]);
   if (c.smt !== undefined) out.push(['SMT', yesNo(c.smt)]);
   if (isNum(c.max_mhz)) out.push(['Max clock', `${c.max_mhz} MHz`]);
   if (c.turbo !== undefined) out.push(['Turbo', yesNo(c.turbo)]);
@@ -74,6 +78,7 @@ const specs = (m: Machine): Array<[string, string]> => {
       {
         list.map(({ machine, runs }) => {
           const latest = runs[0]?.run;
+          const latestDomain = runs[0]?.domain;
           return (
             <article class="card machine" id={`machine-${machine.id}`} data-kind={machine.reference ? 'reference' : 'community'}>
               <header class="machine-head">
@@ -108,8 +113,8 @@ const specs = (m: Machine): Array<[string, string]> => {
                 <div class="machine-side">
                   {latest && (
                     <div>
-                      <h3 class="side-title">CPU layout of the latest run</h3>
-                      <CpuLayout layout={latest.layout} machine={machine} compact />
+                      <h3 class="side-title">CPU layout of the latest run{latestDomain ? ` (${latestDomain.domain.title})` : ''}</h3>
+                      <CpuLayout layout={latest.layout} machine={machine} roleNames={latestDomain?.domain.methodology?.roles} compact />
                     </div>
                   )}
                   <div>

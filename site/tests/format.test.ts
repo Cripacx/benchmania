@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   DASH,
   formatBytes,
+  formatAxisTicks,
   formatCompact,
   formatDate,
   formatDateTime,
@@ -110,6 +111,13 @@ describe('axis helpers', () => {
     expect(formatCompact(250000, 50000)).toBe('250K');
     expect(formatCompact(1500000)).toBe('1.5M');
     expect(formatCompact(0.5, 0.5)).toBe('0.5');
+  });
+
+  it('labels one axis on one scale', () => {
+    expect(formatAxisTicks([0, 5000, 10000, 15000], 5000)).toEqual(['0', '5K', '10K', '15K']);
+    expect(formatAxisTicks([0, 2500, 5000, 7500], 2500)).toEqual(['0', '2,500', '5,000', '7,500']);
+    expect(formatAxisTicks([0, 2500, 5000, 7500, 10000, 12500], 2500)).toEqual(['0', '2.5K', '5K', '7.5K', '10K', '12.5K']);
+    expect(formatAxisTicks([0, 0.5, 1], 0.5)).toEqual(['0.0', '0.5', '1.0']); // below 10K: formatCompact as before
   });
 });
 

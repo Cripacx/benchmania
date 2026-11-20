@@ -5,7 +5,7 @@ import CodeBlock from '../components/CodeBlock.astro';
 import InstallChooser from '../components/InstallChooser.astro';
 import Icon from '../components/Icon.astro';
 import { allDomains, getProject } from '../lib/dataset';
-import { communityRunsNote, communityStatus, installCommand, repoPage, repoUrl } from '../lib/model';
+import { communityRunsNote, communityStatus, installCommand, repoPage, repoUrl, sortScenarios } from '../lib/model';
 import { plural } from '../lib/format';
 import { href, routes } from '../lib/paths';
 
@@ -15,8 +15,41 @@ const cmd = project.slug;
 const cli = `./${project.slug}`;
 const domains = allDomains();
 const community = communityStatus(domains);
-const domainId = domains[0]?.domain.id ?? '<domain>';
-const sampleImpl = domains[0]?.implementations[0]?.id ?? '<existing-id>';
+// The examples use the first stable domain; the text names the others, which work the same way.
+const example = domains.find((d) => d.domain.status === 'stable') ?? domains[0];
+const domainId = example?.domain.id ?? '<domain>';
+const otherDomains = domains.filter((d) => d !== example).map((d) => d.domain.id);
+const sampleImpl = example?.implementations[0]?.id ?? '<existing-id>';
+// A real scenario of the example domain as the template for a new one, written back as TOML.
+const tomlValue = (v: unknown): string | null => {
+  if (typeof v === 'string') return JSON.stringify(v);
+  if (typeof v === 'number' || typeof v === 'boolean') return String(v);
+  if (Array.isArray(v)) {
+    const items = v.map(tomlValue);
+    return items.every((x) => x !== null) ? `[${items.join(', ')}]` : null;
+  }
+  if (v && typeof v === 'object') {
+    const items = Object.entries(v).map(([k, x]) => [k, tomlValue(x)] as const);
+    return items.every(([, x]) => x !== null) ? `{ ${items.map(([k, x]) => `${k} = ${x}`).join(', ')} }` : null;
+  }
+  return null;
+};
+// The scenario with the most parameters shows the most of what a scenario file can say.
+const sampleScenario = example
+  ? sortScenarios(example.scenarios).reduce<(typeof example.scenarios)[number] | undefined>(
+      (best, s) => (Object.keys(s.params ?? {}).length > Object.keys(best?.params ?? {}).length ? s : best),
+      undefined,
+    )
+  : undefined;
+const scenarioCode = sampleScenario
+  ? [
+      `# domains/${domainId}/scenarios/${sampleScenario.id}.toml, an existing scenario as a template`,
+      ...Object.entries({ id: sampleScenario.id, title: sampleScenario.title, kind: sampleScenario.kind, order: sampleScenario.order, ...sampleScenario.params })
+        .map(([k, v]) => [k, tomlValue(v)] as const)
+        .filter(([, v]) => v !== null)
+        .map(([k, v]) => `${k} = ${v}`),
+    ].join('\n')
+  : `# domains/${domainId}/scenarios/<id>.toml`;
 const guide = (file: string) => repoUrl(project, `docs/guides/${file}`, 'blob');
 const issues = repoPage(project, 'issues');
 const discussions = repoPage(project, 'discussions');
@@ -40,7 +73,7 @@ const paths = [
     id: 'implementation',
     icon: 'plus' as const,
     title: 'Add an implementation',
-    text: 'A new language, framework or variant. Implementations are a directory with an impl.toml, a Dockerfile and the source.',
+    text: 'A new language, framework, tool or variant. Implementations are a directory with an impl.toml, a Dockerfile and, if needed, the source.',
     guide: guide('adding-an-implementation.md'),
     code: `${cloneLine}\n${cli} scaffold ${domainId} my-framework --from ${sampleImpl}\n${cli} validate\n${cli} check ${domainId} --impl my-framework`,
   },
@@ -48,9 +81,9 @@ const paths = [
     id: 'scenario',
     icon: 'activity' as const,
     title: 'Add a scenario',
-    text: 'A new workload is one TOML file. Its kind must be one the domain harness understands; database work per request is declared and verified.',
+    text: "A new workload is one TOML file. Its kind and parameters must be ones the domain's harness understands; the domain's guide lists them.",
     guide: guide('adding-a-scenario.md'),
-    code: `# domains/${domainId}/scenarios/db-c64.toml\nid = "db-c64"\ntitle = "Single query, 64 connections"\nkind = "http"\norder = 95\npath = "/db"\nconnections = 64\nwork = { select = 1 }`,
+    code: scenarioCode,
   },
   {
     id: 'domain',
@@ -110,12 +143,24 @@ const paths = [
               </li>
               <li>
                 <code>doctor</code> checks the machine and <code>check</code> builds every implementation and runs the
-                functional checks. Then run the whole suite: it takes several hours, so start it in <code>tmux</code> or
-                with <code>nohup</code>.
+                domain's correctness checks. Then run the whole domain: a full run can take hours, so start it in
+                <code>tmux</code> or with <code>nohup</code>.
+                {otherDomains.length > 0 && (
+                  <>
+                    {' '}Every domain is measured on its own: for {otherDomains.length === 1 ? 'the other one' : 'another'}, use{' '}
+                    {otherDomains.map((d, i) => (
+                      <>
+                        {i > 0 && (i === otherDomains.length - 1 ? ' or ' : ', ')}
+                        <code>{d}</code>
+                      </>
+                    ))}{' '}
+                    instead of <code>{domainId}</code>.
+                  </>
+                )}
               </li>
               <li>
                 The run prints where it wrote the bundle:
-                <code>results/{domainId}/&lt;machine-id&gt;/&lt;run-id&gt;.json</code> in the checkout. Open a pull request
+                <code>results/&lt;domain&gt;/&lt;machine-id&gt;/&lt;run-id&gt;.json</code> in the checkout. Open a pull request
                 from that checkout that adds only this file.
               </li>
             </ol>
@@ -187,16 +232,16 @@ const paths = [
         <h2 id="rules-title">Rules for implementations</h2>
         <div class="grid grid-3">
           <div class="card card-pad">
-            <h3>Idiomatic and production-like</h3>
-            <p>Use the framework the way its documentation recommends for production. No response caching, precomputed responses, disabled validation or skipped database work.</p>
+            <h3>Idiomatic and as users run it</h3>
+            <p>Use the software the way its documentation recommends for real use. No shortcuts around the work the domain measures, such as cached or precomputed results, disabled validation or modes that check less.</p>
           </div>
           <div class="card card-pad">
             <h3>Same work, pinned versions</h3>
-            <p>Pass the functional checks. Use exact image tags, exact dependency versions and committed lockfiles, and declare the versions in impl.toml.</p>
+            <p>Pass the domain's correctness checks. Use exact image tags, exact dependency versions and committed lockfiles, and declare the versions in impl.toml.</p>
           </div>
           <div class="card card-pad">
             <h3>Honest category and configuration</h3>
-            <p>Declare bare, micro, framework or full-stack truthfully, size workers for the CPU limit and document it in the notes.</p>
+            <p>Declare the category truthfully, size workers or threads for the CPU limit, and document every setting that matters in the notes.</p>
           </div>
         </div>
       </section>

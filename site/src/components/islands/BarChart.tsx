@@ -8,7 +8,7 @@
  */
 import { useRef, useState } from 'preact/hooks';
 import {
-  formatCompact,
+  formatAxisTicks,
   formatInterval,
   formatNumber,
   formatRange,
@@ -79,6 +79,7 @@ export function BarChart({ data, metric, label, dense = false }: Props) {
     return Math.max(acc, v.m, hasInterval(v) ? v.hi : v.m);
   }, 0);
   const { ticks, max, step } = niceTicks(extent, dense ? 3 : 4);
+  const tickLabels = formatAxisTicks(ticks, step);
   const pct = (x: number) => `${Math.max(0, Math.min(100, (x / max) * 100))}%`;
   const unit = unitSuffix(metric.unit) || metric.unit;
   const active = data.find((d) => d.id === hover) ?? null;
@@ -165,9 +166,9 @@ export function BarChart({ data, metric, label, dense = false }: Props) {
       </ol>
       <div class="chart-axis" aria-hidden="true">
         <div class="chart-axis-track">
-          {ticks.map((t) => (
+          {ticks.map((t, i) => (
             <span key={t} class="chart-tick" style={{ left: pct(t) }}>
-              {formatCompact(t, step)}
+              {tickLabels[i]}
             </span>
           ))}
         </div>

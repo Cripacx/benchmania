@@ -33,6 +33,7 @@ summary = "One sentence shown on the website."
 status = "experimental"               # stable | experimental | example (example = not published)
 harness = "harness:DatabaseHarness"   # <file>:<class> in this directory
 methodology_version = "1"             # a whole number; raise it when results stop being comparable
+ranking_note = "One short sentence."  # optional: shown directly above every ranking of the domain (before any table)
 
 [service]                             # limits your harness applies to implementation containers
 cpus = 2
@@ -45,14 +46,33 @@ duration = "30s"
 id = "throughput_index"
 kind = "geomean_relative"             # or "max"
 metric = "ops"
-scenarios = ["read", "write"]         # or "*" for every scenario
+scenarios = ["read", "write"]         # each one required for an index; "*": every measured scenario
 
 [[headline]]                          # what the website shows first
 scenario = "read"
 metric = "ops"
 label = "Reads"
 hint = "Point reads per second."
+
+[[compare]]                           # optional: comparisons the website suggests, most important first
+title = "Same engine, two storage formats"
+ids = ["engine-a", "engine-a-columnar"]   # two to four implementation ids
+note = "What is compared and how fair it is; never who wins."
+
+[methodology]                         # your domain's part of the website's methodology page
+document = "domains/databases/README.md"  # the full methodology, relative to the repository root
+roles = { environment = "Database server", loadgen = "Client" }  # names of the CPU roles; "" = not used
+checks = [{ check = "Every read returns the stored row", effect = "Implementation is excluded from the run" }]
+limitations = ["One sentence per limitation."]
+versions = { "1" = "What methodology version 1 measures." }
 ```
+
+Without `[[compare]]` the website guesses comparisons from shared sources and runtimes. A declared comparison
+is offered only for a run that contains every one of its implementations, since its title and note describe
+exactly those. Use `ranking_note` for a caveat that holds for every ranking of the domain (for example that the
+implementations follow different upstream revisions); the website shows it above each one. Everything in
+`[methodology]` is optional, but without it the methodology page has nothing to say about your domain beyond
+its description, limits, scenarios and metrics. Keep numbers from results out of all of it.
 
 The example's `[quick]` table is not read by the engine: its harness merges it into the defaults when
 `ctx.quick` is set. Keep it if your harness does the same.

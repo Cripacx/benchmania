@@ -165,7 +165,7 @@ const optionText = (v: unknown): string => {
           <h2 class="card-title">CPU layout</h2>
           <p class="muted">Which logical CPUs each role was pinned to during this run.</p>
         </div>
-        <CpuLayout layout={run.layout} machine={machine} />
+        <CpuLayout layout={run.layout} machine={machine} roleNames={domain.domain.methodology?.roles} />
       </section>
 
       <section aria-labelledby="impls-title">

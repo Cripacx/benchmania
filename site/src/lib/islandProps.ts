@@ -1,28 +1,30 @@
 /**
  * Builds the props of the client islands from the dataset (server side, at build time).
  */
-import { formatDate, plural } from './format';
-import { methodologyInfo } from './methodology';
+import { formatDate, formatDateTime } from './format';
 import {
   byVisibility,
   categories,
   categoryLabel,
   derivedExplanation,
   derivedScale,
+  derivedScales,
   flagImplementation,
   flagsForImplementation,
   headlineValue,
   languages,
-  machineName,
+  machineShortName,
   measuredMetricIds,
   measuredScenarios,
   metricOrFallback,
   missingValue,
   runImplementationIds,
   implementation,
+  implLabel,
   suggestedComparisons,
   hasAlertFlags,
   valueFlagNote,
+  withheldLines,
 } from './model';
 import { joinBase, routes } from './paths';
 import type { DomainData, Flag, HeadlineEntry, Run } from './types';
@@ -40,14 +42,23 @@ function valueContext(domain: DomainData, run: Run) {
   return {
     derived: domain.derived ?? [],
     flags: implementationFlags(run),
+    /** Scale of every relative index in this run ("100 = best in all 4 scenarios"); see derivedScale. */
+    scales: derivedScales(domain, run),
   };
 }
 
+/**
+ * The runs of a domain for the run selector. A label is the date and a short machine name, so it fits a phone; the
+ * run context below the selector gives the full hardware, methodology and passes. Runs that would read the same get
+ * their time as well.
+ */
 export function runOptions(domain: DomainData, base: string): RunOption[] {
   const defaultId = domain.default_run;
-  return domain.runs.map((r) => ({
+  const short = (r: Run, when: string) => `${when} · ${machineShortName(domain.machines[r.machine], r.machine)}`;
+  const labels = domain.runs.map((r) => short(r, formatDate(r.created)));
+  return domain.runs.map((r, i) => ({
     id: r.id,
-    label: `${formatDate(r.created)} · ${methodologyInfo(r.methodology).short} · ${plural(r.passes, 'pass', 'passes')} · ${machineName(domain.machines[r.machine], r.machine)}`,
+    label: labels.filter((l) => l === labels[i]).length > 1 ? short(r, formatDateTime(r.created)) : labels[i]!,
     href: joinBase(base, r.id === defaultId ? routes.domain(domain.domain.id) : routes.run(domain.domain.id, r.id)),
     provenance: r.provenance ?? 'unknown',
     methodology: r.methodology ?? '',
@@ -75,7 +86,7 @@ export function leaderboardProps(domain: DomainData, run: Run, base: string) {
       hint: h.hint ?? '',
       metric: metricOrFallback(domain.metrics, h.metric),
       scenarioTitle: scenario ? scenario.title : null,
-      scale: h.scenario ? null : derivedScale(domain, h.metric),
+      scale: h.scenario ? null : derivedScale(domain, h.metric, run),
       href: joinBase(base, `${routes.domain(domain.domain.id)}?scenario=${h.scenario ?? 'overall'}&metric=${h.metric}`),
     };
   });
@@ -87,9 +98,14 @@ export function leaderboardProps(domain: DomainData, run: Run, base: string) {
     missing: headline.map((h) => missingValue(run, impl.id, h.scenario ?? null, h.metric)),
     flagged: hasAlertFlags(flagsForImplementation(run, impl.id)),
   }));
+  // Why a derived column has no value, said in visible text below the table (titles do not reach touch screens).
+  const name = (id: string) => implLabel(implementation(domain, id, run));
+  const ids = impls.map((i) => i.id);
+  const notes = headline.flatMap((h) => (h.scenario ? [] : withheldLines(run, ids, h.metric, name, h.label, true)));
   return {
     columns,
     rows,
+    notes,
     languages: languages(impls),
     categories: categories(impls).map((c) => ({ id: c, label: categoryLabel(c) })),
     caption: `${domain.domain.title}: implementations ranked by ${columns[0]?.label ?? 'the first headline metric'}`,
@@ -124,6 +140,7 @@ export function explorerProps(domain: DomainData, run: Run, base: string, scope:
     run: runSlice(run),
     headline: domain.domain.headline ?? [],
     derivedNotes: derivedNotes(domain),
+    rankingNote: domain.domain.ranking_note?.trim() ?? '',
     ...valueContext(domain, run),
     scope,
     runOptions: runOptions(domain, base),
@@ -147,9 +164,10 @@ export function compareProps(domain: DomainData, run: Run, base: string, scope: 
     scope,
     // Implementations of the domain that this run does not contain, so ?ids= can name them.
     notInRun: Object.fromEntries(
-      domain.implementations.filter((i) => !ids.includes(i.id)).map((i) => [i.id, i.variant ? `${i.name} (${i.variant})` : i.name]),
+      domain.implementations.filter((i) => !ids.includes(i.id)).map((i) => [i.id, implLabel(i)]),
     ),
     suggestions: suggestedComparisons(domain, ids, MAX_COMPARE),
+    rankingNote: domain.domain.ranking_note?.trim() ?? '',
     maxCompare: MAX_COMPARE,
   };
 }

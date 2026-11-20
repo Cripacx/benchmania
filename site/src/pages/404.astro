@@ -22,7 +22,7 @@ const domains = allDomains();
       to is no longer part of the published data. Every result is still one click away:
     </p>
     <div class="actions">
-      <a class="btn btn-primary" href={href(routes.home())}>Back to the leaderboard <Icon name="arrowRight" /></a>
+      <a class="btn btn-primary" href={href(routes.home())}>Back to the home page <Icon name="arrowRight" /></a>
       {
         domains.map((d) => (
           <a class="btn btn-secondary" href={href(routes.domain(d.domain.id))}>

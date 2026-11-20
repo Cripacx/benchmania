@@ -226,12 +226,12 @@ def execute(project, args, check_only=False):
                     log(f"  measurement failed: {type(e).__name__}: {e}")
                     rec["results"][impl.id] = {"error": f"{type(e).__name__}: {e}", "scenarios": {}}
                 log(f"  done in {time.monotonic() - t0:.0f} s")
-                bundle.write(bundle.finish(b, "running"), results_dir)  # checkpoint after every implementation
-        bundle.finish(b, "complete")
+                bundle.write(bundle.finish(b, "running", domain), results_dir)  # checkpoint after every implementation
+        bundle.finish(b, "complete", domain)
     except KeyboardInterrupt:
         interrupted = True
         log("interrupted, writing a partial bundle")
-        bundle.finish(b, "partial")
+        bundle.finish(b, "partial", domain)
     finally:
         try:
             harness.teardown()

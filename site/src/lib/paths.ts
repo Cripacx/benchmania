@@ -14,7 +14,7 @@ export function normalizeBase(base: string | undefined): string {
   return b;
 }
 
-/** Joins the base path and a site-relative path ("/backend/" or "backend/"). */
+/** Joins the base path and a site-relative path ("/domain/" or "domain/"). */
 export function joinBase(base: string | undefined, path = ''): string {
   const b = normalizeBase(base);
   const p = path.replace(/^\/+/, '');

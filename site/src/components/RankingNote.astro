@@ -1,0 +1,40 @@
+---
+/**
+ * The domain's caveat for its rankings (`ranking_note` in domain.toml), placed directly above every ranking of that
+ * domain. Renders nothing for a domain without one. The island version of the same line is in Explorer.tsx.
+ *
+ * `id` lets another ranking on the same page refer to this note. `shortFor` renders the compact form instead: the
+ * note's first clause (rankingNoteShort) with a link to the full note of that id, for a ranking that stands far from
+ * it; a note of a single clause is repeated whole.
+ */
+import Icon from './Icon.astro';
+import { rankingNoteShort } from '../lib/model';
+import type { DomainSummary } from '../lib/types';
+
+interface Props {
+  domain: Pick<DomainSummary, 'ranking_note'>;
+  class?: string;
+  id?: string;
+  shortFor?: string;
+}
+
+const { domain, class: className, id, shortFor } = Astro.props;
+const note = domain.ranking_note?.trim();
+const short = shortFor && note ? rankingNoteShort(note) : null;
+const linked = short !== null && short !== note;
+---
+
+{
+  note && (
+    <p class:list={['ranking-note', className]} role="note" id={id}>
+      <Icon name="info" size={14} />
+      {linked ? (
+        <span>
+          {short}. <a href={`#${shortFor}`}>Full note</a>
+        </span>
+      ) : (
+        <span>{note}</span>
+      )}
+    </p>
+  )
+}

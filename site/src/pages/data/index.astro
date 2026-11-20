@@ -25,19 +25,22 @@ const citation = `${project.name} (${Number.isNaN(year) ? 'n.d.' : year}). ${pro
 }`;
 const contract = `index.json
   schema, generated, project { name, slug, tagline, description, repository, site_url, license, data_license }
-  domains[] { id, title, summary, status, service, headline[], description, runs, default_run, ... }
+  domains[] { id, title, summary, status, service, headline[], description, compare[], methodology,
+              runs, default_run, ... }
 
 <domain>.json
   metrics       { <metricId>: { label, unit, better, group, description, decimals, visibility } }
   derived[]     { id, kind, metric, scenarios }
   scenarios[]   { id, title, kind, order, description, params }
-  implementations[] { id, name, language, runtime, framework, variant?, category, versions, notes, source? }
+  implementations[] { id, name, language, category, runtime?, framework?, variant?, versions, notes, source?,
+                      ...tables of the domain, e.g. how a tool is invoked }
   machines      { <machineId>: { label, reference?, cpu, memory_gib, kernel, os, virtualization, docker } }
   runs[]        { id, created, finished, status, methodology, provenance, machine, passes,
                   options, layout, tool, flags[],
                   implementations { <implId>: { image, check, manifest } },
                   results { <implId>: { <scenarioId>: { <metricId>: { m, lo, hi, min, max, n, cv } } } },
-                  derived { <implId>: { <derivedMetricId>: number } } }
+                  derived { <implId>: { <derivedMetricId>: number } },
+                  withheld, best }
   default_run`;
 ---
 

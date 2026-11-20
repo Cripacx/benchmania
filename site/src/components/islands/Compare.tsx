@@ -13,13 +13,16 @@ import {
   byVisibility,
   displayOrder,
   groupLabel,
+  implLabel,
   measuredMetricIds,
   metricOrFallback,
   metricValue,
   missingValue,
   relativeDiff,
   valueFlagNote,
+  withheldLines,
   type RelativeDiff,
+  type Suggestion,
 } from '../../lib/model';
 import { joinBase, routes } from '../../lib/paths';
 import type { DerivedDefinition, Flag, HeadlineEntry, Metric, Scenario, Value } from '../../lib/types';
@@ -27,6 +30,7 @@ import type { ImplLite, RunSlice } from '../../lib/view';
 import { BarChart } from './BarChart';
 import { Icon } from './Icon';
 import { LangChip } from './LangChip';
+import { WithheldNotes } from './WithheldNotes';
 
 interface Props {
   base: string;
@@ -43,7 +47,9 @@ interface Props {
   scope: string | null;
   /** Implementations of the domain that this run does not contain: id to name. */
   notInRun: Record<string, string>;
-  suggestions: Array<{ title: string; ids: string[] }>;
+  suggestions: Suggestion[];
+  /** The domain's caveat for its rankings (`ranking_note`), shown for a selection without a declared note. */
+  rankingNote: string;
   maxCompare: number;
 }
 
@@ -76,7 +82,7 @@ function Delta({ diff, value, baseline }: { diff: RelativeDiff | null; value: Va
 }
 
 export function Compare(props: Props) {
-  const { base, domainId, metrics, scenarios, impls, run, headline, flags, derived, scope, notInRun, suggestions, maxCompare } = props;
+  const { base, domainId, metrics, scenarios, impls, run, headline, flags, derived, scope, notInRun, suggestions, rankingNote, maxCompare } = props;
   const max = Math.min(maxCompare, SLOT_COLORS.length);
   const ctx = useMemo(() => ({ derived, scenarios }), [derived, scenarios]);
   const flagsOf = (id: string, scenario: string | null, metric: string) => valueFlagNote(ctx, flags, id, scenario, metric);
@@ -151,10 +157,14 @@ export function Compare(props: Props) {
   const baseImpl = baseId ? implById.get(baseId) : undefined;
   const nameOf = (id: string) => {
     const i = implById.get(id);
-    return i ? `${i.name}${i.variant ? ` (${i.variant})` : ''}` : id;
+    return i ? implLabel(i) : id;
   };
+  const shortName = (id: string) => implById.get(id)?.name ?? id;
+  // The domain's note on exactly this selection (declared comparisons come first in `suggestions`).
+  const selectionKey = entries.map((e) => e.id).sort().join(',');
+  const about = suggestions.find((s) => s.note && [...s.ids].sort().join(',') === selectionKey);
   const langs = [...new Set(impls.map((i) => i.language))].sort((a, b) => a.localeCompare(b));
-  const hasOverall = Object.keys(run.derived ?? {}).length > 0;
+  const hasOverall = measuredMetricIds(metrics, run, null).length > 0;
   const sections: Array<{ key: string | null; title: string }> = [
     ...(hasOverall ? [{ key: null, title: 'Overall (derived)' }] : []),
     ...scenarios.map((s) => ({ key: s.id, title: s.title })),
@@ -202,6 +212,11 @@ export function Compare(props: Props) {
     const missing = v ? null : missingValue(run, id, key, mid);
     return (
       <>
+        {/* Phones stack the columns (components.css): each value then names its implementation itself. */}
+        <span class="cmp-cell-name">
+          <span class="dot" style={{ background: color(id) }} />
+          {nameOf(id)}
+        </span>
         <span class="cmp-val" title={ci ? `95 % CI ${ci}` : (missing?.reason ?? undefined)}>
           {v ? formatValue(v.m, metric) : <span class="muted">{missing?.label}</span>}
           {f && (
@@ -228,14 +243,17 @@ export function Compare(props: Props) {
             <li key={e.id} class="cmp-pill">
               <span class="dot" style={{ background: SLOT_COLORS[e.slot] }} />
               <LangChip language={i?.language} />
-              <span>
+              {/* The name wraps on its own; the baseline tag and the remove button stay together beside it. */}
+              <span class="cmp-pill-name">
                 {i?.name ?? e.id}
                 {i?.variant && <span class="muted"> · {i.variant}</span>}
               </span>
-              {baseId === e.id && entries.length > 1 && <span class="tag">baseline</span>}
-              <button type="button" class="cmp-remove" aria-label={`Remove ${nameOf(e.id)}`} onClick={() => remove(e.id)}>
-                <Icon name="x" size={14} />
-              </button>
+              <span class="cmp-pill-tools">
+                {baseId === e.id && entries.length > 1 && <span class="tag">baseline</span>}
+                <button type="button" class="cmp-remove" aria-label={`Remove ${nameOf(e.id)}`} onClick={() => remove(e.id)}>
+                  <Icon name="x" size={14} />
+                </button>
+              </span>
             </li>
           );
         })}
@@ -259,8 +277,7 @@ export function Compare(props: Props) {
                     .filter((i) => i.language === lang)
                     .map((i) => (
                       <option key={i.id} value={i.id} disabled={entries.some((e) => e.id === i.id)}>
-                        {i.name}
-                        {i.variant ? ` (${i.variant})` : ''}
+                        {implLabel(i)}
                       </option>
                     ))}
                 </optgroup>
@@ -294,8 +311,7 @@ export function Compare(props: Props) {
         <div class="card card-pad cmp-empty">
           <h2>Pick at least two implementations</h2>
           <p class="text-2">
-            Use the menu above, or start from one of these comparisons. Variants built from the same source isolate the
-            effect of the runtime or compilation mode.
+            Use the menu above, or start from one of these comparisons.
           </p>
           <ul class="cmp-suggestions">
             {suggestions.map((s) => (
@@ -309,7 +325,8 @@ export function Compare(props: Props) {
                   }}
                 >
                   <span class="cmp-suggestion-title">{s.title}</span>
-                  <span class="muted">{s.ids.map(nameOf).join(' · ')}</span>
+                  <span class="muted">{s.ids.map(shortName).join(', ')}</span>
+                  {s.note && <span class="cmp-suggestion-note">{s.note}</span>}
                   <Icon name="arrowRight" size={16} class="arrow" />
                 </a>
               </li>
@@ -324,6 +341,20 @@ export function Compare(props: Props) {
     <div class="cmp">
       {notice}
       {picker}
+      {about && (
+        <div class="notice notice-info cmp-about" role="note">
+          <Icon name="info" />
+          <p>
+            <strong>{about.title}.</strong> {about.note}
+          </p>
+        </div>
+      )}
+      {!about && rankingNote && entries.length > 0 && (
+        <p class="ranking-note cmp-ranking-note" role="note">
+          <Icon name="info" size={14} />
+          <span>{rankingNote}</span>
+        </p>
+      )}
 
       <section class="cmp-headline" aria-labelledby="cmp-headline-title">
         <h2 id="cmp-headline-title" class="visually-hidden">
@@ -396,6 +427,9 @@ export function Compare(props: Props) {
                       );
                     })}
                 </ul>
+                )}
+                {!noValues && !h.scenario && (
+                  <WithheldNotes lines={withheldLines(run, entries.map((e) => e.id), h.metric, nameOf)} />
                 )}
               </article>
             );
@@ -513,6 +547,11 @@ export function Compare(props: Props) {
             })}
           </table>
         </div>
+        <WithheldNotes
+          lines={measuredMetricIds(metrics, run, null).flatMap((mid) =>
+            withheldLines(run, entries.map((e) => e.id), mid, nameOf, metricOrFallback(metrics, mid).label),
+          )}
+        />
       </section>
     </div>
   );

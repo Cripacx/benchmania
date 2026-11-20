@@ -19,6 +19,8 @@ import {
   scenarioParams,
   sortIdsBy,
   valueFlagNote,
+  implLabel,
+  withheldLines,
 } from '../../lib/model';
 import { joinBase, routes } from '../../lib/paths';
 import type { DerivedDefinition, Flag, HeadlineEntry, Metric, Scenario } from '../../lib/types';
@@ -26,6 +28,7 @@ import type { ImplLite, RunOption, RunSlice } from '../../lib/view';
 import { BarChart, type BarDatum } from './BarChart';
 import { Icon } from './Icon';
 import { LangChip } from './LangChip';
+import { WithheldNotes } from './WithheldNotes';
 
 /** Pseudo-scenario for derived metrics. */
 export const OVERALL = 'overall';
@@ -39,9 +42,13 @@ interface Props {
   run: RunSlice;
   headline: HeadlineEntry[];
   derivedNotes: Record<string, string>;
+  /** The domain's caveat shown directly above the chart or table (`ranking_note`); empty: none. */
+  rankingNote: string;
   /** Implementation-scoped quality flags of the run; attached to values with valueFlags. */
   flags: Flag[];
   derived: DerivedDefinition[];
+  /** Scale of each relative index in this run (derivedScales). */
+  scales: Record<string, string>;
   /** Run scope of the page's links: null on the default-run routes, else the run id. */
   scope: string | null;
   runOptions: RunOption[];
@@ -53,10 +60,10 @@ interface Props {
 type View = 'chart' | 'table';
 
 export function Explorer(props: Props) {
-  const { base, domainId, metrics, scenarios, impls, run, headline, derivedNotes, flags, derived, scope, runOptions, maxCompare } = props;
+  const { base, domainId, metrics, scenarios, impls, run, headline, derivedNotes, rankingNote, flags, derived, scales, scope, runOptions, maxCompare } = props;
   const ctx = useMemo(() => ({ derived, scenarios }), [derived, scenarios]);
 
-  const hasOverall = Object.keys(run.derived ?? {}).length > 0;
+  const hasOverall = useMemo(() => measuredMetricIds(metrics, run, null).length > 0, [metrics, run]);
   const scenarioIds = useMemo(() => [...(hasOverall ? [OVERALL] : []), ...scenarios.map((s) => s.id)], [hasOverall, scenarios]);
 
   const [scenario, setScenario] = useState(props.initialScenario);
@@ -152,6 +159,11 @@ export function Explorer(props: Props) {
     };
   });
   const measuredCount = data.filter((d) => d.value).length;
+  const labelOf = (id: string) => {
+    const i = implById.get(id);
+    return i ? implLabel(i) : id;
+  };
+  const withheld = scenarioKey ? [] : withheldLines(run, order, metric, labelOf, undefined, visibleImpls.length === impls.length);
   const anyInterval = data.some((d) => hasInterval(d.value));
   const maxN = data.reduce((acc, d) => Math.max(acc, d.value?.n ?? 0), 0);
 
@@ -291,12 +303,17 @@ export function Explorer(props: Props) {
                   {m.better === 'lower' && <Icon name="arrowDown" size={12} strokeWidth={2} />}
                   {betterText(m.better)}
                 </span>
-                {m.description && <span> · {m.description}</span>}
+                {/* A derived metric: its scale here, how it is computed behind the disclosure below (said once). */}
+                {derivedNotes[metric]
+                  ? scales[metric] && <span> · {scales[metric]}</span>
+                  : m.description && <span> · {m.description}</span>}
               </p>
               {derivedNotes[metric] && (
-                <p class="ex-metric-desc">
-                  <strong>Computed:</strong> {derivedNotes[metric]}
-                </p>
+                <details class="ex-derivation">
+                  <summary>How it is computed</summary>
+                  <p>{derivedNotes[metric]}</p>
+                  {m.description && <p>{m.description}</p>}
+                </details>
               )}
             </div>
             <div class="ex-card-tools">
@@ -332,15 +349,23 @@ export function Explorer(props: Props) {
             </div>
           </div>
 
+          {rankingNote && (
+            <p class="ranking-note ex-ranking-note" role="note">
+              <Icon name="info" size={14} />
+              <span>{rankingNote}</span>
+            </p>
+          )}
+
           {visibleImpls.length === 0 ? (
             <p class="empty">No implementation selected. Use the selector above to choose some.</p>
           ) : measuredCount === 0 ? (
-            <p class="empty">Not measured in this run for the selected implementations.</p>
+            !withheld.length && <p class="empty">Not measured in this run for the selected implementations.</p>
           ) : view === 'chart' ? (
             <BarChart data={data} metric={m} label={chartLabel} />
           ) : (
             <ResultTable data={data} metric={m} />
           )}
+          {visibleImpls.length > 0 && <WithheldNotes lines={withheld} />}
 
           <div class="ex-foot">
             <p>
@@ -348,7 +373,7 @@ export function Explorer(props: Props) {
                 ? 'Derived values are computed from scenario medians and carry no interval.'
                 : anyInterval
                   ? 'Whiskers show the 95 % bootstrap confidence interval of the median.'
-                  : `Median of ${plural(maxN || run.passes, 'pass', 'passes')}. ${maxN < MIN_CI_PASSES ? `Fewer than ${MIN_CI_PASSES} passes, so no confidence interval is shown.` : ''}`}{' '}
+                  : `Median of ${plural(maxN || run.passes, 'pass', 'passes')}. ${(maxN || run.passes) < MIN_CI_PASSES ? `Fewer than ${MIN_CI_PASSES} passes, so no confidence interval is shown.` : ''}`}{' '}
               Ranks count all {impls.length} implementations.
             </p>
             <div class="ex-compare">

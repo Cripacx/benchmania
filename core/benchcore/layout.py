@@ -1,12 +1,17 @@
 """CPU layout: which logical CPUs the service, its environment (e.g. a database) and the load generator get.
 
 Rules, in order:
-1. The service gets `service_cpus` logical CPUs, one per physical core. The SMT siblings of those cores stay
-   idle so the service never shares a core's execution units with other work.
+1. The service gets `service_cpus` logical CPUs, one per physical core. The SMT siblings of those cores are
+   assigned to no role (`idle`), so no work of the benchmark runs on them.
 2. The remaining physical cores (with all their threads) are split between the environment and the load
    generator; the load generator gets the larger half because it must never be the bottleneck.
 3. On machines too small for this, roles share CPUs and the layout carries a warning that ends up in the
    result's quality flags.
+
+The layout is CPU affinity: containers get their role's CPUs as a cpuset, the load generator and the runner's
+own process are pinned to the load generator's CPUs.
+It does not reserve them (other processes, kernel threads and interrupts can still run there), and on a
+virtual machine the CPUs are virtual CPUs whose placement on physical cores is up to the hypervisor.
 """
 
 from collections import OrderedDict

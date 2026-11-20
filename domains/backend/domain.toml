@@ -4,8 +4,9 @@ summary = "HTTP services backed by PostgreSQL, each running in the same small, r
 description = """
 Every implementation serves the same API (JSON, single and multiple queries, updates, a list endpoint and \
 a JSON POST) against the same PostgreSQL 18 database. The service gets 2 CPU cores and 1 GiB of memory, like \
-a small production pod; the database and the load generator run on separate cores. Results cover throughput, \
-latency at fixed load, CPU per request, memory, cold start and warm-up."""
+a small production pod. The database container and the load generator's processes are pinned to the CPUs of their \
+own roles, which the layout keeps apart from the service's when the machine has enough cores. Results cover \
+throughput, latency at fixed load, CPU per request, memory, cold start and warm-up."""
 status = "stable"
 harness = "harness:BackendHarness"
 methodology_version = "1"
@@ -75,3 +76,26 @@ scenario = "startup"
 metric = "startup_ms"
 label = "Cold start"
 hint = "Container start until the first successful response."
+
+# The domain's part of the methodology page: engine-wide rules are described by the website itself.
+[methodology]
+document = "docs/methodology.md"
+roles = { service = "Service under test", environment = "PostgreSQL", loadgen = "Load generator (wrk, oha) and runner" }
+checks = [
+  { check = "Functional checks before measuring: values, shapes, content types, persisted updates, totals, rejected invalid input", effect = "Implementation is excluded from the run" },
+  { check = "Database statements per request (pg_stat_statements) deviate more than 3 % from the scenario specification", effect = "Result flagged" },
+  { check = "Errors during a measurement (socket errors, timeouts, non-2xx/3xx)", effect = "Result flagged with count and rate; failed requests never count as throughput" },
+  { check = "More than 1 % failed requests or a throughput of zero in one of the workloads behind an index", effect = "No index for that implementation; its scenario results stay visible" },
+  { check = "Load generator CPU above 90 %", effect = "Throughput flagged as a lower bound" },
+  { check = "Database CPU above 90 % of its cores", effect = "Flagged: the database limits the throughput, not only the service" },
+  { check = "Fixed-rate scenario reaches less than 97 % of the target rate", effect = "Result flagged: latency then describes queueing, not the service" },
+]
+limitations = [
+  "Start-up time includes docker start. The overhead is identical for every implementation but means the numbers are not process start times.",
+  "CPU package energy covers the whole package, including the database and the load generator; compare it within one run only.",
+  "Memory (PSS) is sampled once per second, so very short spikes can be missed. The cgroup's anonymous-memory peak complements it.",
+  "The load generator and the database share the machine. Their CPU use is measured and flagged when it could limit throughput.",
+  "Workloads are synthetic, shaped after common production endpoints; pool sizes and worker counts are documented on each implementation page.",
+  "Categories matter: a bare server without a framework does less work than a full-stack framework. Compare like with like.",
+]
+versions = { "0" = "Pre-release shell suite: throughput, p50/p99 latency, errors, start-up and memory only; floating image tags; peak memory recorded once per run; 3 s warm-up and 12 s measurement per scenario.", "1" = "Engine release: pinned versions and image digests, CPU per request, database work verification, PSS per scenario, steal-time retries, energy, CPU clock, persisted-update and content-type checks, deterministic database content, 5 s warm-up and 15 s measurement." }

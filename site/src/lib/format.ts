@@ -137,6 +137,23 @@ export function formatCompact(value: number, stepHint?: number): string {
   return formatNumber(value, 0);
 }
 
+/**
+ * Labels for the ticks of one axis on one scale: when the largest tick is abbreviated (10K and up), every tick uses
+ * its unit, so an axis reads "0, 5K, 10K, 15K", never "5,000" next to "10K".
+ */
+export function formatAxisTicks(ticks: number[], step?: number): string[] {
+  const top = Math.max(0, ...ticks.filter(isNum).map(Math.abs));
+  const unit = top >= 1e9 ? 1e9 : top >= 1e6 ? 1e6 : top >= 10_000 ? 1e3 : 1;
+  if (unit === 1) return ticks.map((t) => formatCompact(t, step));
+  const suffix = unit === 1e9 ? 'B' : unit === 1e6 ? 'M' : 'K';
+  const scaledStep = isNum(step) && step > 0 ? step / unit : 1;
+  // As many decimals as the step needs: 2.5K steps keep one, 5K steps none.
+  let decimals = 0;
+  while (decimals < 3 && Math.abs(Math.round(scaledStep * 10 ** decimals) - scaledStep * 10 ** decimals) > 1e-9) decimals++;
+  const trim = (text: string) => (decimals > 0 ? text.replace(/\.?0+$/, '') : text);
+  return ticks.map((t) => (t === 0 ? '0' : `${trim(formatNumber(t / unit, decimals))}${suffix}`));
+}
+
 /** Decimal megabytes like `docker images` (and the image_mb metric). */
 export function formatBytes(bytes: number | null | undefined): string {
   if (!isNum(bytes)) return DASH;

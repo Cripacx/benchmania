@@ -2,7 +2,9 @@
 
 Layout on disk (everything below `domains/<domain-id>/`):
 
-    domain.toml                 identity, harness entry point, service limits, headline metrics
+    domain.toml                 identity, harness entry point, service limits, headline metrics, the note shown
+                                above every ranking (ranking_note), suggested comparisons ([[compare]]) and the
+                                domain's part of the methodology ([methodology])
     metrics.toml                metric registry for this domain (merged with core metrics)
     scenarios/<id>.toml         one file per scenario
     implementations/<id>/impl.toml + Dockerfile + sources
@@ -21,6 +23,8 @@ ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,62}$")
 STATUSES = ("stable", "experimental", "example")
 CATEGORIES = ("bare", "micro", "framework", "fullstack", "tool")
 BETTER = ("higher", "lower", "neutral")
+CPU_ROLES = ("service", "environment", "loadgen")  # the roles of benchcore.layout
+METHODOLOGY_KEYS = ("document", "roles", "checks", "limitations", "versions")
 CORE_METRICS = Path(__file__).with_name("metrics.toml")
 
 
@@ -126,7 +130,9 @@ class Domain:
     def to_public(self):
         return {"id": self.id, "title": self.title, "summary": self.summary, "status": self.status,
                 "service": self.service, "headline": self.headline,
-                "description": self.data.get("description", "")}
+                "description": self.data.get("description", ""),
+                "ranking_note": self.data.get("ranking_note", ""),
+                "compare": self.data.get("compare", []), "methodology": self.data.get("methodology", {})}
 
 
 def load_metrics(*paths):
@@ -205,18 +211,111 @@ def load_domain(path):
             domain.implementations.append(_load_implementation(p, problems))
     ids = [i.id for i in domain.implementations]
     problems += [f"{path}: duplicate implementation id '{i}'" for i in set(ids) if ids.count(i) > 1]
-    for h in domain.headline:
-        if h.get("metric") not in domain.metrics:
-            problems.append(f"{path}/domain.toml: headline metric '{h.get('metric')}' is not in the metric registry")
+    problems += _headline_problems(d, domain, f"{path}/domain.toml")
     if not str(d.get("methodology_version", "1")).isdigit():  # runs are ranked by it, newest first
         problems.append(f"{path}/domain.toml: methodology_version must be a whole number")
     for dv in d.get("derived", []):
         used = [dv.get("metric"), dv.get("valid_when", {}).get("metric", dv.get("metric"))]
         problems += [f"{path}/domain.toml: derived metric '{dv.get('id')}' uses '{m}', which is not in the "
                      f"metric registry" for m in used if m not in domain.metrics]
+    problems += _presentation_problems(d, domain, f"{path}/domain.toml")
     if problems:
         raise ManifestError(problems)
     return domain
+
+
+def _text(value, empty=False):
+    """A string the website prints as it is (non-empty unless `empty`)."""
+    return isinstance(value, str) and (empty or bool(value.strip()))
+
+
+def _headline_problems(d, domain, where):
+    """Every [[headline]] entry is a table whose `metric` (and optional `scenario`) name a metric and scenario of the
+    domain, with `label` and `hint` as strings when given. Checked before use, so malformed data is reported."""
+    headline = d.get("headline", [])
+    if not isinstance(headline, list):
+        return [f"{where}: [[headline]] must be a list of tables"]
+    problems = []
+    scenarios = {s.id for s in domain.scenarios}
+    for n, h in enumerate(headline, 1):
+        if not isinstance(h, dict):
+            problems.append(f"{where}: [[headline]] {n} must be a table with 'metric'")
+            continue
+        metric, scenario = h.get("metric"), h.get("scenario")
+        if not isinstance(metric, str) or metric not in domain.metrics:
+            problems.append(f"{where}: headline metric '{metric}' is not in the metric registry")
+        if scenario is not None and (not isinstance(scenario, str) or scenario not in scenarios):
+            problems.append(f"{where}: headline scenario '{scenario}' is not a scenario of this domain")
+        problems += [f"{where}: [[headline]] {n} '{k}' must be a string" for k in ("label", "hint")
+                     if k in h and not _text(h[k], empty=k == "hint")]
+    return problems
+
+
+def _presentation_problems(d, domain, where):
+    """Checks of what only the website reads: suggested comparisons, the note shown above every ranking and the
+    domain's methodology text. Every value the website prints must be a string, and every container is checked
+    before it is iterated, so malformed data is reported as a problem instead of raising."""
+    problems = []
+    ids = {i.id for i in domain.implementations}
+    if "ranking_note" in d and not _text(d["ranking_note"]):
+        problems.append(f"{where}: ranking_note must be a short sentence (a non-empty string)")
+    compare = d.get("compare", [])
+    if not isinstance(compare, list):
+        problems.append(f"{where}: [[compare]] must be a list of tables")
+        compare = []
+    for n, c in enumerate(compare, 1):
+        if not isinstance(c, dict):
+            problems.append(f"{where}: [[compare]] {n} must be a table with 'title' and 'ids'")
+            continue
+        members = c.get("ids")
+        if not _text(c.get("title")):
+            problems.append(f"{where}: [[compare]] {n} needs a 'title' (a string)")
+        if "note" in c and not _text(c["note"]):
+            problems.append(f"{where}: [[compare]] {n} 'note' must be a non-empty string")
+        if (not isinstance(members, list) or not all(isinstance(i, str) for i in members)
+                or not 2 <= len(members) <= 4 or len(set(members)) != len(members)):
+            problems.append(f"{where}: [[compare]] {n} needs 'ids' with two to four different implementations")
+        else:
+            problems += [f"{where}: [[compare]] {n} names '{i}', which is not an implementation" for i in members
+                         if i not in ids]
+    m = d.get("methodology", {})
+    if not isinstance(m, dict):
+        return problems + [f"{where}: [methodology] must be a table"]
+    problems += [f"{where}: [methodology] has unknown key '{k}' (use {', '.join(METHODOLOGY_KEYS)})"
+                 for k in m if k not in METHODOLOGY_KEYS]
+    doc = m.get("document", "")
+    if not isinstance(doc, str) or doc.startswith("/") or ".." in doc.split("/") or "://" in doc or "\\" in doc:
+        problems.append(f"{where}: [methodology] document must be a path relative to the repository root, "
+                        f"with forward slashes")
+    roles = m.get("roles", {})
+    if not isinstance(roles, dict):
+        problems.append(f"{where}: [methodology.roles] must be a table of role names")
+        roles = {}
+    for r, name in roles.items():
+        if r not in CPU_ROLES:
+            problems.append(f"{where}: [methodology.roles] has unknown role '{r}' (use {', '.join(CPU_ROLES)})")
+        if not _text(name, empty=True):  # an empty name marks a role the domain does not use
+            problems.append(f"{where}: [methodology.roles] name of '{r}' must be a string")
+    checks = m.get("checks", [])
+    if not isinstance(checks, list):
+        problems.append(f"{where}: [methodology] checks must be a list of {{ check, effect }} tables")
+        checks = []
+    for n, c in enumerate(checks, 1):
+        if not isinstance(c, dict) or not _text(c.get("check")) or not _text(c.get("effect")):
+            problems.append(f"{where}: [[methodology.checks]] {n} needs 'check' and 'effect' (strings)")
+    limitations = m.get("limitations", [])
+    if not isinstance(limitations, list) or not all(_text(x) for x in limitations):
+        problems.append(f"{where}: [methodology] limitations must be a list of sentences")
+    versions = m.get("versions", {})
+    if not isinstance(versions, dict):
+        problems.append(f"{where}: [methodology.versions] must be a table of version descriptions")
+        versions = {}
+    for v, text in versions.items():
+        if not str(v).isdigit():
+            problems.append(f"{where}: [methodology.versions] key '{v}' must be a methodology version (a whole number)")
+        if not _text(text):
+            problems.append(f"{where}: [methodology.versions] description of '{v}' must be a non-empty string")
+    return problems
 
 
 def discover(root):

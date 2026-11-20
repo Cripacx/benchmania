@@ -46,22 +46,43 @@ Schema `benchcore.dataset/v1`, written by `core/benchcore/publish.py`. Types: `s
 
 - `project`: `name`, `tagline`, `description`, `repository`, `site_url`, `license`, `data_license`. Components read
   the project identity from here. A test fails if the project name or URLs appear in the source.
-- `domains[]`: `id`, `title`, `summary`, `status` (`example` domains are not shown), `headline[]`, `default_run`.
+- `domains[]`: `id`, `title`, `summary`, `status` (`example` domains are not shown; `experimental` ones are marked next
+  to their numbers), `headline[]`, `ranking_note`, `compare[]`, `methodology`, `default_run`.
+- `ranking_note` (top-level key of `domain.toml`, empty when absent): a short caveat shown directly above every ranking
+  of the domain (`components/RankingNote.astro`, and the same line in the explorer island): the domain summary and the
+  board on the home page, the chart or table of the explorer, the headline tiles of an implementation page, and the
+  compare page for a selection without a declared note. "Fastest in each workload", far below the board's note on a
+  phone, repeats its first clause (`rankingNoteShort()`) with a link to the full note.
+- `compare[]` (`[[compare]]` in `domain.toml`): `{title, ids[], note?}`, the comparisons a domain suggests. They replace
+  the comparisons the site would otherwise guess from shared sources and runtimes. A declared comparison is offered
+  only when the run contains every one of its members (never a smaller one under a title and note written for more);
+  its note is shown wherever it is offered and on the compare page when exactly those implementations are selected.
+- `methodology` (`[methodology]` in `domain.toml`): the domain's part of the methodology page: `document` (path in the
+  repository), `roles` (names of the CPU roles; an empty name marks a role the domain does not use), `checks[]`
+  (`{check, effect}`), `limitations[]` and `versions` (methodology version to what it measures). The site describes
+  only engine-wide rules itself; nothing about one domain is written into a component.
 
 `<domain>.json`
 
 - `metrics`: the registry. Each metric has `label`, `unit`, `better` (`higher` | `lower` | `neutral`), `group`,
   `decimals` and `visibility` (`primary` | `secondary` | `diagnostic`).
 - `derived`: definitions of derived metrics (e.g. a geometric-mean index), used to explain them.
-- `domain.headline[]`: what the site shows first, as `{metric, scenario?, label, hint}`. Without `scenario` the value
+- `domain.headline[]`: what the site shows first, as `{metric, scenario?, label?, hint?}` (validated entry by entry;
+  without `label` the metric's label is used). Without `scenario` the value
   is the derived metric `run.derived[impl][metric]`; with `scenario` it is `run.results[impl][scenario][metric]`.
 - `scenarios[]`, `implementations[]`, `machines{}` (`machines[id].reference` is `null` or `{label, operator}`; its
-  label is preferred as the machine name).
+  label is preferred as the machine name). Tables of an implementation manifest that the site does not know (such as
+  `compiler`, how a tool is invoked) are shown on its page by `manifestDetails()`; a `command` with `modes` reads as
+  one full command per mode, labelled with the scenarios whose `params.mode` names it.
 - `runs[]`: `id`, `created`, `methodology` (`"0"` preliminary, `"1"` current), `provenance` (`reference` |
   `community`), `machine`, `passes`, `options`, `layout`, `flags[]`, `results`, `derived`, `withheld`, `best`.
 - `run.best[derived][scenario]` is `{value, by[]}`: for every `geomean_relative` index, the value that counts as 100
   in that scenario and the eligible implementations that measured exactly it. The publisher owns eligibility; the
   site shows these as the winners per workload and never re-derives them. A scenario left out of the index has no entry.
+  The scale "100 = best in all N scenarios" counts these entries (`derivedScale()`), never the declared list.
+- `run.withheld[impl][derived]`: why an implementation has no index (an explicit `scenarios` list requires every listed
+  scenario). Wherever an index is shown, a missing one reads "no index" and the reason is given in visible text
+  (`withheldLines()`, `components/islands/WithheldNotes.tsx`), not only in a hover title.
 - A flag is `{level, scope, message, pass?, metric?}`; `scope` is `run`, `<impl>` or `<impl>/<scenario>`. A flag
   with `metric` is about that metric only: it attaches to a scenario value of that metric and to a derived value
   computed from it (`derived[].metric`), never to other metrics. Markers follow the most severe flag on a value:
@@ -78,13 +99,16 @@ Rules the site follows:
 - Non-finite numbers never reach a page. `verify` fails on "NaN", "undefined" or "Infinity".
 
 `src/lib/dataset.ts` validates the structure the site depends on at build time (unknown headline metrics, missing
-machines, implementation ids that collide with routes) and fails the build with a readable message.
+machines, implementation ids that collide with routes) and fails the build with a readable message. Its
+`presentationProblems()` holds the presentation data (ranking note, comparisons, methodology text) to the same contract
+as `_presentation_problems` in `core/benchcore/manifest.py`: strings wherever text is printed, comparisons of two to
+four distinct implementation ids, and no exception on malformed input.
 
 ## How pages are generated
 
 | Route | Source | Content |
 |---|---|---|
-| `/` | `pages/index.astro` | Value proposition, headline leaderboard of the first domain's default run, run context, methodology teaser, entry points |
+| `/` | `pages/index.astro` | Value proposition, then one compact summary per domain (`components/DomainSummary.astro`: title, status, summary, the leader of its first headline metric, a link to its results), then one board per domain (`components/DomainBoard.astro`: headline winners, leaderboard of the default run, declared comparisons, fastest per workload), methodology teaser, entry points. No domain is featured over another |
 | `/<domain>/` | `pages/[domain]/index.astro` | Explorer for the default run: scenarios, metrics, chart or table, implementation picker |
 | `/<domain>/runs/` and `/<domain>/runs/<run>/` | `pages/[domain]/runs/` | All runs; the explorer and full metadata for every run |
 | `/<domain>/<impl>/` | `pages/[domain]/[impl]/index.astro` | Identity, headline numbers with rank, every scenario and measured metric, flags |
@@ -110,9 +134,11 @@ Layers:
 
 ### Progressive disclosure
 
-- Home: only the domain's headline metrics (usually four), then links to everything else.
+- Home: at the top one summary per domain with only its first headline metric; below, per domain only its headline metrics (usually four), the leaderboard and its declared comparisons, then
+  links to everything else. Long headline hints are cut to three lines in the cards and given in full below.
 - Explorer: primary metrics as chips; secondary and diagnostic metrics behind "All metrics"; chart by default, table on
-  demand; the run switcher appears only when several runs exist.
+  demand; for a derived metric its scale next to the direction and the full derivation behind "How it is computed";
+  the run switcher appears only when several runs exist.
 - Implementation page: headline tiles first; per scenario the primary metrics, with the rest behind "more metrics".
 - Methodology: metric groups beyond the main ones are collapsed.
 
@@ -121,7 +147,9 @@ Layers:
 Nothing in the site needs to change. Add the domain to the repository (see `docs/guides/adding-a-domain.md`) with its
 metric registry and `headline` list, publish results, and run `./benchmania publish`. The new `<domain>.json` and its
 entry in `index.json` create the explorer, runs, implementation and compare pages, the navigation entry and the
-methodology sections. The home page features the first domain in `index.json`.
+methodology sections, and a summary and a board on the home page. Stable domains come first there; none is featured
+over the others. Declare the comparisons that matter (`[[compare]]`) and the domain's part of the methodology
+(`[methodology]`) in `domain.toml`; without them the site guesses comparisons and says nothing domain-specific.
 
 Keep implementation ids clear of the reserved route segments `compare` and `runs`.
 

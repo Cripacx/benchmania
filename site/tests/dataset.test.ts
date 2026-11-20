@@ -6,7 +6,7 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { allDomains, getIndex, getProject, listDomains, rawDataFiles, validateDomain } from '../src/lib/dataset';
+import { allDomains, getIndex, getProject, listDomains, presentationProblems, rawDataFiles, validateDomain } from '../src/lib/dataset';
 import { MIN_CI_PASSES } from '../src/lib/format';
 import { compareProps, explorerProps, leaderboardProps } from '../src/lib/islandProps';
 import { methodologyInfo } from '../src/lib/methodology';
@@ -146,7 +146,82 @@ describe.each(domains.map((d) => [d.domain.id, d] as const))('domain %s', (_id, 
   });
 });
 
-describe('project identity is never hardcoded', () => {
+describe('presentation data contract (same as _presentation_problems in the engine)', () => {
+  const ids = new Set(['x', 'y', 'z']);
+  const check = (domain: Record<string, unknown>) => presentationProblems({ id: 'd', ...domain }, ids);
+  it('accepts well-formed data, an empty ranking note and empty role names', () => {
+    expect(
+      check({
+        ranking_note: 'Mixed revisions.',
+        compare: [{ title: 'Pair', ids: ['x', 'y'], note: 'Fair.' }],
+        methodology: { roles: { service: 'Tool', environment: '' }, checks: [{ check: 'c', effect: 'e' }], limitations: ['One.'], versions: { '1': 'First.' } },
+      }),
+    ).toEqual([]);
+    expect(check({ ranking_note: '' })).toEqual([]);
+  });
+
+  it.each([
+    [{ compare: [{ title: 'Nested', ids: [['x'], ['y']] }] }, 'two to four different'],
+    [{ compare: [{ title: 'Repeated', ids: ['x', 'x'] }] }, 'two to four different'],
+    [{ compare: [{ title: 'Too many', ids: ['x', 'y', 'z', 'w', 'v'] }] }, 'two to four different'],
+    [{ compare: [{ title: 'Ghost', ids: ['x', 'ghost'] }] }, 'unknown implementation "ghost"'],
+    [{ compare: [{ title: 3, ids: ['x', 'y'] }] }, 'needs a title'],
+    [{ compare: [{ title: 'Pair', ids: ['x', 'y'], note: 4 }] }, 'note must be a string'],
+    [{ compare: 'x,y' }, 'compare must be a list'],
+    [{ compare: ['x'] }, 'must be an object'],
+    [{ ranking_note: 7 }, 'ranking_note must be a string'],
+    [{ methodology: 'text' }, 'methodology must be an object'],
+    [{ methodology: { limitations: 'One sentence.' } }, 'limitations must be a list'],
+    [{ methodology: { roles: { service: 1 } } }, 'roles.service must be a string'],
+    [{ methodology: { checks: 'c' } }, 'checks must be a list'],
+    [{ methodology: { checks: [{ check: 1, effect: 'e' }] } }, 'needs check and effect'],
+    [{ methodology: { versions: { '1': 2 } } }, 'versions.1 must be a string'],
+  ])('reports malformed data instead of throwing: %j', (domain, expected) => {
+    expect(() => check(domain)).not.toThrow();
+    expect(check(domain).join('\n')).toContain(expected);
+  });
+
+  it('is part of validateDomain', () => {
+    const data = { domain: { id: 'd', headline: [], compare: [{ title: 'Nested', ids: [['x'], ['y']] }] }, metrics: {}, implementations: [], scenarios: [], runs: [] };
+    expect(validateDomain(data as never).join('\n')).toContain('two to four different');
+  });
+});
+
+describe('headline entries are validated before use', () => {
+  const domainWith = (headline: unknown) => ({
+    domain: { id: 'd', headline },
+    metrics: { rps: { label: 'Throughput', unit: 'req/s', better: 'higher', group: 'throughput' } },
+    implementations: [],
+    scenarios: [{ id: 'json', title: 'JSON' }],
+    runs: [],
+  });
+  const problems = (headline: unknown) => validateDomain(domainWith(headline) as never).join('\n');
+
+  it('accepts well-formed entries, with and without the optional fields', () => {
+    expect(problems([{ metric: 'rps', scenario: 'json', label: 'JSON', hint: 'Requests per second.' }, { metric: 'rps' }])).toBe('');
+  });
+
+  it.each([
+    [[null], 'headline entry 1 must be an object'],
+    [['rps'], 'headline entry 1 must be an object'],
+    [[{ metric: 'rps' }, 7], 'headline entry 2 must be an object'],
+    [[{ metric: ['rps'] }], 'headline entry 1: metric must be a string'],
+    [[{ metric: { toString: null } }], 'headline entry 1: metric must be a string'],
+    [[{ metric: 'ghost' }], 'headline metric "ghost" is not in the metric registry'],
+    [[{ metric: 'toString' }], 'headline metric "toString" is not in the metric registry'],
+    [[{ metric: 'rps', scenario: 'nope' }], 'headline scenario "nope"'],
+    [[{ metric: 'rps', scenario: 3 }], 'headline entry 1: scenario must be a string'],
+    [[{ metric: 'rps', scenario: { toString: null } }], 'headline entry 1: scenario must be a string'],
+    [[{ metric: 'rps', label: 3 }], 'headline entry 1: label must be a string'],
+    [[{ metric: 'rps', label: 'Throughput', hint: { text: 'x' } }], 'headline entry 1: hint must be a string'],
+    ['rps', 'headline must be a list'],
+  ])('reports a malformed entry instead of throwing: %j', (headline, expected) => {
+    expect(() => validateDomain(domainWith(headline) as never)).not.toThrow();
+    expect(problems(headline)).toContain(expected);
+  });
+});
+
+describe('project identity, domains and implementations are never hardcoded', () => {
   const project = getProject();
   const root = join(__dirname, '..', 'src');
   const files: string[] = [];
@@ -160,9 +235,17 @@ describe('project identity is never hardcoded', () => {
   };
   walk(root);
   const needles = [project.name, project.repository, project.site_url].filter((x): x is string => !!x);
+  // Domains and implementations come from the data too: their titles and names never appear in the source, and a
+  // domain id never as a string literal or path segment (as a bare word it may be ordinary English).
+  const dataNeedles = domains.flatMap((d) => [
+    d.domain.title,
+    ...d.implementations.map((i) => i.name),
+    ...["'", '"', '`', '/'].map((q) => `${q}${d.domain.id}${q}`),
+  ]);
 
   it.each(files.map((f) => [f.slice(root.length + 1)]))('%s', (rel) => {
     const text = readFileSync(join(root, rel), 'utf8').toLowerCase();
     for (const needle of needles) expect(text.includes(needle.toLowerCase()), `contains "${needle}"`).toBe(false);
+    for (const needle of dataNeedles) expect(text.includes(needle.toLowerCase()), `contains "${needle}"`).toBe(false);
   });
 });

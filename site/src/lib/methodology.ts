@@ -1,7 +1,8 @@
 /**
- * Methodology versions the site knows how to describe. Runs carry their version in `run.methodology`;
- * unknown versions still render with a generic label. Keep in sync with docs/methodology.md.
+ * Methodology versions. Runs carry their version in `run.methodology`; versions are numbered per domain, and what
+ * each one measured comes from the domain (`domain.methodology.versions`). Version 0 is preliminary in every domain.
  */
+import type { DomainSummary } from './types';
 
 export interface MethodologyInfo {
   version: string;
@@ -10,30 +11,13 @@ export interface MethodologyInfo {
   /** Longer label */
   label: string;
   preliminary: boolean;
-  summary: string;
+  /** What the version measured, from the domain; null when the domain does not describe it. */
+  summary: string | null;
 }
 
-const KNOWN: Record<string, Omit<MethodologyInfo, 'version'>> = {
-  '0': {
-    short: 'Preliminary',
-    label: 'Preliminary methodology (v0)',
-    preliminary: true,
-    summary:
-      'Pre-release shell suite: throughput, p50/p99 latency, errors, start-up and memory only; floating image tags; peak memory recorded once per run; 3 s warm-up and 12 s measurement per scenario.',
-  },
-  '1': {
-    short: 'Methodology 1',
-    label: 'Methodology 1',
-    preliminary: false,
-    summary:
-      'Engine release: pinned versions and image digests, CPU per request, database work verification, PSS per scenario, steal-time retries, energy, CPU clock, persisted-update and content-type checks, deterministic database content, 5 s warm-up and 15 s measurement.',
-  },
-};
-
-export function methodologyInfo(version: string | null | undefined): MethodologyInfo {
+export function methodologyInfo(version: string | null | undefined, domain?: Pick<DomainSummary, 'methodology'>): MethodologyInfo {
   const v = version ?? '';
-  const known = KNOWN[v];
-  if (known) return { version: v, ...known };
+  const summary = domain?.methodology?.versions?.[v] ?? null;
   if (!v)
     return {
       version: '',
@@ -42,17 +26,12 @@ export function methodologyInfo(version: string | null | undefined): Methodology
       preliminary: true,
       summary: 'This run does not record its methodology version.',
     };
-  return {
-    version: v,
-    short: `Methodology ${v}`,
-    label: `Methodology ${v}`,
-    preliminary: false,
-    summary: 'A methodology version this website does not describe yet. See the methodology document in the repository.',
-  };
+  if (v === '0') return { version: v, short: 'Preliminary', label: 'Preliminary methodology (v0)', preliminary: true, summary };
+  return { version: v, short: `Methodology ${v}`, label: `Methodology ${v}`, preliminary: false, summary };
 }
 
-export function knownMethodologies(): MethodologyInfo[] {
-  return Object.keys(KNOWN)
-    .sort()
-    .map((v) => methodologyInfo(v));
+/** The versions a domain describes plus those its runs use, oldest first. */
+export function domainMethodologies(domain: Pick<DomainSummary, 'methodology'>, runVersions: Array<string | null | undefined>): MethodologyInfo[] {
+  const versions = new Set([...Object.keys(domain.methodology?.versions ?? {}), ...runVersions.map((v) => v ?? '')]);
+  return [...versions].sort((a, b) => Number(a || -1) - Number(b || -1)).map((v) => methodologyInfo(v, domain));
 }

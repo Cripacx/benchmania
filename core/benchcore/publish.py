@@ -27,8 +27,11 @@ def derive(domain, summary, withheld=None, best=None):
 
     `geomean_relative` is an index: the geometric mean over the listed scenarios of each implementation's
     value relative to the best one (100 = best everywhere). An implementation gets an index only when it has
-    a usable result in every scenario: a missing scenario, a throughput of zero or a failed `valid_when`
-    condition (e.g. more than 1 % errors) withholds the index instead of flattering it. The reason is
+    a usable result in every scenario of the index: with an explicit list that is every listed scenario as
+    soon as the metric was measured in any of them (a scenario nobody measured withholds the index for
+    everybody), with "*" every scenario in which anybody measured it. A missing scenario, a throughput of
+    zero or a failed `valid_when` condition (e.g. more than 1 % errors) withholds the index instead of
+    flattering it. The reason is
     written to `withheld[implementation][derived id]` so that the website can say why a value is missing.
     The reference of each index is written to `best[derived id][scenario] = {"value", "by"}`: the value that
     counts as 100 in that scenario and the eligible implementations that measured exactly it, in
@@ -64,13 +67,18 @@ def derive(domain, summary, withheld=None, best=None):
         elif kind == "geomean_relative":
             pick = max if domain.metrics[metric].better == "higher" else min
             have = {iid: values(iid) for iid in impls}
-            sids = sorted({s for v in have.values() for s in v})
+            measured = sorted({s for v in have.values() for s in v})
+            # An explicit list is the index's definition: once the metric was measured in any of its scenarios,
+            # every listed scenario is required, also one that is missing for everybody. A run that did not
+            # measure the metric at all gets no index and no reason. "*" spans whatever was measured.
+            sids = measured if scen == "*" or not measured else sorted(set(scen))
             complete = [i for i in impls if sids and set(have[i]) == set(sids) and valid(i, sids)]
             # A scenario whose best value is 0 carries no information (nobody did any work, or the metric
             # has a floor of zero): it is left out for everybody rather than skipped per implementation.
             usable = [s for s in sids if complete and pick(have[i][s] for i in complete) > 0]
-            # Only implementations that get an index are compared with each other.
-            eligible = [i for i in complete if all(have[i][s] > 0 for s in usable)]
+            # Only implementations that get an index are compared with each other. When no scenario is usable
+            # there is nothing to compare with: nobody gets an index, and everybody gets the reason.
+            eligible = [i for i in complete if all(have[i][s] > 0 for s in usable)] if usable else []
             best = {s: pick(have[i][s] for i in eligible) for s in usable} if eligible else {}
             for iid in eligible:
                 ratios = [have[iid][s] / best[s] if pick is max else best[s] / have[iid][s] for s in best]
@@ -93,6 +101,8 @@ def derive(domain, summary, withheld=None, best=None):
                     reason = f"{domain.metrics[cond['metric']].label} above {cond['max']:g} in: {', '.join(failing)}"
                 elif zero:
                     reason = f"{label} of zero in: {', '.join(zero)}"
+                elif not usable:
+                    reason = f"Best {label.lower()} of zero in every scenario of the index"
                 else:
                     continue
                 withheld.setdefault(iid, {})[did] = reason
@@ -139,7 +149,7 @@ def _run_entry(domain, b, approved):
         "withheld": withheld,  # implementation -> derived metric -> why it has no value
         "best": best,  # derived metric -> scenario -> the value that counts as 100 and who measured it
         # recomputed like the summary, so every published run follows the current rules for flags
-        "flags": bundle.quality_flags({**b, "summary": summary}),
+        "flags": bundle.quality_flags({**b, "summary": summary}, domain),
     }
 
 

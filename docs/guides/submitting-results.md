@@ -3,8 +3,9 @@
 ## Prepare the machine
 
 - Linux with rootful Docker and cgroup v2 (`benchmania doctor` checks both).
-- At least 4 physical cores; 6 or more give each role its own cores. The layout is printed at the start of a
-  run and stored in the result.
+- At least 4 physical cores; with 6 or more the layout assigns each role separate CPUs (pinning does not reserve
+  them: other work on the machine can still run there). The layout is printed at the start of a run and stored in
+  the result.
 - Close other workloads. On laptops, use mains power and a fixed performance profile.
 - Virtual machines work, but shared hosts add noise: the runner measures hypervisor steal time and repeats
   disturbed measurements. Dedicated or bare-metal machines give the most stable results.
