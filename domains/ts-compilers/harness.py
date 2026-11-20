@@ -9,7 +9,8 @@ the first one for the one-core scenarios). Inside, images/tool/timer.py runs the
 runs, then the timed repetitions, each timed in the container and verified (diagnostics, exit code, emitted
 files). A scenario that fails is left unmeasured with the reason in its quality flags; the others still run.
 
-`check` is the correctness gate: every scenario once, plus each workload with an error seeded into it.
+`check` is the correctness gate: every scenario on the unchanged workload and again with an error seeded
+into it.
 """
 
 import importlib.util
@@ -74,7 +75,7 @@ class CompilerHarness(Harness):
     def prepare(self):
         d = self.ctx.docker
         self.ctx.log("building the base and workloads images")
-        d.build(self.base_tag, self.ctx.domain.path / "images" / "base")
+        d.build(self.base_tag, self.ctx.domain.path / "images" / "base", None, {"NODE": self.defaults["node"]})
         dockerfile = self.ctx.workdir / "Dockerfile.workloads"
         dockerfile.write_text(self._workloads_dockerfile(), encoding="utf-8")
         seconds = d.build(self.workloads_tag, self.ctx.domain.path / "workloads", dockerfile)
@@ -100,7 +101,8 @@ class CompilerHarness(Harness):
                                         impl.path / impl.build.get("dockerfile", "Dockerfile"), args)
         info = self.ctx.docker.image(tag)
         info["build_seconds_cached"] = round(seconds, 2)
-        info["workloads"] = {wid: {k: w[k] for k in C.WORKLOAD_KEYS} for wid, w in self.workloads.items()}
+        info["node"] = self.defaults["node"]  # `check` verifies that the image really has it
+        info["workloads"] ={wid: {k: w[k] for k in C.WORKLOAD_KEYS} for wid, w in self.workloads.items()}
         return info
 
     # --- containers and runs -------------------------------------------------------------------------
@@ -110,8 +112,10 @@ class CompilerHarness(Harness):
         return service[:want], want
 
     def _start(self, impl, cpus):
+        # The cpuset alone limits the container to exactly these CPUs. No CPU quota (`--cpus`) on top: a quota
+        # of the same size cannot lower the limit, it can only throttle a busy tool at a period boundary.
         svc = self.ctx.domain.service
-        self.ctx.docker.run(self.name, self.image_tag(impl), network="none", cpuset=cpuset(cpus), cpus=len(cpus),
+        self.ctx.docker.run(self.name, self.image_tag(impl), network="none", cpuset=cpuset(cpus),
                             memory=svc.get("memory"), command=["sleep", "infinity"],
                             extra=["--entrypoint", "", "--tmpfs", f"{OUT_DIR}:rw,exec"], untrusted=True)
 
@@ -130,35 +134,38 @@ class CompilerHarness(Harness):
     def _expected(self, impl, s):
         return self.workloads[s.params["workload"]]["expected"][impl.data["compiler"]["typescript"]]
 
-    def _no_network(self):
-        """The container must have nothing but loopback (`--network none`)."""
+    def _environment_problems(self):
+        """The container must have nothing but loopback (`--network none`) and the declared Node.js."""
+        problems = []
         ifaces = self.ctx.docker.exec(self.name, "ls", "/sys/class/net").stdout.split()
-        return [] if ifaces == ["lo"] else [f"measurement container has network interfaces {ifaces}"]
+        if ifaces != ["lo"]:
+            problems.append(f"measurement container has network interfaces {ifaces}")
+        node = self.ctx.docker.exec(self.name, "node", "--version").stdout.strip()
+        if node != f"v{self.defaults['node']}":
+            problems.append(f"the image has Node.js {node}, domain.toml declares {self.defaults['node']}")
+        return problems
 
     # --- functional check ----------------------------------------------------------------------------
     def check(self, impl):
-        """Every scenario once, then every workload with its seeded error. Problems name the scenario."""
+        """Every scenario twice: on the unchanged workload and on a copy with the seeded error. A mode that
+        silently checked less (an ignored flag, a mode that skips the checker) would pass the first run and
+        fail the second. Problems name the scenario."""
         problems = []
         try:
             for i, s in enumerate(self.ctx.domain.scenarios):
+                w = self.workloads[s.params["workload"]]
                 self._start(impl, self._cpus(s)[0])
                 if i == 0:
-                    problems += self._no_network()
+                    problems += self._environment_problems()
                 run = self._time(self._spec(impl, s, 1))[0]
                 problems += [f"{s.id}: {p}" for p in C.run_problems(run, self._expected(impl, s),
                                                                      s.params.get("expect_files"))]
-            for wid, w in self.workloads.items():
-                seed = w["seeded_error"]
-                s = next((s for s in self.ctx.domain.scenarios
-                          if s.params["workload"] == wid and s.params["mode"] == "check"), None)
-                if s is None:
-                    continue
-                self._start(impl, self._cpus(s)[0])  # a fresh container: the seeded copy is thrown away with it
-                path = f"{WORKLOADS_DIR}/{wid}/{w['project']}/{seed['file']}"
+                seed = w["seeded_error"]  # the edit is thrown away with this container
+                path = f"{WORKLOADS_DIR}/{w['id']}/{w['project']}/{seed['file']}"
                 self.ctx.docker.exec(self.name, "sh", "-c", 'printf "%s" "$1" >> "$2"', "sh", seed["append"], path)
                 run = self._time(self._spec(impl, s, 1))[0]
                 expected = self._expected(impl, s) + [seed["expect"]]
-                problems += [f"{wid} with seeded error: {p}" for p in C.run_problems(run, expected)]
+                problems += [f"{s.id} with seeded error: {p}" for p in C.run_problems(run, expected)]
             return problems
         except Exception as e:
             return problems + [f"{type(e).__name__}: {e}"]

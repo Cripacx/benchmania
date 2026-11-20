@@ -16,13 +16,15 @@ status = "example"
 harness = "harness:CompilerHarness"
 methodology_version = "1"
 
-# Limits of every measurement container. The four-core scenarios use all service CPUs, the one-core scenarios
-# the first of them. Node.js sizes its default heap from the memory limit, so the limit is part of the setup.
+# Limits of every measurement container. The four-core scenarios are pinned to all service CPUs, the one-core
+# scenarios to the first of them (a cpuset, no CPU quota on top). Node.js sizes its default heap from the
+# memory limit, so the limit is part of the setup.
 [service]
 cpus = 4
 memory = "8g"
 
 [defaults]
+node = "24.22.1"  # Node.js of every image: tsc 6 runs on it, tsc 7 and tsrs are started by a Node.js launcher
 warmup = 1        # untimed runs first in every fresh container (page cache, Node.js compile cache)
 repetitions = 5   # timed runs per scenario and pass; the median is reported, every value is kept
 

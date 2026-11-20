@@ -46,15 +46,17 @@ it uses more than one core on four and is slower on one, although it runs the sa
 
 Every tool runs through the command its npm package installs (`tsc`, `tsrs`, `tsc-rs`), as a user would run
 it: for tsc 7, tsrs and tsc-rs that is a launcher (Node.js, or a shell script for tsc-rs) that starts the
-native binary, and the launcher is part of the measurement. The exact command of every mode is in the
+native binary, and the launcher is part of the measurement: with tsc 7 and tsrs every run starts a Node.js
+process first. The Node.js version of all images is `[defaults] node` in `domain.toml`; `check` verifies that
+the image has it, and every result records it. The exact command of every mode is in the
 `[compiler]` table of each `impl.toml` and is published with every result, and so is the command line of
 every measured scenario (in the quality data). Common flags: `-p <tsconfig> --incremental false --composite
 false --pretty false`.
 
 **How a scenario is measured.** Every scenario of every pass gets a fresh container: no network
 (`--network none`; the functional check verifies that such a container has nothing but loopback), pinned to the
-service CPUs (`--cpuset-cpus` and `--cpus`: four, or the first one of them), 8 GiB of memory, and a fresh
-writable copy of the workloads. Node.js sizes its default heap from that limit, so the limit is part of the
+service CPUs with `--cpuset-cpus` (four, or the first one of them; no CPU quota on top, which could not lower
+the limit and could only throttle a busy tool), 8 GiB of memory, and a fresh writable copy of the workloads. Node.js sizes its default heap from that limit, so the limit is part of the
 setup for tsc 6. Inside the container a small timer (`images/tool/timer.py`) runs the command: one untimed
 warm-up run (page cache, and the Node.js compile cache that tsc 6 writes on its first run), then five timed
 runs (`--quick`: no warm-up and one timed run). It starts the clock right before it spawns the command and
@@ -86,8 +88,15 @@ configured steal time during a scenario, the scenario is repeated in a new conta
 
 1. every scenario, run once, reports exactly the diagnostics its workload expects for the tool's TypeScript
    line (`[expected]` in `workloads/<id>/workload.toml`, keyed by line: `"7.1" = []`); and
-2. on a throwaway copy of each workload with an error appended to one file (`[seeded_error]`), it reports
-   exactly the expected diagnostics plus that error, at the same file, line, column and error code.
+2. the same scenario, run again after an error was appended to one file of the workload (`[seeded_error]`;
+   the edit is thrown away with the container), reports exactly the expected diagnostics plus that error, at
+   the same file, line, column and error code.
+
+Every scenario goes through both steps, so each mode (default, single-threaded, emit) has to find the seeded
+error: a flag that made a tool check less would pass the first step and fail the second.
+
+The gate shows that a tool reports the expected diagnostics on these two projects and finds one seeded error
+in every mode. It cannot show that a tool agrees with the others on code that is not in the workloads.
 
 Diagnostics are compared by file, line, column, category and code, not by message text and not by exit code
 (tsc 7.0.2 exits 1 where the others exit 2 for the same error). The exit code still has to agree: 0 when no
