@@ -12,9 +12,71 @@ tsconfig = "tsconfig.bench.json" # tsconfig.json with module/moduleResolution no
 "7.0" = []
 "7.1" = []
 
-# Appended to a file in a throwaway copy of the workload: every tool must report exactly this, in addition
-# to the expected diagnostics.
-[seeded_error]
-file = "src/util/StringUtils.ts"
-append = "\nexport const benchSeededError: number = \"not a number\"\n"
-expect = "src/util/StringUtils.ts(125,14): error TS2322"
+# Seeded errors. All of them are appended together to one throwaway copy of the workload (each to the end of
+# its own file, so no line above it moves), and every scenario must then report exactly the expected
+# diagnostics above plus every `expect` below, for the tool's TypeScript line. Each error depends on a type
+# declared in another file, so a tool only finds it if it resolved and checked across files.
+# `intent` says what the snippet is meant to exercise; positions were taken from what the tools reported.
+
+[[seeded_errors]]
+intent = "TS2345: wrong argument to a project function (hash from src/util/StringUtils.ts)"
+file = "src/driver/DriverUtils.ts"
+append = "\nexport const benchSeedHashArgument: string = hash(42)\n"
+[seeded_errors.expect]
+"6.0" = ["src/driver/DriverUtils.ts(293,51): error TS2345"]
+"7.0" = ["src/driver/DriverUtils.ts(293,51): error TS2345"]
+"7.1" = ["src/driver/DriverUtils.ts(293,51): error TS2345"]
+
+[[seeded_errors]]
+intent = "TS2339: property that does not exist on a project class (EntityManager)"
+file = "src/repository/Repository.ts"
+append = "\nexport function benchSeedMissingMember(manager: EntityManager): unknown {\n    return manager.benchMissingMember\n}\n"
+[seeded_errors.expect]
+"6.0" = ["src/repository/Repository.ts(840,20): error TS2339"]
+"7.0" = ["src/repository/Repository.ts(840,20): error TS2339"]
+"7.1" = ["src/repository/Repository.ts(840,20): error TS2339"]
+
+[[seeded_errors]]
+intent = "TS2322: mistyped property in an object literal typed by a project interface (ColumnMetadataArgs.mode, a union declared in a third file)"
+file = "src/metadata/ColumnMetadata.ts"
+append = "\nexport const benchSeedColumnArgs: ColumnMetadataArgs = {\n    target: \"bench\",\n    propertyName: \"bench\",\n    mode: \"sideways\",\n    options: {},\n}\n"
+[seeded_errors.expect]
+"6.0" = ["src/metadata/ColumnMetadata.ts(1002,5): error TS2322"]
+"7.0" = ["src/metadata/ColumnMetadata.ts(1002,5): error TS2322"]
+"7.1" = ["src/metadata/ColumnMetadata.ts(1002,5): error TS2322"]
+
+[[seeded_errors]]
+intent = "TS2344: violated generic constraint of a project class (SelectQueryBuilder<Entity extends ObjectLiteral>)"
+file = "src/find-options/FindOptionsUtils.ts"
+append = "\nexport type BenchSeedConstraint = SelectQueryBuilder<number>\n"
+[seeded_errors.expect]
+"6.0" = ["src/find-options/FindOptionsUtils.ts(419,54): error TS2344"]
+"7.0" = ["src/find-options/FindOptionsUtils.ts(419,54): error TS2344"]
+"7.1" = ["src/find-options/FindOptionsUtils.ts(419,54): error TS2344"]
+
+[[seeded_errors]]
+intent = "TS18048: possibly-undefined access under strict null checks (optional Table.comment)"
+file = "src/migration/MigrationExecutor.ts"
+append = "\nexport function benchSeedPossiblyUndefined(table: Table): number {\n    return table.comment.length\n}\n"
+[seeded_errors.expect]
+"6.0" = ["src/migration/MigrationExecutor.ts(766,12): error TS18048"]
+"7.0" = ["src/migration/MigrationExecutor.ts(766,12): error TS18048"]
+"7.1" = ["src/migration/MigrationExecutor.ts(766,12): error TS18048"]
+
+[[seeded_errors]]
+intent = "TS2420: class that does not implement a project interface (NamingStrategyInterface)"
+file = "src/naming-strategy/DefaultNamingStrategy.ts"
+append = "\nexport class BenchSeedNamingStrategy implements NamingStrategyInterface {}\n"
+[seeded_errors.expect]
+"6.0" = ["src/naming-strategy/DefaultNamingStrategy.ts(201,14): error TS2420"]
+"7.0" = ["src/naming-strategy/DefaultNamingStrategy.ts(201,14): error TS2420"]
+"7.1" = ["src/naming-strategy/DefaultNamingStrategy.ts(201,14): error TS2420"]
+
+[[seeded_errors]]
+intent = "TS2345: object literal missing a required property (TableOptions.name), in a test file, through the re-exports of src/index.ts"
+file = "test/utils/test-utils.ts"
+append = "\nexport const benchSeedTable: Table = new Table({ columns: [] })\n"
+[seeded_errors.expect]
+"6.0" = ["test/utils/test-utils.ts(614,48): error TS2345"]
+"7.0" = ["test/utils/test-utils.ts(614,48): error TS2345"]
+"7.1" = ["test/utils/test-utils.ts(614,48): error TS2345"]
