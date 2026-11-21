@@ -11,10 +11,9 @@ project, and the expected diagnostics plus every one of seven or eight errors se
 copy of each, in every mode. The tools implement different TypeScript revisions: tsc 7.1 (beta) and tsrs are two \
 packaged implementations with the same declared upstream revision, so they are the like-for-like pair; tsc-rs \
 tracks an earlier 7.1 build, and tsc 6.0 and 7.0 are older lines."""
-# "example" keeps the domain off the website until it has a result bundle: the website's dataset tests reject a
-# published domain without a run. Set it to "experimental" in the pull request that adds the first bundle; the
-# website then marks the domain as such next to its numbers.
-status = "example"
+# "experimental": published on the website, marked as such next to its numbers. A domain without a result
+# bundle has to stay "example" (the website's dataset tests reject a published domain without a run).
+status = "experimental"
 harness = "harness:CompilerHarness"
 methodology_version = "1"
 ranking_note = "Mixed TypeScript revisions: tsc 7.1 (beta) and tsrs declare the same upstream revision, tsc-rs is pinned to an earlier 7.1 build, tsc 6.0 and 7.0 are older lines."

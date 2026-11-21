@@ -2,10 +2,9 @@
 
 The same TypeScript projects, type-checked and compiled by five tools.
 
-The domain is not on the website yet (`status = "example"` in `domain.toml`): it has no published result
-bundle. With its first one it becomes `experimental`, and the website marks it as such next to its numbers.
+The domain is `experimental` (`status` in `domain.toml`): the website marks it as such next to its numbers.
 The note shown above its rankings (`ranking_note`), its suggested comparisons (`[[compare]]`) and its part of
-the website's methodology page (`[methodology]`) are already declared in `domain.toml`.
+the website's methodology page (`[methodology]`) are declared in `domain.toml`.
 
 | Implementation | npm package | Written in | TypeScript line | Status |
 |---|---|---|---|---|
